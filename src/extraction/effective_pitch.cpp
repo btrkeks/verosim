@@ -13,10 +13,10 @@ constexpr char kFlatOrder[] = { 'b', 'e', 'a', 'd', 'g', 'c', 'f' };
 void AccidentalState::StartMeasure()
 {
     measure_state_.clear();
-    // tie_carry_ survives exactly one barline: anything not consumed by the
-    // first note of the new measure is dropped when that note resolves (we
-    // keep it simple and let entries persist until overwritten — a tie
-    // target consumes its entry below).
+    // tie_carry_ deliberately survives the barline: an entry lives until its
+    // tie target consumes it (Resolve below). Entries from ties whose target
+    // never resolves linger, harmlessly — they are only consulted by notes
+    // that ARE tie targets, and a genuine re-registration overwrites them.
 }
 
 int AccidentalState::KeyAlter(char step) const
@@ -47,7 +47,10 @@ int AccidentalState::Resolve(char step, int octave, const int *written_alter,
         alter = *gestural_alter;
     }
     else if (tied_from_previous && tie_carry_.count(key)) {
+        // only the tie target consumes the entry: an untied same-pitch note
+        // in another layer must not clear a carry that is still pending
         alter = tie_carry_.at(key);
+        tie_carry_.erase(key);
     }
     else if (measure_state_.count(key)) {
         alter = measure_state_.at(key); // within-measure carry
@@ -57,7 +60,6 @@ int AccidentalState::Resolve(char step, int octave, const int *written_alter,
     }
 
     measure_state_[key] = alter;
-    tie_carry_.erase(key);
     return alter;
 }
 

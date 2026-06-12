@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -45,10 +46,13 @@ def run_counts(bin_path: Path, files: list[str], data_root: str) -> dict[str, di
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as tmp:
         tmp.write("\n".join(files) + "\n")
         list_path = tmp.name
-    proc = subprocess.run(
-        [str(bin_path), "--count-symbols", "--files-from", list_path, "--base-dir", data_root],
-        capture_output=True, text=True, check=True,
-    )
+    try:
+        proc = subprocess.run(
+            [str(bin_path), "--count-symbols", "--files-from", list_path, "--base-dir", data_root],
+            capture_output=True, text=True, check=True,
+        )
+    finally:
+        os.unlink(list_path)
     out: dict[str, dict] = {}
     for line in proc.stdout.splitlines():
         if not line.strip():

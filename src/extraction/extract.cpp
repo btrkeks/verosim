@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 
@@ -126,6 +127,24 @@ std::string ClefSign(vrv::data_CLEFSHAPE shape)
     }
 }
 
+// governing measure length in QL from a meterSig; false when the element
+// carries neither a usable count/unit nor a common/cut symbol
+bool MeterQLFromMeterSig(const vrv::MeterSig &metersig, Fraction &ql)
+{
+    const vrv::data_METERCOUNT_pair count = metersig.GetCount();
+    int total = 0;
+    for (const int c : count.first) total += c;
+    if (total > 0 && metersig.GetUnit() > 0) {
+        ql = Fraction(4 * total, metersig.GetUnit());
+        return true;
+    }
+    if (metersig.GetSym() != vrv::METERSIGN_NONE) {
+        ql = Fraction(4); // common or cut: 4 QL either way
+        return true;
+    }
+    return false;
+}
+
 // ---------------------------------------------------------------------------
 // Extraction context
 // ---------------------------------------------------------------------------
@@ -186,7 +205,7 @@ private:
     void EmitMeasure(const vrv::Measure *measure, const std::string &staffN,
         std::vector<Event> events, std::vector<SymExtra> extras, StaffState &state);
     SymNote MakeSymNote(const Event &ev, const vrv::Note *note, const vrv::Object *carrier,
-        int idxInChord, StaffState &state, bool tiedFromPrevious);
+        int idxInChord, StaffState &state);
 
     SymExtra MakeClefExtra(const vrv::Clef &clef, const Fraction &offset);
     SymExtra MakeKeySigExtra(const vrv::KeySig &keysig, const Fraction &offset);
@@ -198,8 +217,12 @@ private:
     std::set<std::string> warned_;
     std::map<std::string, StaffState> staves_; // staff @n -> state
     std::vector<std::string> staff_order_;
-    // tie targets in the current measure (@endid of tie control elements)
+    // note ids referenced by tie control elements. A <tie> is a child of the
+    // measure where the tie STARTS, but its @endid may point into the next
+    // measure, so both sets persist across measures; entries are consumed
+    // when the referenced note is resolved (MakeSymNote).
     std::set<std::string> tie_end_ids_;
+    std::set<std::string> tie_start_ids_;
 };
 
 ExtractResult Extractor::Run()
@@ -274,8 +297,11 @@ void Extractor::ApplyScoreDefChange(const vrv::ScoreDef *scoreDef)
         }
     }
 
+    // pass the scoreDef as parent so a staffDef first seen here (a staff
+    // introduced mid-score) inherits scoreDef-level components too; existing
+    // staves just get an equivalent copy of what the loop above already set
     for (const vrv::Object *obj : scoreDef->FindAllDescendantsByType(vrv::STAFFDEF)) {
-        ApplyStaffDef(vrv_cast<const vrv::StaffDef *>(obj), nullptr);
+        ApplyStaffDef(vrv_cast<const vrv::StaffDef *>(obj), scoreDef);
     }
 }
 
@@ -312,17 +338,20 @@ void Extractor::ApplyStaffDef(const vrv::StaffDef *staffDef, const vrv::ScoreDef
 
 void Extractor::HandleMeasure(const vrv::Measure *measure)
 {
-    // tie control elements: targets (@endid) are tied-from-previous notes
-    tie_end_ids_.clear();
+    // tie control elements: @startid notes carry the sounding alter across
+    // the barline (RegisterTieStart), @endid notes are tied-from-previous
+    const auto addRef = [](const std::string &ref, std::set<std::string> &ids) {
+        std::string id = ref;
+        if (!id.empty() && id[0] == '#') id.erase(0, 1);
+        if (!id.empty()) ids.insert(std::move(id));
+    };
     for (const vrv::Object *child : measure->GetChildren()) {
         if (!child->Is(vrv::TIE)) continue;
         const vrv::TimeSpanningInterface *interface
             = child->GetTimeSpanningInterface();
-        if (interface && interface->HasEndid()) {
-            std::string endid = interface->GetEndid();
-            if (!endid.empty() && endid[0] == '#') endid.erase(0, 1);
-            tie_end_ids_.insert(endid);
-        }
+        if (!interface) continue;
+        if (interface->HasEndid()) addRef(interface->GetEndid(), tie_end_ids_);
+        if (interface->HasStartid()) addRef(interface->GetStartid(), tie_start_ids_);
     }
 
     for (const vrv::Object *child : measure->GetChildren()) {
@@ -357,15 +386,7 @@ void Extractor::HandleMeasure(const vrv::Measure *measure)
         }
         if (state.pending.metersig) {
             extras.push_back(MakeMeterSigExtra(*state.pending.metersig, Fraction(0)));
-            const vrv::data_METERCOUNT_pair count = state.pending.metersig->GetCount();
-            int total = 0;
-            for (const int c : count.first) total += c;
-            if (total > 0 && state.pending.metersig->GetUnit() > 0) {
-                state.meter_ql = Fraction(4 * total, state.pending.metersig->GetUnit());
-                state.has_meter = true;
-            }
-            else if (state.pending.metersig->GetSym() != vrv::METERSIGN_NONE) {
-                state.meter_ql = Fraction(4); // common or cut: 4 QL either way
+            if (MeterQLFromMeterSig(*state.pending.metersig, state.meter_ql)) {
                 state.has_meter = true;
             }
         }
@@ -421,8 +442,11 @@ void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &e
                 keysig->GetAccidType() == vrv::ACCIDENTAL_WRITTEN_f ? -count : count);
         }
         else if (child->Is(vrv::METERSIG)) {
-            extras.push_back(
-                MakeMeterSigExtra(*vrv_cast<const vrv::MeterSig *>(child), cursor));
+            const vrv::MeterSig *metersig = vrv_cast<const vrv::MeterSig *>(child);
+            extras.push_back(MakeMeterSigExtra(*metersig, cursor));
+            // mirror the inline KEYSIG case: the new meter governs any
+            // following mRest (in this measure and beyond)
+            if (MeterQLFromMeterSig(*metersig, state.meter_ql)) state.has_meter = true;
         }
         else if (child->Is(vrv::BARLINE) || child->Is(vrv::MNUM) || child->Is(vrv::TUPLET_NUM)
             || child->Is(vrv::TUPLET_BRACKET)) {
@@ -538,14 +562,15 @@ void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staf
     std::stable_sort(extras.begin(), extras.end(),
         [](const SymExtra &a, const SymExtra &b) { return a.offset < b.offset; });
     std::vector<SymExtra> dedupedExtras;
-    const std::string *mostRecentClef = nullptr;
+    std::optional<std::string> mostRecentClef; // by value: push_back reallocation
+                                               // would invalidate a pointer in
     for (SymExtra &extra : extras) {
         if (extra.kind == ExtraKind::kClef) {
-            if (mostRecentClef && extra.symbolic.has_value() && *mostRecentClef == *extra.symbolic) {
+            if (mostRecentClef.has_value() && extra.symbolic == mostRecentClef) {
                 continue;
             }
+            mostRecentClef = extra.symbolic;
             dedupedExtras.push_back(std::move(extra));
-            mostRecentClef = &*dedupedExtras.back().symbolic;
         }
         else {
             dedupedExtras.push_back(std::move(extra));
@@ -657,8 +682,7 @@ void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staf
                 });
             int idx = 0;
             for (const vrv::Note *member : members) {
-                const bool tied = tie_end_ids_.count(member->GetID()) > 0;
-                SymNote sn = MakeSymNote(ev, member, chord, idx++, state, tied);
+                SymNote sn = MakeSymNote(ev, member, chord, idx++, state);
                 fillShared(sn);
                 symMeasure.notes.push_back(std::move(sn));
             }
@@ -672,8 +696,7 @@ void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staf
         }
         else {
             const vrv::Note *note = vrv_cast<const vrv::Note *>(ev.obj);
-            const bool tied = tie_end_ids_.count(note->GetID()) > 0;
-            SymNote sn = MakeSymNote(ev, note, note, -1, state, tied);
+            SymNote sn = MakeSymNote(ev, note, note, -1, state);
             fillShared(sn);
             symMeasure.notes.push_back(std::move(sn));
         }
@@ -685,7 +708,7 @@ void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staf
 }
 
 SymNote Extractor::MakeSymNote(const Event &ev, const vrv::Note *note,
-    const vrv::Object *carrier, int idxInChord, StaffState &state, bool tiedFromPrevious)
+    const vrv::Object *carrier, int idxInChord, StaffState &state)
 {
     SymNote sn;
     sn.vrv_id = carrier->GetID();
@@ -729,18 +752,23 @@ SymNote Extractor::MakeSymNote(const Event &ev, const vrv::Note *note,
         break;
     }
 
-    // tie: control element (@endid) or @tie attribute on the note
-    bool tied = tiedFromPrevious;
+    // tie: control element (@endid/@startid, possibly registered by the
+    // PREVIOUS measure's <tie>) or @tie attribute (MEI input; neither
+    // importer emits it). erase() consumes the one-shot control-element refs.
+    bool tied = tie_end_ids_.erase(note->GetID()) > 0;
     if (note->HasTie()
         && (note->GetTie() == vrv::TIE_m || note->GetTie() == vrv::TIE_t)) {
         tied = true;
+    }
+    bool tieStart = tie_start_ids_.erase(note->GetID()) > 0;
+    if (note->HasTie()
+        && (note->GetTie() == vrv::TIE_i || note->GetTie() == vrv::TIE_m)) {
+        tieStart = true;
     }
 
     if (step != 0) {
         pitch.sounding_alter
             = state.accids.Resolve(step, note->GetOct(), writtenAlter, gesturalAlter, tied);
-        const bool tieStart = note->HasTie()
-            && (note->GetTie() == vrv::TIE_i || note->GetTie() == vrv::TIE_m);
         if (tieStart) {
             state.accids.RegisterTieStart(step, note->GetOct(), pitch.sounding_alter);
         }
@@ -821,7 +849,11 @@ SymExtra Extractor::MakeMeterSigExtra(const vrv::MeterSig &metersig, const Fract
     int total = 0;
     for (const int c : count.first) total += c;
     extra.infodict.emplace_back("numerator", std::to_string(total));
-    extra.infodict.emplace_back("denominator", std::to_string(metersig.GetUnit()));
+    if (metersig.GetForm() != vrv::METERFORM_num) {
+        // MusicXML symbol="single-number" (iomusxml: @form="num") shows the
+        // numerator only; m21 timesig_to_infodict then emits one entry
+        extra.infodict.emplace_back("denominator", std::to_string(metersig.GetUnit()));
+    }
     return extra;
 }
 

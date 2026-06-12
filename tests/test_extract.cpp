@@ -20,6 +20,13 @@ ExtractResult Extract(const std::string &name, SourceFormat format)
     return ExtractSymScore(bridge.GetDoc(), format);
 }
 
+ExtractResult ExtractFixture(const std::string &name, SourceFormat format)
+{
+    VrvBridge bridge;
+    REQUIRE(bridge.LoadScoreFile(std::string(VEROSIM_TEST_FIXTURE_DIR) + "/" + name));
+    return ExtractSymScore(bridge.GetDoc(), format);
+}
+
 } // namespace
 
 TEST_CASE("mono.krn: offsets, beams, dots", "[extract]")
@@ -215,4 +222,56 @@ TEST_CASE("tiny.xml: MusicXML side", "[extract]")
     CHECK(m2.notes[0].pitches[0].accid == "sharp");
     CHECK(m2.notes[2].pitches[0].accid == "None");
     CHECK(m2.notes[2].pitches[0].sounding_alter == 1); // within-measure carry
+}
+
+TEST_CASE("tie_chain.krn: sounding alter carries across barlines via ties", "[extract]")
+{
+    // <tie> control elements live in the measure where the tie STARTS, with
+    // @endid pointing into the next measure; the middle note of the chain is
+    // both a tie target and a new tie start. music21 reference (pinned
+    // 2026-06-12): alter +1 on every link, visible accidental on the first only.
+    const ExtractResult result = ExtractFixture("tie_chain.krn", SourceFormat::kKern);
+    CHECK(result.warnings.empty());
+    const SymPart &part = result.score.parts[0];
+    REQUIRE(part.bar_list.size() == 3);
+    const SymNote &start = part.bar_list[0].notes[1]; // [4f#
+    CHECK(start.pitches[0].accid == "sharp");
+    CHECK(start.pitches[0].sounding_alter == 1);
+    const SymNote &middle = part.bar_list[1].notes[0]; // 4f#_
+    CHECK(middle.pitches[0].accid == "None");
+    CHECK(middle.pitches[0].sounding_alter == 1);
+    const SymNote &end = part.bar_list[2].notes[0]; // 4f#]
+    CHECK(end.pitches[0].accid == "None");
+    CHECK(end.pitches[0].sounding_alter == 1);
+}
+
+TEST_CASE("inline_meter.mei: layer meterSig governs a following mRest", "[extract]")
+{
+    // a meterSig inline in a layer (MEI input only; both importers emit
+    // scoreDef changes instead) must update the governing measure length
+    const ExtractResult result = ExtractFixture("inline_meter.mei", SourceFormat::kOther);
+    CHECK(result.warnings.empty());
+    const SymPart &part = result.score.parts[0];
+    REQUIRE(part.bar_list.size() == 2);
+    REQUIRE(part.bar_list[0].extras.size() == 3); // clef, 4/4, inline 3/4
+    CHECK(part.bar_list[0].extras[2].kind == ExtraKind::kTimeSig);
+    CHECK(part.bar_list[0].extras[2].offset == Fraction(2));
+    const SymNote &mrest = part.bar_list[1].notes[0];
+    CHECK(mrest.pitches[0].step_octave == "R");
+    CHECK(mrest.note_dur_type == "half"); // 3/4 full-measure rest = dotted half
+    CHECK(mrest.dots == 1);
+}
+
+TEST_CASE("single_number.xml: single-number timesig counts one symbol", "[extract]")
+{
+    // <time symbol="single-number"> -> @form="num" -> numerator-only
+    // infodict; cross-checked against count_oracle.py (total 9 == 9)
+    const ExtractResult result = ExtractFixture("single_number.xml", SourceFormat::kMusicXml);
+    CHECK(result.warnings.empty());
+    const SymMeasure &m1 = result.score.parts[0].bar_list[0];
+    REQUIRE(m1.extras.size() == 3);
+    const SymExtra &timesig = m1.extras[2];
+    CHECK(timesig.kind == ExtraKind::kTimeSig);
+    CHECK(timesig.notation_size() == 1);
+    CHECK(result.score.notation_size() == 9);
 }

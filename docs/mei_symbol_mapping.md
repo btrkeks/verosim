@@ -44,7 +44,7 @@ measure             → staff@n → layer@n → events; control elements (tie @s
 | `tuplet` (container, @num @numbase) | per-note tuplet-type entries + tuplet_info (num string on start, "" otherwise) | 2 per active tuplet per note (type + info) |
 | `clef` (staffDef child or inline in layer) | SymExtra kind=clef, symbolic `{shape}{line}[{±8}]` | 1 |
 | `keySig` (@sig, staffDef child or scoreDef child) | SymExtra kind=keysig, infodict per accidental; sig=0 → `flats/sharps: none` | max(1, |accidentals|) |
-| `meterSig` (@count @unit @sym) | SymExtra kind=timesig | 2 (numerator+denominator) or 1 (@sym common/cut) |
+| `meterSig` (@count @unit @sym @form) | SymExtra kind=timesig | 2 (numerator+denominator), or 1 (@sym common/cut; @form="num" = MusicXML single-number → numerator only) |
 | `mNum`, `stem`, `flag`, `dots`, `label`, `instrDef`, `pgHead`, `grpSym`, `mdiv`, milestones | ignored | 0 |
 
 ## Accidentals / effective pitch (D13)
@@ -55,6 +55,12 @@ measure             → staff@n → layer@n → events; control elements (tie @s
 - Sounding alter: `@accid.ges` when present (MusicXML carried/keysig-implied
   notes get it: iomusxml.cpp m_currentAccids; kern sets it on some paths),
   else resolver: key signature + within-measure carry + tie propagation.
+  Ties come from `<tie>` control elements (`@startid` registers the carry,
+  `@endid` marks the target) — the element lives in the measure where the
+  tie *starts*, so the id sets persist across barlines and are consumed as
+  the referenced notes resolve. Neither importer emits the `@tie` attribute
+  (checked M3 review, 2026-06-12); the attribute path exists for MEI input
+  only. Pinned by `tests/fixtures/tie_chain.krn` against music21.
 - MusicXML `<alter>` **without** `<accidental>` element: music21 leaves the
   accidental invisible (HAND-10 tiny.xml pins this) — consistent with @accid
   counting. An `<alter>` contradicting both keysig and carry without a printed
