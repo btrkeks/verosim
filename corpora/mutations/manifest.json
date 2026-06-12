@@ -819,7 +819,8 @@
           "replace": "."
         }
       ],
-      "rationale": "Last bass note of m1 nulled: noteins(2). Cross-check pinned: +1 'bad kern syntax' - converter21 (acceptSyntaxErrors=True, pred side only) flags the resulting bass-spine timing gap as a fixed syntax error, and annotated_scores_diff adds the fix count to the distance (comparison.py:1665). Single-spine trailing nulls do not trigger this."
+      "rationale": "Last bass note of m1 nulled: noteins(2). Cross-check pinned: +1 'bad kern syntax' - converter21 (acceptSyntaxErrors=True, pred side only) flags the resulting bass-spine timing gap as a fixed syntax error, and annotated_scores_diff adds the fix count to the distance (comparison.py:1665). Single-spine trailing nulls do not trigger this.",
+      "verovio_divergence": "Rhythm-broken kern (bass spine short of the treble): humlib repairs with straddle <space> filler that shifts note offsets, so the C++ side unpairs differently than converter21; the +1 syntax-fix cost is oracle-only regardless (D4 deferred). Excluded from the C++ exact gate per D6 (M3 exit record)."
     },
     {
       "id": "grand_whole_to_half",
@@ -837,7 +838,8 @@
           "replace": "2g"
         }
       ],
-      "rationale": "Whole -> half in treble m2: note_head 1 vs 2, headedit = 2."
+      "rationale": "Whole -> half in treble m2: note_head 1 vs 2, headedit = 2.",
+      "verovio_divergence": "Rhythm-broken kern (treble m2 now shorter than bass): humlib inserts straddle <space> filler before both m2 notes, shifting their offsets so neither pairs; converter21 keeps the note at offset 0. Excluded from the C++ exact gate per D6 (M3 exit record)."
     },
     {
       "id": "grand_bass_octave",

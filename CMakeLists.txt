@@ -34,7 +34,14 @@ add_library(verosim_core STATIC
     src/extraction/effective_pitch.cpp
     src/extraction/notation_rules.cpp
     src/model/sym_score.cpp
+    src/engine/interner.cpp
+    src/engine/myers.cpp
+    src/engine/note_diff.cpp
+    src/engine/set_distance.cpp
+    src/engine/block_diff.cpp
+    src/engine/compare.cpp
     src/cli/check.cpp
+    src/cli/compare_cli.cpp
     src/cli/count_symbols.cpp
     src/cli/dump_tree.cpp)
 target_include_directories(verosim_core PUBLIC include ${VEROVIO_INCLUDE_DIRS})

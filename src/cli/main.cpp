@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "verosim/cli/check.h"
+#include "verosim/cli/compare_cli.h"
 #include "verosim/cli/count_symbols.h"
 #include "verosim/cli/dump_tree.h"
 #include "verosim/extraction/vrv_bridge.h"
@@ -13,7 +14,11 @@ namespace {
 
 void PrintUsage(std::ostream &os)
 {
-    os << "usage: verosim <fileA> <fileB>        compare two scores (placeholder until M3)\n"
+    os << "usage: verosim <pred> <gt> [--ops]    compare two scores, OMR-NED as JSON\n"
+          "                                      (--ops includes the per-edit operation list)\n"
+          "       verosim --pairs <tsv> [--base-dir <dir>] [--ops]\n"
+          "                                      compare every pred<TAB>gt pair in <tsv>\n"
+          "                                      (JSONL, one record per pair, always exits 0)\n"
           "       verosim --dump-tree <file>     print the parsed Verovio object tree\n"
           "       verosim --check <file>         load one file, report warnings/errors (JSONL)\n"
           "       verosim --check --files-from <list> [--base-dir <dir>]\n"
@@ -37,18 +42,40 @@ int DumpTreeMain(const std::string &path)
     return 0;
 }
 
-int CompareMain(const std::string &pathA, const std::string &pathB)
+int CompareMain(const std::string &predPath, const std::string &gtPath, bool emitOps)
 {
-    verosim::VrvBridge bridgeA;
-    verosim::VrvBridge bridgeB;
-    const bool loadedA = bridgeA.LoadScoreFile(pathA);
-    const bool loadedB = bridgeB.LoadScoreFile(pathB);
-    if (!loadedA) std::cerr << "verosim: failed to load " << pathA << '\n';
-    if (!loadedB) std::cerr << "verosim: failed to load " << pathB << '\n';
-    std::cout << "{\"loaded\":[" << (loadedA ? "true" : "false") << ','
-              << (loadedB ? "true" : "false")
-              << "],\"note\":\"comparison engine lands in M2/M3\"}\n";
-    return (loadedA && loadedB) ? 0 : 1;
+    verosim::VrvBridge bridge;
+    const verosim::CompareCliOptions options{ .emit_ops = emitOps };
+    return verosim::ComparePairToJson(bridge, predPath, gtPath, options, std::cout) ? 0 : 1;
+}
+
+int ComparePairsMain(const std::string &listPath, const std::string &baseDir, bool emitOps)
+{
+    std::ifstream list(listPath);
+    if (!list) {
+        std::cerr << "verosim: cannot read pairs list " << listPath << '\n';
+        return 2;
+    }
+    verosim::VrvBridge bridge;
+    const verosim::CompareCliOptions options{ .emit_ops = emitOps };
+    std::string line;
+    while (std::getline(list, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        const auto tab = line.find('\t');
+        if (tab == std::string::npos) {
+            std::cerr << "verosim: skipping malformed pairs line (no tab): " << line << '\n';
+            continue;
+        }
+        std::string pred = line.substr(0, tab);
+        std::string gt = line.substr(tab + 1);
+        if (!baseDir.empty()) {
+            pred = baseDir + "/" + pred;
+            gt = baseDir + "/" + gt;
+        }
+        verosim::ComparePairToJson(bridge, pred, gt, options, std::cout);
+        std::cout.flush(); // same durability contract as --check list mode
+    }
+    return 0; // failures are data (recorded per pair), like the other list modes
 }
 
 int CheckOneMain(const std::string &path)
@@ -111,8 +138,28 @@ int CountSymbolsListMain(const std::string &listPath, const std::string &baseDir
 
 int main(int argc, char **argv)
 {
-    const std::vector<std::string> args(argv + 1, argv + argc);
+    std::vector<std::string> args(argv + 1, argv + argc);
+    // --ops modifies the compare modes only; strip it before dispatch.
+    bool emitOps = false;
+    std::erase_if(args, [&](const std::string &a) {
+        if (a == "--ops") {
+            emitOps = true;
+            return true;
+        }
+        return false;
+    });
     try {
+        if (!args.empty() && args[0] == "--pairs") {
+            std::string listPath, baseDir;
+            if (args.size() >= 2 && args[1][0] != '-') listPath = args[1];
+            for (std::size_t i = 2; i + 1 < args.size(); i += 2) {
+                if (args[i] == "--base-dir") baseDir = args[i + 1];
+                else { listPath.clear(); break; }
+            }
+            if (!listPath.empty() && (args.size() == 2 || args.size() == 4)) {
+                return ComparePairsMain(listPath, baseDir, emitOps);
+            }
+        }
         if (args.size() == 2 && args[0] == "--dump-tree") {
             return DumpTreeMain(args[1]);
         }
@@ -148,7 +195,7 @@ int main(int argc, char **argv)
             }
         }
         if (args.size() == 2 && args[0][0] != '-' && args[1][0] != '-') {
-            return CompareMain(args[0], args[1]);
+            return CompareMain(args[0], args[1], emitOps);
         }
     }
     catch (const std::exception &e) {

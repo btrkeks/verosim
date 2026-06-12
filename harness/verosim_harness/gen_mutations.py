@@ -275,11 +275,20 @@ CASES: list[dict] = [
                    "kern syntax' - converter21 (acceptSyntaxErrors=True, pred side only) "
                    "flags the resulting bass-spine timing gap as a fixed syntax error, and "
                    "annotated_scores_diff adds the fix count to the distance "
-                   "(comparison.py:1665). Single-spine trailing nulls do not trigger this."),
+                   "(comparison.py:1665). Single-spine trailing nulls do not trigger this.",
+         verovio_divergence="Rhythm-broken kern (bass spine short of the treble): humlib "
+                   "repairs with straddle <space> filler that shifts note offsets, so the "
+                   "C++ side unpairs differently than converter21; the +1 syntax-fix cost "
+                   "is oracle-only regardless (D4 deferred). Excluded from the C++ exact "
+                   "gate per D6 (M3 exit record)."),
     dict(id="grand_whole_to_half", base="grand.krn", tier="tierA",
          edits=[dict(line=12, find="1g", replace="2g")],
          expected_cost=2, expected_ops={"headedit": 1},
-         rationale="Whole -> half in treble m2: note_head 1 vs 2, headedit = 2."),
+         rationale="Whole -> half in treble m2: note_head 1 vs 2, headedit = 2.",
+         verovio_divergence="Rhythm-broken kern (treble m2 now shorter than bass): humlib "
+                   "inserts straddle <space> filler before both m2 notes, shifting their "
+                   "offsets so neither pairs; converter21 keeps the note at offset 0. "
+                   "Excluded from the C++ exact gate per D6 (M3 exit record)."),
     dict(id="grand_bass_octave", base="grand.krn", tier="tierA",
          edits=[dict(line=12, find="1CC", replace="1C")],
          expected_cost=4, expected_ops={"insbar": 1, "delbar": 1},
@@ -334,18 +343,23 @@ def build() -> tuple[dict, dict[str, str]]:
     for case in CASES:
         base_path = MUTATIONS_DIR / "base" / case["base"]
         mutated[case["id"]] = apply_case(base_path.read_text(encoding="utf-8"), case)
-        cases_out.append(
-            {
-                "id": case["id"],
-                "base": f"base/{case['base']}",
-                "mutated": f"cases/{case['id']}.krn",
-                "tier": case["tier"],
-                "expected_cost": case["expected_cost"],
-                "expected_ops": case["expected_ops"],
-                "edits": case["edits"],
-                "rationale": case["rationale"],
-            }
-        )
+        case_out = {
+            "id": case["id"],
+            "base": f"base/{case['base']}",
+            "mutated": f"cases/{case['id']}.krn",
+            "tier": case["tier"],
+            "expected_cost": case["expected_cost"],
+            "expected_ops": case["expected_ops"],
+            "edits": case["edits"],
+            "rationale": case["rationale"],
+        }
+        # Cases whose mutation breaks kern spine-rhythm consistency parse
+        # differently under Verovio humlib than under converter21 (D6); the
+        # expectations above hold for the oracle, and the C++ mutation gate
+        # (tests/test_mutation_gate.cpp) skips cases carrying this field.
+        if "verovio_divergence" in case:
+            case_out["verovio_divergence"] = case["verovio_divergence"]
+        cases_out.append(case_out)
     manifest = {
         "schema": 1,
         "generated_by": "harness/verosim_harness/gen_mutations.py",

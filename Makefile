@@ -3,7 +3,7 @@ PY := harness/.venv/bin/python
 DATA_ROOT := /home/daniel/.local/share/src/Transcoda/main/data/interim
 JOBS := 2
 
-.PHONY: build test bench clean corpora oracle-dev200 mutgen mutcheck sweep harness-test count-audit
+.PHONY: build test bench clean corpora oracle-dev200 mutgen mutcheck sweep harness-test count-audit identity-gate corr-audit
 
 build:
 	cmake -S . -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -53,6 +53,26 @@ count-audit: build
 	$(PY) -m verosim_harness.count_audit --oracle oracle/dev200_tierA.jsonl \
 	  --bin $(BUILD_DIR)/verosim --data-root $(DATA_ROOT) \
 	  --out oracle/count_audit_dev200.jsonl --report docs/count_audit_m2.md
+
+# ---- M3: comparison-engine gates (a) identity and (c) oracle correlation ----
+# (gate (b), the mutation corpus, runs in `make test` via tests/test_mutation_gate.cpp)
+# Gate (c) per D15: the engine-fidelity gate is the same-format (engine-
+# isolating) Spearman on healthy sources >= 0.95; the xml<->krn DEV-200 audit
+# is the measured cross-importer rank agreement with a 0.80 regression floor.
+
+identity-gate: build
+	$(PY) -m verosim_harness.identity_audit --bin $(BUILD_DIR)/verosim \
+	  --data-root $(DATA_ROOT) --out oracle/identity_m3.jsonl
+
+corr-audit: build
+	$(PY) -m verosim_harness.corr_audit --oracle oracle/dev200_tierA.jsonl \
+	  --bin $(BUILD_DIR)/verosim --data-root $(DATA_ROOT) \
+	  --explained corpora/dev200_explained_pairs.tsv --threshold 0.80 \
+	  --out oracle/corr_audit_dev200.jsonl --report docs/corr_audit_m3.md
+	$(PY) -m verosim_harness.synth_corr --bin $(BUILD_DIR)/verosim \
+	  --data-root $(DATA_ROOT) --out oracle/synth_corr_m3.jsonl \
+	  --explained corpora/dev200_explained_pairs.tsv --threshold 0.95 \
+	  --report-append docs/corr_audit_m3.md
 
 harness-test:
 	@test -x $(PY) || { echo "harness venv missing — run harness/setup.sh first"; exit 1; }
