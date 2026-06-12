@@ -1,0 +1,4 @@
+build/
+harness/.venv/
+__pycache__/
+*.pyc

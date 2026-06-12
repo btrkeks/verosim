@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VeroSim v1 &mdash; Attack Plan (Weeks 1&ndash;4)</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #595959;
+    --accent: #1d4e6b;
+    --rule: #d9d4cc;
+    --bg: #fdfcfa;
+    --code-bg: #f3f1ec;
+    --good: #2d6a4f;
+    --warn: #b07d2b;
+    --bad: #9b2226;
+  }
+  html { background: var(--bg); }
+  body {
+    max-width: 56rem;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 6rem;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  header { border-bottom: 3px double var(--rule); padding-bottom: 1.5rem; margin-bottom: 2.5rem; }
+  h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; margin: 0; }
+  .meta { color: var(--muted); font-size: 0.9rem; margin-top: 0.75rem; }
+  h2 {
+    font-size: 1.4rem;
+    margin: 3rem 0 1rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  h2 .secno { color: var(--accent); margin-right: 0.5rem; }
+  h3 { font-size: 1.1rem; margin: 2rem 0 0.75rem; }
+  p { margin: 0.75rem 0; }
+  code, pre {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86em;
+    background: var(--code-bg);
+    border-radius: 3px;
+  }
+  code { padding: 0.1em 0.35em; }
+  pre {
+    padding: 0.9rem 1.1rem;
+    overflow-x: auto;
+    line-height: 1.45;
+    border: 1px solid var(--rule);
+  }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1.25rem 0; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--rule); padding: 0.5rem 0.75rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); font-family: Helvetica, Arial, sans-serif; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .milestone {
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--accent);
+    background: #fff;
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0;
+  }
+  .milestone h3 { margin: 0 0 0.5rem; }
+  .milestone h3 .mid { color: var(--accent); margin-right: 0.4rem; }
+  .milestone h3 .days { float: right; font-size: 0.8rem; font-family: Helvetica, Arial, sans-serif; font-weight: normal; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .milestone .field { margin: 0.4rem 0; }
+  .milestone .field b { font-family: Helvetica, Arial, sans-serif; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  .exit {
+    background: var(--code-bg);
+    border-left: 3px solid var(--good);
+    padding: 0.5rem 1rem;
+    margin: 0.75rem 0 0.25rem;
+    font-size: 0.95rem;
+  }
+  .exit b { color: var(--good); font-family: Helvetica, Arial, sans-serif; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .tier {
+    display: inline-block;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 0.72rem;
+    font-weight: bold;
+    padding: 0.15em 0.55em;
+    border-radius: 3px;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .tier.a { background: var(--good); }
+  .tier.b { background: var(--accent); }
+  .tier.c { background: var(--warn); }
+  .tier.d { background: #6c757d; }
+  nav.toc {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    padding: 1rem 1.5rem;
+    margin: 2rem 0;
+  }
+  nav.toc h2 { margin: 0 0 0.5rem; border: none; font-size: 1rem; font-family: Helvetica, Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.05em; }
+  nav.toc ol { margin: 0; padding-left: 1.4rem; }
+  nav.toc li { margin: 0.2rem 0; }
+  a { color: var(--accent); }
+  .fileref { font-size: 0.88em; }
+  ul.checklist { list-style: none; padding-left: 0.25rem; }
+  ul.checklist li { margin: 0.35rem 0; padding-left: 1.6rem; position: relative; }
+  ul.checklist li::before { content: "\2610"; position: absolute; left: 0; color: var(--accent); }
+  .timeline { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.82rem; }
+  footer { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VeroSim v1 &mdash; Attack Plan</h1>
+  <p class="subtitle">A 2&ndash;4 week execution plan for the core C++ OMR-NED implementation</p>
+  <p class="meta">Status: agreed plan, to be followed &middot; Created: 2026-06-12 &middot; Companion to <a href="implementation_decisions.html">the decision record</a> (governs decisions D1&ndash;D10)</p>
+</header>
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#scope">v1 Scope: Goals and Non-Goals</a></li>
+    <li><a href="#data">Data Inventory</a></li>
+    <li><a href="#tiers">Taxonomy Tiers</a></li>
+    <li><a href="#strategy">Core Strategy: Tiered Oracle Validation</a></li>
+    <li><a href="#milestones">Milestones M0&ndash;M5</a></li>
+    <li><a href="#timeline">Timeline at a Glance</a></li>
+    <li><a href="#engineering">Engineering Decisions</a></li>
+    <li><a href="#testing">Test Architecture (Four Rungs)</a></li>
+    <li><a href="#practices">Working Practices</a></li>
+    <li><a href="#risks">Plan-Level Risks and Pre-Planned Responses</a></li>
+    <li><a href="#dod">Definition of Done for v1</a></li>
+  </ol>
+</nav>
+
+<h2 id="scope"><span class="secno">1</span>v1 Scope: Goals and Non-Goals</h2>
+
+<p>Scope decisions made 2026-06-12 (recorded as D8&ndash;D10 in the <a href="implementation_decisions.html#d8">decision record</a>):</p>
+
+<table>
+  <tr><th>In scope (v1)</th><th>Out of scope (v1)</th></tr>
+  <tr>
+    <td>
+      <ul>
+        <li>End-to-end OMR-NED on MusicXML and Humdrum <code>**kern</code> inputs</li>
+        <li>Tier A + Tier B symbol categories (<a href="#tiers">Section&nbsp;3</a>); Tier C as stretch</li>
+        <li>Validation against the Python <code>musicdiff</code> oracle, tier-matched via <code>DetailLevel</code></li>
+        <li>Fast batch CLI, parallel over score pairs (one <code>Toolkit</code> per thread, per D7)</li>
+        <li>Performance benchmark vs. Python on real corpus data</li>
+      </ul>
+    </td>
+    <td>
+      <ul>
+        <li><b>Cross-importer normalization</b> (D8): small metric differences between MusicXML- and kern-sourced trees of the same piece are accepted; we <em>measure</em> the gap but do not engineer it away</li>
+        <li>Syntax-error costing for malformed input (deferred per D4)</li>
+        <li><b>Lyrics</b> (user decision 2026-06-12): excluded from v1 entirely; all oracle runs exclude lyric symbols</li>
+        <li>Tier D categories (ottavas, arpeggios, chord symbols, endings, tremolos)</li>
+        <li>Bit-exact parity with Python (per D6)</li>
+        <li><code>DetailLevel</code>-style user-facing configurability (internal tier switch only)</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+<p><b>The single sentence that defines success:</b> by the end of week&nbsp;4 we can run <code>verosim pred.krn gt.xml</code> (or any format combination) over thousands of pairs, orders of magnitude faster than Python musicdiff, with tier-matched scores that correlate &ge;&nbsp;0.95 with the Python oracle on the validation corpus.</p>
+
+<h2 id="data"><span class="secno">2</span>Data Inventory</h2>
+
+<p>Available at <code class="fileref">/home/daniel/.local/share/src/Transcoda/main/data/interim</code> (inspected 2026-06-12):</p>
+
+<table>
+  <tr><th>Dataset</th><th>Contents</th><th>Role in this plan</th></tr>
+  <tr>
+    <td><code>train/openscore-lieder</code></td>
+    <td><b>1,462 paired pieces</b>: <code>0_raw_xml/*.xml</code> + <code>1_kern_conversions/*.krn</code>, matched by basename. Realistic multi-staff vocal music with dynamics, lyrics, spine splits/merges.</td>
+    <td><b>Primary validation corpus.</b> Pairs enable both the oracle comparison and the (non-blocking) cross-importer gap measurement.</td>
+  </tr>
+  <tr>
+    <td><code>train/musetrainer</code></td>
+    <td>273 krn, 69 xml (paired subset)</td>
+    <td>Secondary validation corpus; held out from debugging, used for final v1 acceptance only.</td>
+  </tr>
+  <tr>
+    <td><code>train/grandstaff</code></td>
+    <td>246,696 krn (+ 41,598 ekern)</td>
+    <td>Piano music; identity tests at scale, kern-importer robustness sweep, performance benchmark.</td>
+  </tr>
+  <tr>
+    <td><code>train/pdmx</code></td>
+    <td>1,606,951 krn</td>
+    <td>Large-scale performance benchmark and parse-coverage sweep (sampled).</td>
+  </tr>
+  <tr>
+    <td><code>train/imslp</code>, <code>val/polish</code>, <code>val/*</code></td>
+    <td>52 / 214 krn and validation splits</td>
+    <td>Reserve; <code>val/</code> splits stay untouched for any future ML-facing evaluation.</td>
+  </tr>
+</table>
+
+<p><b>Corpus definitions used throughout the plan:</b></p>
+<ul>
+  <li><b>DEV-200:</b> 200 pairs sampled from openscore-lieder (fixed seed, committed file list). Used for day-to-day debugging and oracle comparison.</li>
+  <li><b>HOLDOUT-100:</b> 100 openscore-lieder pairs + all 69 musetrainer pairs, never used during debugging. Final acceptance only.</li>
+  <li><b>PERF-10K:</b> 10,000 kern files sampled from pdmx + grandstaff. Parse-coverage sweep and benchmarks.</li>
+  <li><b>HAND-10:</b> ~10 very small scores (a few measures each, some hand-written) with manually counted symbol inventories per the paper's taxonomy. The only fully human-verified ground truth.</li>
+</ul>
+
+<h2 id="tiers"><span class="secno">3</span>Taxonomy Tiers</h2>
+
+<p>The OMR-NED categories, ordered by frequency in real scores and implementation dependency. Each tier is independently shippable and independently testable against the oracle (<a href="#strategy">Section&nbsp;4</a>).</p>
+
+<table>
+  <tr><th>Tier</th><th>Categories</th><th>Plan status</th></tr>
+  <tr>
+    <td><span class="tier a">Tier A</span></td>
+    <td>Note pitch, accidental, note head, dots, flags/beams (as duration symbols), rests; clef, key signature (per accidental), time signature (per component). Measure alignment, voice/chord handling, offset computation.</td>
+    <td>v1 core &mdash; M2/M3</td>
+  </tr>
+  <tr>
+    <td><span class="tier b">Tier B</span></td>
+    <td>Ties, slurs, articulations, dynamics (incl. hairpin duration symbol), grace notes (+slash).</td>
+    <td>v1 core &mdash; M4</td>
+  </tr>
+  <tr>
+    <td><span class="tier c">Tier C</span></td>
+    <td>Ornaments, text directions (per character).</td>
+    <td>v1 stretch &mdash; M5 if on schedule</td>
+  </tr>
+  <tr>
+    <td><span class="tier d">Tier D</span></td>
+    <td><b>Lyrics</b> (per character + verse number; explicitly excluded from v1, user decision 2026-06-12), ottavas, arpeggios, chord symbols, endings, tremolos, style details (stem direction, color).</td>
+    <td>Post-v1</td>
+  </tr>
+</table>
+
+<p>Note on lyrics: the lieder corpus is full of them, so <em>every v1 oracle comparison must exclude lyric symbols on both sides</em> &mdash; this is exactly what tier-matched <code>DetailLevel</code> oracle runs give us. Excluding lyrics from v1 also keeps the per-character symbol machinery out of the core entirely (text directions, the other per-character category, are stretch-only).</p>
+
+<h2 id="strategy"><span class="secno">4</span>Core Strategy: Tiered Oracle Validation</h2>
+
+<p>The single most important methodological idea in this plan: <b>at every stage, compare like with like.</b> Python musicdiff exposes <code>DetailLevel</code> flags (<code class="fileref">musicdiff/musicdiff/detaillevel.py</code>) that restrict which notation features participate in the comparison. We exploit this so that the oracle is always scoped to the tiers the C++ side has implemented:</p>
+
+<pre>
+Tier A complete  &rarr;  oracle run with DetailLevel &asymp; NotesAndRests + Signatures
+Tier A+B         &rarr;  oracle run adding Ties, Slurs, Articulations, Dynamics
+Tier A+B+C       &rarr;  oracle run adding Ornaments, Directions (lyrics always excluded in v1)
+</pre>
+
+<p>This converts &ldquo;does the whole thing agree at the end?&rdquo; (one giant, late, undebuggable comparison) into a sequence of small, early, debuggable comparisons. When a tier-matched run disagrees on a pair, the disagreement is localized to the tier just added.</p>
+
+<p>Two practical consequences:</p>
+<ul>
+  <li><b>The oracle is precomputed and cached.</b> Python musicdiff is slow &mdash; that is the whole premise. The harness runs it once per (pair, DetailLevel) combination, in parallel, and stores results as JSON keyed by content hash. Oracle computation for DEV-200 starts on day&nbsp;1 (M1) and runs in the background; it is never on the critical path.</li>
+  <li><b>The exact DetailLevel-to-tier mapping is itself a deliverable</b> of M1 &mdash; it must be pinned down by reading <code class="fileref">detaillevel.py</code> precisely, not assumed.</li>
+</ul>
+
+<h2 id="milestones"><span class="secno">5</span>Milestones</h2>
+
+<div class="milestone" id="m0">
+  <h3><span class="mid">M0</span>Spike Zero + skeleton &amp; build <span class="days">Days 1&ndash;2</span></h3>
+  <p class="field"><b>Spike Zero (first half-day, before any architecture-dependent code):</b> kill the plan&rsquo;s riskiest assumptions on one lieder pair while they are still cheap to react to:</p>
+  <ul>
+    <li>Run Python musicdiff end-to-end on the pair &mdash; <em>including the kern side via music21</em> (early probe of risk R2).</li>
+    <li>Verify that <code>DetailLevel</code> can actually express &ldquo;Tier A only&rdquo; &mdash; the entire tiered-oracle strategy (<a href="#strategy">Section&nbsp;4</a>) depends on this granularity. If it cannot, redesign the validation scoping <em>now</em>, on day&nbsp;1.</li>
+    <li>Time the musicdiff run to size the oracle precompute (DEV-200 &times; per-tier detail levels) and dimension the parallel driver accordingly.</li>
+  </ul>
+  <p class="field"><b>Work:</b></p>
+  <ul>
+    <li>Repo layout (<a href="#engineering">Section&nbsp;7</a>); CMake superbuild that builds vendored Verovio with <code>BUILD_AS_LIBRARY</code> and links it; pin the Verovio commit and record it.</li>
+    <li>CLI skeleton: <code>verosim &lt;fileA&gt; &lt;fileB&gt;</code> and <code>verosim --dump-tree &lt;file&gt;</code>; loads via <code>Toolkit::LoadData()</code> with <code>{"breaks":"none"}</code>; <code>--dump-tree</code> prints the Object tree (class names, key attributes, IDs) for debugging.</li>
+    <li>Test framework wired up (one trivial passing test); a <code>justfile</code>/<code>Makefile</code> with <code>build</code>, <code>test</code>, <code>bench</code> targets.</li>
+  </ul>
+  <p class="exit"><b>Exit criteria:</b> all three Spike Zero questions answered and recorded (musicdiff runs on both formats; Tier-A DetailLevel scoping confirmed or strategy amended as a D<i>n</i>; oracle runtime measured); <code>verosim --dump-tree</code> works on one lieder <code>.xml</code> and its paired <code>.krn</code> with sane tree contents; build is one command from clean checkout.</p>
+</div>
+
+<div class="milestone" id="m1">
+  <h3><span class="mid">M1</span>Oracle harness &amp; corpora <span class="days">Days 2&ndash;4 (overlaps M0)</span></h3>
+  <p class="field"><b>Work:</b></p>
+  <ul>
+    <li>Define and commit the DEV-200 / HOLDOUT-100 / PERF-10K file lists (fixed-seed sampling scripts, lists checked in).</li>
+    <li>Python harness (<code>harness/</code>): runs musicdiff on a pair at a given DetailLevel, emits JSON <code>{pair, detail, distance, n1, n2, omr_ned, runtime, error, edit_ops}</code>; tolerates and records music21 parse failures (coverage is a measured number, not an assumption). Parallel driver + content-hash cache. <b><code>edit_ops</code> is musicdiff&rsquo;s per-edit operation list</b> &mdash; stored so that rung-4 divergence triage is &ldquo;diff two operation lists&rdquo;, not &ldquo;stare at two scalars&rdquo;; this is the cheapest schedule insurance for the M3 contingency budget.</li>
+    <li>Pin the DetailLevel&harr;tier mapping by reading <code class="fileref">detaillevel.py</code>; record it in the decision doc.</li>
+    <li>Kick off background oracle precomputation: DEV-200 at the Tier-A-equivalent DetailLevel first, then Tier A+B.</li>
+    <li><b>Mutation corpus generator:</b> a script that applies single, controlled textual mutations to small kern files (change one pitch letter, delete one accidental, drop a dot, remove a barline&rsquo;s note &hellip;) and records the <em>analytically expected</em> cost per the paper&rsquo;s rules. ~50 mutation cases. These are the unit-level ground truth that needs no oracle.</li>
+    <li><b>Mutation&ndash;oracle cross-check:</b> run Python musicdiff over every mutation case and require <em>analytic expectation = oracle output</em> before any C++ tier implementation begins. The mutation costs encode <em>our reading of the paper</em>; a mismatch here means we misread a costing rule &mdash; caught at the cheapest possible moment, before the misreading is enforced as a wrong spec by our own exact tests. Where paper and vendored code disagree, the vendored code wins (D12) and the disagreement is noted in the mapping doc.</li>
+    <li>Parse-coverage sweep: run <code>verosim --dump-tree</code> over PERF-10K, count load failures/warnings per dataset. This is cheap and tells us early whether Verovio&rsquo;s humlib chokes on this kern dialect.</li>
+  </ul>
+  <p class="exit"><b>Exit criteria:</b> oracle JSON (incl. <code>edit_ops</code>) exists for &ge;&nbsp;150 of DEV-200 at Tier-A DetailLevel (music21 failures documented); mutation corpus with expected costs committed <em>and cross-checked against the oracle with all mismatches resolved</em>; Verovio parse coverage on PERF-10K reported (target &gt;&nbsp;95%; if far below, see <a href="#risks">risk&nbsp;R1</a>).</p>
+</div>
+
+<div class="milestone" id="m2">
+  <h3><span class="mid">M2</span>Layer 2: Tier A symbol extraction <span class="days">Days 5&ndash;9</span></h3>
+  <p class="field"><b>Work:</b></p>
+  <ul>
+    <li>Define the v1 internal representation: <code>SymScore &rarr; SymPart &rarr; SymMeasure &rarr; SymVoice &rarr; SymNote/SymRest</code>, each carrying its OMR-NED symbol list. Mirrors musicdiff&rsquo;s <code>AnnScore</code> shape (<code class="fileref">annotation.py</code>) so the Layer-3 port maps 1:1.</li>
+    <li>Walk the Verovio tree (Score &rarr; Section &rarr; Measure &rarr; Staff &rarr; Layer): notes, rests, chords, beams, tuplets; read pitch/duration via <code>PitchInterface</code>/<code>DurationInterface</code>; clef/key/time from ScoreDef and inline changes.</li>
+    <li><b>Offset computation</b> (the known-hard part, tackled first within M2): accumulate rational beat positions per layer; handle tuplet ratios and chords; grace notes get the paper&rsquo;s treatment. Use exact rational arithmetic, no floats.</li>
+    <li>Document the MEI&rarr;symbol mapping table as it is written (companion table in the decision doc or a <code>docs/mei_symbol_mapping.html</code>).</li>
+    <li>Validate with symbol-count audits: <code>verosim --count-symbols</code> on HAND-10 must match the hand counts exactly; on DEV-200, total Tier-A symbol counts are compared against the oracle&rsquo;s N values (not expected identical &mdash; parser differences, per D6 &mdash; but large or systematic gaps get investigated).</li>
+  </ul>
+  <p class="exit"><b>Exit criteria:</b> HAND-10 symbol counts exact; DEV-200 Tier-A symbol counts within ~2% of oracle N values in aggregate, outliers triaged and explained.</p>
+</div>
+
+<div class="milestone" id="m3">
+  <h3><span class="mid">M3</span>Layer 3: comparison engine <span class="days">Days 8&ndash;13 (starts during M2)</span></h3>
+  <p class="field"><b>Work:</b></p>
+  <ul>
+    <li>Port musicdiff&rsquo;s algorithm against the M2 representation: Myers diff for measure alignment (<code class="fileref">comparison.py:157-218</code>), set-distance note matching within measures (<code class="fileref">comparison.py:1140-1230</code>), Levenshtein-style within-note symbol diff, the (I+D)/(N&#8321;+N&#8322;) assembly (<code class="fileref">comparison.py:1577-1674</code>).</li>
+    <li>Memoization design: hash-cons the symbol representation; memo keys on stable content hashes (not pointers), <code>unordered_map</code> caches scoped per comparison.</li>
+    <li>Can start before M2 finishes: the engine is developed against hand-built <code>SymScore</code> fixtures, so M2 and M3 overlap by design.</li>
+  </ul>
+  <p class="exit"><b>Exit criteria (this is the go/no-go gate, end of week&nbsp;2 / early week&nbsp;3):</b>
+    (a)&nbsp;identity: <code>OMR-NED(x, x) = 0</code> for all of DEV-200 and 1,000 sampled PERF-10K files;
+    (b)&nbsp;all ~50 mutation cases produce exactly the analytically expected cost;
+    (c)&nbsp;DEV-200 Tier-A-matched correlation vs. oracle &ge;&nbsp;0.95 (Spearman).
+    <br><b>If (c) fails:</b> do not proceed to Tier B; spend up to 3 days triaging the top-20 most divergent pairs (the harness ranks them; the stored <code>edit_ops</code> localize each disagreement). If still failing, descope v1 to Tier A and spend the remaining time on agreement quality instead of breadth.</p>
+</div>
+
+<div class="milestone" id="m4">
+  <h3><span class="mid">M4</span>Tier B + batch mode <span class="days">Days 14&ndash;17</span></h3>
+  <p class="field"><b>Work:</b></p>
+  <ul>
+    <li>Tier B extraction: ties, slurs (control elements via <code>@startid</code>/<code>@endid</code> resolution), articulations, dynamics + hairpins, grace notes. Extend mutation corpus with ~20 Tier-B cases.</li>
+    <li>Tier B oracle runs on DEV-200 (cache was warming since M1); same correlation gate as M3(c).</li>
+    <li>Batch mode: <code>verosim --batch pairs.tsv --jobs N</code>, one <code>Toolkit</code> per worker thread (D7), JSON-lines output. First real benchmark vs. Python on DEV-200.</li>
+    <li>Measure (don&rsquo;t fix, per D8) the cross-importer gap: OMR-NED(xml-version, kern-version) for the lieder pairs, reported as a distribution. This number is the documented &ldquo;floor&rdquo; of the metric for cross-format comparisons in v1.</li>
+  </ul>
+  <p class="exit"><b>Exit criteria:</b> Tier A+B correlation &ge;&nbsp;0.95 on DEV-200; batch mode processes DEV-200 in seconds; cross-importer gap distribution documented.</p>
+</div>
+
+<div class="milestone" id="m5">
+  <h3><span class="mid">M5</span>Hardening, acceptance, stretch <span class="days">Days 18&ndash;20</span></h3>
+  <p class="field"><b>Work:</b></p>
+  <ul>
+    <li>Final acceptance on HOLDOUT-100 (first and only use): correlation and runtime reported. No fixes tuned on this set.</li>
+    <li>Performance pass: profile, fix the top hotspots only; benchmark on PERF-10K identity runs; record the speedup factor vs. Python.</li>
+    <li>Robustness: the PERF-10K sweep&rsquo;s crash/failure list becomes a regression suite; <code>verosim</code> must fail cleanly (nonzero exit + message), never crash, on every file in the corpus.</li>
+    <li>Docs: README with usage, the MEI&rarr;symbol mapping table finalized, decision record updated, v1 tag.</li>
+    <li><b>Stretch (only if M4 finished early):</b> Tier C ornaments first (cheap: per-element symbols, same extraction pattern as articulations), then text directions.</li>
+  </ul>
+  <p class="exit"><b>Exit criteria:</b> the <a href="#dod">Definition of Done</a> checklist, below, is fully checked.</p>
+</div>
+
+<h2 id="timeline"><span class="secno">6</span>Timeline at a Glance</h2>
+
+<pre class="timeline">
+Week 1          Week 2          Week 3          Week 4
+&#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+M0 &#9608;&#9608;
+M1   &#9608;&#9608;&#9608;        (oracle precompute runs in background &#8594;&#8594;&#8594;)
+M2       &#9608;&#9608;&#9608;&#9608;&#9608;
+M3          &#9608;&#9608;&#9608;&#9608;&#9608;&#9608;   &#9650; go/no-go gate
+M4                       &#9608;&#9608;&#9608;&#9608;
+M5                            &#9608;&#9608;&#9608;
+                                  &#9608;&#9608;&#9608;&#9608;&#9608;  slack / Tier C stretch
+</pre>
+
+<p>Roughly one week of slack is built in: the M0&ndash;M5 critical path sums to ~17 working days against a 20-day window. The slack is spent, in priority order, on (1)&nbsp;agreement debugging if a correlation gate fails, (2)&nbsp;Tier&nbsp;C lyrics, (3)&nbsp;performance.</p>
+
+<h2 id="engineering"><span class="secno">7</span>Engineering Decisions</h2>
+
+<table>
+  <tr><th>Topic</th><th>Decision</th></tr>
+  <tr><td>Language / standard</td><td>C++20 (matches Verovio), single repo top-level project; Verovio consumed as vendored subdirectory via CMake <code>add_subdirectory</code> with <code>BUILD_AS_LIBRARY</code>, commit pinned.</td></tr>
+  <tr><td>Repo layout</td><td><code>src/</code> + <code>include/verosim/</code> (extraction, model, engine, cli), <code>tests/</code> (unit + corpus), <code>harness/</code> (Python oracle scripts), <code>corpora/</code> (committed file lists + HAND-10 + mutation cases), <code>docs/</code>.</td></tr>
+  <tr><td>Test framework</td><td>Catch2 (header-friendly, good fixtures); corpus tests are ordinary tests parameterized over committed file lists, skipped gracefully when the Transcoda data dir is absent.</td></tr>
+  <tr><td>Numeric model</td><td>Exact rational arithmetic for offsets/durations (small <code>Fraction</code> class or <code>boost::rational</code>); integer symbol counts; the final OMR-NED ratio is the only floating-point value.</td></tr>
+  <tr><td>Output format</td><td>JSON (single pair) / JSON-lines (batch): <code>{distance, n1, n2, omr_ned, per_category_breakdown, warnings}</code>. Schema shared with the Python harness output so comparison is a one-line join.</td></tr>
+  <tr><td>Oracle environment</td><td>Dedicated venv in <code>harness/</code> with pinned <code>musicdiff</code> + <code>music21</code> versions (use the vendored musicdiff checkout via <code>pip install -e</code>).</td></tr>
+  <tr><td>Spec tie-break</td><td>Where the paper&rsquo;s prose and the vendored musicdiff code disagree, <b>the vendored code is the spec</b> (D12) &mdash; it is executable and it is the oracle. Disagreements are noted in the mapping doc, never debated mid-milestone.</td></tr>
+  <tr><td>Determinism</td><td>No iteration-order-dependent behavior (sorted containers or explicit sorting at boundaries); the same pair must always produce the same score.</td></tr>
+</table>
+
+<h2 id="testing"><span class="secno">8</span>Test Architecture (Four Rungs)</h2>
+
+<table>
+  <tr><th>Rung</th><th>What</th><th>Ground truth</th><th>Gate</th></tr>
+  <tr><td>1. Symbol audits</td><td><code>--count-symbols</code> on HAND-10</td><td>Human-counted, exact</td><td>Exact match, always</td></tr>
+  <tr><td>2. Mutation tests</td><td>~70 single-mutation kern cases</td><td>Analytic cost per the paper&rsquo;s rules</td><td>Exact match, always</td></tr>
+  <tr><td>3. Identity tests</td><td>x vs. x over DEV-200 + PERF samples</td><td>Definitionally 0</td><td>Exactly 0, always</td></tr>
+  <tr><td>4. Oracle correlation</td><td>Tier-matched musicdiff on DEV-200 (HOLDOUT-100 at the end)</td><td>Python reference (approximate, per D6)</td><td>Spearman &ge; 0.95 per tier; top-divergence pairs triaged</td></tr>
+</table>
+
+<p>Rungs 1&ndash;3 are exact and cheap &mdash; they run in CI on every change. Rung 4 is approximate and explicitly <em>diagnostic</em>: its job is to rank the most divergent pairs so debugging effort always goes to the worst offender first. The 0.95 threshold is provisional; if the measured ceiling (after triaging explained parser differences) is naturally lower, we document the revised threshold and the explanation rather than chasing an arbitrary number.</p>
+
+<h2 id="practices"><span class="secno">9</span>Working Practices</h2>
+
+<p>How we work, day to day (adopted 2026-06-12, recorded as D11). Deliberately stated as concrete, checkable mechanics rather than named methodologies:</p>
+
+<ul>
+  <li><b>Fixtures before code.</b> For every tier, the test fixtures &mdash; mutation cases with analytically expected costs and hand-counted symbol inventories &mdash; are written and committed <em>before</em> implementation of that tier begins. Verified at each milestone exit. The expected costs come from the paper, written down first, so the implementation can never quietly become its own specification.</li>
+  <li><b>Refactoring precondition: rungs 1&ndash;3 green.</b> Refactor freely whenever the exact test rungs (symbol audits, mutation tests, identity tests) pass; never refactor while they are red. The exact rungs are the safety net; oracle correlation (rung&nbsp;4) is diagnostic and is never a gate for refactoring.</li>
+  <li><b>Consolidation points at tier boundaries.</b> Before starting Tier B (after the M3 gate) and before M5 hardening: up to half a day of cleanup-only work &mdash; no new features &mdash; with rungs 1&ndash;3 as the safety net.</li>
+  <li><b>Triage patches are marked and revisited.</b> Fixes made under divergence-triage pressure (M3/M4) get a <code>// TODO(consolidate)</code> marker and are explicitly revisited at the next consolidation point, so gate-rescue hacks don&rsquo;t calcify.</li>
+  <li><b>Milestone-exit plan review.</b> At every milestone exit, ten minutes on one question: do the remaining milestones, estimates, and risk responses still hold? Exit-criteria results are appended to this document; any plan amendment is recorded as a new D<i>n</i> in the <a href="implementation_decisions.html">decision record</a>.</li>
+</ul>
+
+<h2 id="risks"><span class="secno">10</span>Plan-Level Risks and Pre-Planned Responses</h2>
+
+<table>
+  <tr><th>#</th><th>Risk</th><th>Detected by</th><th>Pre-planned response</th></tr>
+  <tr>
+    <td>R1</td>
+    <td>Verovio&rsquo;s humlib fails on a large share of this kern dialect (pdmx/grandstaff conversions).</td>
+    <td>M1 parse-coverage sweep (day 3&ndash;4).</td>
+    <td>If &lt;&nbsp;95% on lieder kern: investigate top failure modes; if dialect-specific, consider a thin kern pre-normalizer. If pdmx-specific only, accept (pdmx is benchmark-only).</td>
+  </tr>
+  <tr>
+    <td>R2</td>
+    <td>music21 cannot parse enough corpus files for the oracle (kern support gaps).</td>
+    <td>M1 harness error reporting.</td>
+    <td>Run the oracle on the <em>MusicXML</em> side of the lieder pairs instead (musicdiff vs. musicdiff needs only one format); kern coverage then comes from rungs 1&ndash;3 plus identity tests.</td>
+  </tr>
+  <tr>
+    <td>R3</td>
+    <td>Offset semantics mismatch: musicdiff&rsquo;s notion of offset differs from our layer-walk computation (tuplets, grace notes, multi-voice).</td>
+    <td>M3 mutation tests + top-divergence triage.</td>
+    <td>Mutation cases isolate the construct; fix in Layer&nbsp;2. This is the expected main consumer of the slack week.</td>
+  </tr>
+  <tr>
+    <td>R4</td>
+    <td>Tier-A oracle correlation gate fails at M3.</td>
+    <td>Go/no-go gate, end of week 2.</td>
+    <td>Explicit descope path: v1 = Tier A only, remaining time on agreement quality. Decision recorded as a new Dn.</td>
+  </tr>
+  <tr>
+    <td>R5</td>
+    <td>Voice/layer structure disagreement (Verovio layers vs. musicdiff voicing) inflates within-measure distances.</td>
+    <td>M2 symbol-count audit + M3 triage.</td>
+    <td>Adopt musicdiff&rsquo;s effective default treatment of voicing for v1 (pin down during M1 mapping work, before building).</td>
+  </tr>
+  <tr>
+    <td>R6</td>
+    <td>Schedule slip.</td>
+    <td>Milestone exit criteria are dated.</td>
+    <td>Drop order is fixed in advance: Tier C &rarr; performance polish &rarr; Tier B dynamics/hairpins. Tier A correctness is never traded.</td>
+  </tr>
+</table>
+
+<h2 id="dod"><span class="secno">11</span>Definition of Done for v1</h2>
+
+<ul class="checklist">
+  <li>One-command build from clean checkout; Verovio commit pinned and recorded.</li>
+  <li><code>verosim a b</code> works for any combination of MusicXML / <code>.mxl</code> / kern / MEI inputs.</li>
+  <li>Tier A + Tier B implemented; MEI&rarr;symbol mapping table documented.</li>
+  <li>Rungs 1&ndash;3 (audits, mutations, identity) pass exactly, in CI.</li>
+  <li>Tier-matched Spearman &ge; 0.95 vs. Python oracle on DEV-200 <em>and</em> HOLDOUT-100 (or documented revised threshold with explanation).</li>
+  <li>Batch mode with <code>--jobs</code>; benchmark report vs. Python musicdiff committed (target: &ge; 100&times; on DEV-200 end-to-end).</li>
+  <li>No crash on any PERF-10K file; failures exit cleanly with messages.</li>
+  <li>Cross-importer gap (xml vs. kern of same piece) measured and documented as the v1 metric floor.</li>
+  <li>README + decision record (D1&ndash;D10+) up to date; v1 tagged.</li>
+</ul>
+
+<footer>
+  <p>Companion to <a href="implementation_decisions.html">implementation_decisions.html</a>. Plan deviations are recorded there as new decisions, and milestone exit-criteria results are appended here as they land.</p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VeroSim &mdash; OMR-NED in C++: Architecture &amp; Implementation Decisions</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #595959;
+    --accent: #7a2518;
+    --rule: #d9d4cc;
+    --bg: #fdfcfa;
+    --code-bg: #f3f1ec;
+    --accepted: #2d6a4f;
+    --deferred: #b07d2b;
+    --rejected: #9b2226;
+  }
+  html { background: var(--bg); }
+  body {
+    max-width: 56rem;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 6rem;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  header { border-bottom: 3px double var(--rule); padding-bottom: 1.5rem; margin-bottom: 2.5rem; }
+  h1 { font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+  .subtitle { color: var(--muted); font-style: italic; margin: 0; }
+  .meta { color: var(--muted); font-size: 0.9rem; margin-top: 0.75rem; }
+  h2 {
+    font-size: 1.4rem;
+    margin: 3rem 0 1rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  h2 .secno { color: var(--accent); margin-right: 0.5rem; }
+  h3 { font-size: 1.1rem; margin: 2rem 0 0.75rem; }
+  p { margin: 0.75rem 0; }
+  code, pre {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86em;
+    background: var(--code-bg);
+    border-radius: 3px;
+  }
+  code { padding: 0.1em 0.35em; }
+  pre {
+    padding: 0.9rem 1.1rem;
+    overflow-x: auto;
+    line-height: 1.45;
+    border: 1px solid var(--rule);
+  }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1.25rem 0; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--rule); padding: 0.5rem 0.75rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); font-family: Helvetica, Arial, sans-serif; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .status {
+    display: inline-block;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 0.72rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.15em 0.55em;
+    border-radius: 3px;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .status.accepted { background: var(--accepted); }
+  .status.deferred { background: var(--deferred); }
+  .status.rejected { background: var(--rejected); }
+  .decision {
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--accent);
+    background: #fff;
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0;
+  }
+  .decision h3 { margin: 0 0 0.5rem; }
+  .decision h3 .did { color: var(--accent); margin-right: 0.4rem; }
+  .decision .field { margin: 0.4rem 0; }
+  .decision .field b { font-family: Helvetica, Arial, sans-serif; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  .formula {
+    text-align: center;
+    font-size: 1.2rem;
+    margin: 1.5rem 0;
+    font-style: italic;
+  }
+  .pipeline {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+  }
+  nav.toc {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    padding: 1rem 1.5rem;
+    margin: 2rem 0;
+  }
+  nav.toc h2 { margin: 0 0 0.5rem; border: none; font-size: 1rem; font-family: Helvetica, Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.05em; }
+  nav.toc ol { margin: 0; padding-left: 1.4rem; }
+  nav.toc li { margin: 0.2rem 0; }
+  a { color: var(--accent); }
+  .fileref { font-size: 0.88em; }
+  footer { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>OMR-NED in C++: Architecture &amp; Implementation Decisions</h1>
+  <p class="subtitle">VeroSim &mdash; a fast reimplementation of the OMR-NED metric using Verovio as the parsing front-end</p>
+  <p class="meta">Status: living document &middot; Created: 2026-06-12 &middot; Decisions recorded from the initial architecture discussion (Daniel Dratschuk &amp; Claude) &middot; Execution plan: <a href="v1_attack_plan.html">v1 attack plan</a></p>
+</header>
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#background">Background and Goal</a></li>
+    <li><a href="#metric">The OMR-NED Metric in Brief</a></li>
+    <li><a href="#architecture">Chosen Architecture</a></li>
+    <li><a href="#decisions">Decision Log</a></li>
+    <li><a href="#risks">Risks and Mitigations</a></li>
+    <li><a href="#validation">Validation Plan</a></li>
+    <li><a href="#open">Open Questions and Future Work</a></li>
+    <li><a href="#references">References</a></li>
+  </ol>
+</nav>
+
+<h2 id="background"><span class="secno">1</span>Background and Goal</h2>
+
+<p>OMR-NED (OMR Normalized Edit Distance) is a fine-grained evaluation metric for Optical Music Recognition, described in <a href="OMR-NED_paper.html">the paper</a> and implemented in the Python package <code>musicdiff</code> (vendored at <code class="fileref">musicdiff/</code>). The reference implementation builds its score representation on top of <a href="https://github.com/cuthbertLab/music21">music21</a>, whose parsing and object-model construction make it too slow for practical, large-scale use.</p>
+
+<p><b>Goal:</b> a fast C++ implementation of OMR-NED. The central insight of this project is that we do not need to reimplement music notation parsing &mdash; one of the hardest parts of the problem &mdash; because <a href="https://www.verovio.org">Verovio</a> (vendored at <code class="fileref">verovio/</code>) already provides battle-tested C++ importers for all formats we care about, converging on a single internal document model.</p>
+
+<p>Profiling-level evidence from the exploration of <code>musicdiff</code>: the comparison core (<code class="fileref">musicdiff/musicdiff/comparison.py</code>) is memoized dynamic programming with a Myers diff for measure alignment and is already algorithmically efficient; the dominant cost is music21 parsing and the construction of the annotated representation (<code class="fileref">annotation.py</code>, <code class="fileref">m21utils.py</code>). Replacing the parsing layer is therefore precisely where the speedup lives.</p>
+
+<h2 id="metric"><span class="secno">2</span>The OMR-NED Metric in Brief</h2>
+
+<p>The metric is defined as a normalized count of symbol-level insertions and deletions between a predicted score and a ground-truth score:</p>
+
+<p class="formula">OMR-NED&nbsp;=&nbsp;(I + D) / (N<sub>1</sub> + N<sub>2</sub>)</p>
+
+<p>where <i>I</i> is the number of inserted symbols, <i>D</i> the number of deleted symbols, and <i>N<sub>1</sub></i>, <i>N<sub>2</sub></i> the total symbol counts of the two scores. The atoms are individual <em>visual notation symbols</em>, not whole notes or XML elements. The paper's taxonomy (Section&nbsp;3.1) assigns symbol counts per category, for example:</p>
+
+<table>
+  <tr><th>Category</th><th>Symbol counting rule (examples)</th></tr>
+  <tr><td>Note: pitch / accidental / tie / note head</td><td>1 symbol each</td></tr>
+  <tr><td>Note: flags &amp; beams / dots / articulations / ornaments</td><td>1 symbol per flag, beam, dot, articulation, ornament</td></tr>
+  <tr><td>Grace notes</td><td>1 symbol if grace; +1 if slashed</td></tr>
+  <tr><td>Dynamics</td><td>1 per marking type; +1 for hairpin duration</td></tr>
+  <tr><td>Clef / key signature / time signature</td><td>1 per clef; 1 per key-signature accidental; 1 per time-signature number component</td></tr>
+  <tr><td>Slur / ottava / arpeggio</td><td>1 for duration; ottava: +1 for type; arpeggio: +1 if cross-staff</td></tr>
+  <tr><td>Text direction / lyric / ending</td><td>1 symbol <em>per character</em> (lyrics: +1 for verse number; endings: +1 for measure count)</td></tr>
+  <tr><td>Chord symbol</td><td>1 symbol</td></tr>
+</table>
+
+<p><b>Cost model:</b> each symbol insertion or deletion costs 1. When a note is mismatched (different pitch or offset), the whole note is deleted and reinserted, costing the sum of all symbols on both sides.</p>
+
+<p><b>Reference algorithm</b> (musicdiff, to be ported in Layer&nbsp;3): Myers diff for the LCS alignment of measures (<code class="fileref">comparison.py:157-218</code>), a set-distance matching of notes within measures by pitch and offset (<code class="fileref">comparison.py:1140-1230</code>), Levenshtein-style recursion for within-note symbol comparison, with memoization throughout. Entry point: <code>Comparison.annotated_scores_diff()</code> (<code class="fileref">comparison.py:1577-1674</code>).</p>
+
+<p><b>Normalization caveat:</b> the metric is only meaningful if both scores are normalized the same way (the paper devotes Section&nbsp;2.3 to this, standardizing kern via <code>kernpy</code>). In our design, passing both scores through the same Verovio importer acts as the canonicalizer.</p>
+
+<h2 id="architecture"><span class="secno">3</span>Chosen Architecture</h2>
+
+<p>A three-layer pipeline. Verovio is used as a <em>parser</em>, never as a renderer.</p>
+
+<pre class="pipeline">
+ score A (MusicXML / MEI / kern / ...)        score B
+        &#9474;                                       &#9474;
+        &#9660;                                       &#9660;
+ &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+ &#9474; LAYER 1 &#9474; vrv::Toolkit, breaks: "none"  &#9474;  parse only, no layout
+ &#9474;         &#9474; &#8594; internal MEI object tree    &#9474;
+ &#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+ &#9474; LAYER 2 &#9474; symbol extraction /           &#9474;  walk Object tree, map to
+ &#9474;         &#9474; normalization (ours)          &#9474;  OMR-NED symbol taxonomy
+ &#9500;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+ &#9474; LAYER 3 &#9474; OMR-NED comparison engine     &#9474;  C++ port of musicdiff's
+ &#9474;         &#9474; (ours)                        &#9474;  comparison.py
+ &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+        &#9474;
+        &#9660;
+   OMR-NED = (I + D) / (N&#8321; + N&#8322;)
+</pre>
+
+<h3>Layer 1 &mdash; Parsing (Verovio, unmodified)</h3>
+<p>Both inputs are loaded through <code>vrv::Toolkit::LoadData()</code> with the option <code>{"breaks": "none"}</code> set beforehand. With this option, Verovio parses the input and runs <code>ScoreDefSetCurrentDoc()</code> but skips <code>CastOffDoc()</code> entirely (<code class="fileref">verovio/src/toolkit.cpp:862-920</code>) &mdash; no page/system layout, no rendering. All supported formats (MusicXML incl. compressed <code>.mxl</code>, MEI, Humdrum/kern via embedded humlib, ABC, PAE, &hellip;) converge on the same internal MEI-shaped object tree of <code>vrv::Object</code> subclasses with libmei attribute classes.</p>
+
+<h3>Layer 2 &mdash; Symbol extraction and normalization (new code)</h3>
+<p>This layer replaces musicdiff's <code class="fileref">annotation.py</code> / <code class="fileref">m21utils.py</code>. It walks the Verovio tree (<code>Score &rarr; Section &rarr; Measure &rarr; Staff &rarr; Layer &rarr; Note/Rest/Chord/Beam/Tuplet</code>) using <code>Object::GetChildren()</code> or the Functor visitor pattern, reads attributes through the interface classes (<code>PitchInterface</code>, <code>DurationInterface</code>, <code>AttArticulation</code>, &hellip;), resolves control elements (ties, slurs, dynamics, directions) through their <code>@startid</code>/<code>@endid</code> references, and emits the OMR-NED symbol representation per the paper's taxonomy. This is where most of the design work of the project lives: a documented mapping from MEI elements/attributes to OMR-NED symbol categories.</p>
+
+<h3>Layer 3 &mdash; Comparison engine (new code)</h3>
+<p>A faithful C++ port of musicdiff's algorithm: Myers diff over the measure sequence, set-distance note matching within measures, Levenshtein-style within-note symbol diff, memoized. This is the smaller and best-specified part of the work, since <code class="fileref">comparison.py</code> serves as an executable specification.</p>
+
+<h2 id="decisions"><span class="secno">4</span>Decision Log</h2>
+
+<div class="decision" id="d1">
+  <h3><span class="did">D1</span>Use Verovio as the parsing front-end <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision:</b> Do not reimplement notation parsing. Use Verovio's importers (<code class="fileref">iomusxml.cpp</code>, <code class="fileref">iomei.cpp</code>, <code class="fileref">iohumdrum.cpp</code>) to obtain a unified internal document tree for every input format.</p>
+  <p class="field"><b>Rationale:</b> Parsing is the hardest and most error-prone part of the problem; Verovio's importers are mature, actively maintained, and cover every format the OMR-NED benchmark uses (notably Humdrum/kern, MusicXML, MEI). Verovio embeds cleanly as a C++ static/shared library (<code>BUILD_AS_LIBRARY</code>, C++20). Replacing music21 also targets the actual performance bottleneck of the Python implementation.</p>
+  <p class="field"><b>Alternative rejected:</b> reimplementing MusicXML/kern/MEI parsing from scratch &mdash; months of work, high defect risk, no benefit.</p>
+</div>
+
+<div class="decision" id="d2">
+  <h3><span class="did">D2</span>No rendering: load with <code>breaks: none</code>, never run layout <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision:</b> The pipeline calls <code>LoadData()</code> only; <code>RenderToSVG()</code> and the cast-off/layout phase are never invoked.</p>
+  <p class="field"><b>Rationale:</b> Layout adds cost and zero information for a semantic metric. With <code>breaks: none</code>, Verovio skips <code>CastOffDoc()</code> (<code class="fileref">verovio/src/toolkit.cpp:862-920</code>) and we get the semantic tree at parse cost only.</p>
+  <p class="field"><b>Alternative rejected:</b> the original idea of rendering both scores and diffing the produced (SVG) DOMs. Verovio's SVG does carry semantic IDs tied back to MEI elements, but the output is dominated by layout artifacts &mdash; absolute coordinates, system/page-break decisions, spacing, font glyphs. An edit distance on SVG DOMs would measure engraving differences rather than notation content.</p>
+</div>
+
+<div class="decision" id="d3">
+  <h3><span class="did">D3</span>Compute the distance on an extracted OMR-NED symbol model, not on the raw MEI/XML tree <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision:</b> Insert an explicit extraction/normalization layer (Layer&nbsp;2) between Verovio's object tree and the comparison engine. The edit distance is computed on OMR-NED symbols, never on XML nodes.</p>
+  <p class="field"><b>Rationale:</b> OMR-NED is not a generic tree edit distance; its taxonomy and cost model (per-character lyric costs, per-accidental key-signature costs, whole-note replacement costs, &hellip;) do not map 1:1 to MEI elements. Incidental MEI structure (beam nesting, attribute-vs-element accidentals, importer-specific layer splitting) would otherwise generate spurious distance.</p>
+  <p class="field"><b>Alternative rejected:</b> a naive DOM/tree diff on Verovio's MEI output.</p>
+</div>
+
+<div class="decision" id="d4">
+  <h3><span class="did">D4</span>Malformed-input handling: start with Verovio's standard parser, defer syntax-error costing <span class="status deferred">deferred</span></h3>
+  <p class="field"><b>Decision (user, 2026-06-12):</b> The initial implementation relies on Verovio's standard parsing behavior. The Python reference's mechanism of charging syntax errors in non-parseable OMR output into the distance (cf. <code>fix_first_file_syntax</code> in <code class="fileref">musicdiff/musicdiff/__init__.py:59-92</code> and the cost addition in <code class="fileref">comparison.py:1664-1672</code>) is <em>not</em> ported initially.</p>
+  <p class="field"><b>Implication to keep in mind:</b> Verovio logs warnings and silently drops what it cannot parse, which can deflate the distance for broken predictions. When this becomes relevant, the planned mitigation is to capture Verovio's warnings/parse failures and fold them into the cost, or to pre-validate inputs.</p>
+</div>
+
+<div class="decision" id="d5">
+  <h3><span class="did">D5</span>Cross-importer consistency is an accepted, monitored risk <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision:</b> When prediction and ground truth arrive in different formats (e.g. kern vs. MusicXML), they pass through different Verovio importers, which may differ systematically (inferred beams, defaulted stem directions, tie representation). We accept this risk and guard it with tests rather than redesigning around it.</p>
+  <p class="field"><b>Mitigation:</b> round-trip tests in the validation suite &mdash; the same piece encoded in two formats must score &asymp;&nbsp;0 (see <a href="#validation">Section&nbsp;6</a>). Where systematic discrepancies appear, the normalization in Layer&nbsp;2 is the place to absorb them.</p>
+</div>
+
+<div class="decision" id="d6">
+  <h3><span class="did">D6</span>No bit-exact parity with the Python reference required <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision (user, 2026-06-12):</b> The C++ implementation does not need to reproduce the Python <code>musicdiff</code> numbers exactly. A different parser (Verovio vs. music21) inevitably yields different symbol counts (and hence different N<sub>1</sub>+N<sub>2</sub> denominators and distances), even with a faithful algorithm port.</p>
+  <p class="field"><b>Standard instead:</b> a faithful reimplementation of the algorithm and cost model, validated by close agreement / high correlation with the Python implementation on a test corpus, with a permanent comparison harness as a test fixture (see <a href="#validation">Section&nbsp;6</a>).</p>
+</div>
+
+<div class="decision" id="d7">
+  <h3><span class="did">D7</span>Concurrency model: one <code>vrv::Toolkit</code> per thread <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision:</b> Batch evaluation parallelizes across score pairs with one <code>Toolkit</code> instance per thread.</p>
+  <p class="field"><b>Rationale:</b> Each <code>Toolkit</code> owns its own <code>Doc</code> and object tree, so per-thread instances are independent. Known global state to avoid touching concurrently: the static Humdrum buffer (<code class="fileref">verovio/include/vrv/toolkit.h</code>, <code>m_humdrumBuffer</code>) and the global C++ locale (<code>SetLocale()</code>/<code>ResetLocale()</code>). Font resources are read-only after initialization and safe to share.</p>
+</div>
+
+<div class="decision" id="d8">
+  <h3><span class="did">D8</span>v1 accepts the cross-importer gap: no cross-importer normalization <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision (user, 2026-06-12):</b> For v1, small metric differences between MusicXML-sourced and kern-sourced trees of the same piece are acceptable. No normalization rules are engineered to close this gap in v1; the round-trip-&asymp;0 requirement from D5 is relaxed accordingly.</p>
+  <p class="field"><b>Refinement of:</b> <a href="#d5">D5</a>. The gap is still <em>measured</em> (xml-vs-kern distance distribution over paired corpora) and documented as the v1 metric floor for cross-format comparisons, so v2 normalization work has a baseline.</p>
+</div>
+
+<div class="decision" id="d9">
+  <h3><span class="did">D9</span>Tiered taxonomy rollout; v1 = Tiers A+B, Tier C stretch <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision (user, 2026-06-12):</b> Symbol categories are implemented in frequency-ordered tiers, each validated independently against the Python oracle using tier-matched <code>DetailLevel</code> runs. Tier A: note core (pitch, accidental, head, dots, flags/beams, rests) + clef/key/time signatures. Tier B: ties, slurs, articulations, dynamics, grace notes. Tier C (stretch): ornaments, text directions. Tier D (post-v1): <b>lyrics</b>, ottavas, arpeggios, chord symbols, endings, tremolos, style.</p>
+  <p class="field"><b>Amended (user, 2026-06-12):</b> Lyrics are excluded from v1 entirely (originally Tier C stretch). All v1 oracle runs exclude lyric symbols on both sides; per-character symbol costing thereby only enters v1 if the text-direction stretch item is reached.</p>
+  <p class="field"><b>Rationale:</b> converts one late, undebuggable full-taxonomy comparison into a sequence of small, early, localized ones; each tier is independently shippable. Full tier definitions and milestones: <a href="v1_attack_plan.html">v1 attack plan</a>.</p>
+</div>
+
+<div class="decision" id="d10">
+  <h3><span class="did">D10</span>Validation corpora drawn from Transcoda interim data <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision:</b> Validation uses <code class="fileref">/home/daniel/.local/share/src/Transcoda/main/data/interim</code>: DEV-200 (200 openscore-lieder xml/kern pairs, fixed seed, committed list) for day-to-day oracle comparison; HOLDOUT-100 (100 lieder pairs + 69 musetrainer pairs) untouched until final acceptance; PERF-10K (sampled pdmx/grandstaff kern) for parse-coverage sweeps and benchmarks; HAND-10 (~10 tiny scores with human-counted symbol inventories) as the only exact human ground truth.</p>
+  <p class="field"><b>Rationale:</b> openscore-lieder provides 1,462 basename-paired (xml, krn) pieces &mdash; realistic multi-voice vocal music &mdash; enabling both oracle comparison and the D8 gap measurement; pdmx/grandstaff provide scale (~1.86M kern files) for robustness and performance work.</p>
+</div>
+
+<div class="decision" id="d11">
+  <h3><span class="did">D11</span>Working practices: fixtures-first, gated refactoring, milestone-exit plan review <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision (user, 2026-06-12):</b> Adopt five concrete working practices for the v1 build, stated as checkable mechanics rather than named methodologies: (1)&nbsp;test fixtures (mutation cases, hand counts) are committed before each tier&rsquo;s implementation begins; (2)&nbsp;refactoring is free whenever the exact test rungs 1&ndash;3 are green and forbidden while they are red; (3)&nbsp;tier boundaries are cleanup-only consolidation points; (4)&nbsp;triage-pressure patches are marked <code>TODO(consolidate)</code> and revisited at the next consolidation point; (5)&nbsp;every milestone exit includes a ten-minute review of whether the remaining plan still holds, with amendments recorded as new D<i>n</i> entries.</p>
+  <p class="field"><b>Rationale:</b> the substance of TDD and continuous refactoring without the ceremony &mdash; the plan&rsquo;s exact test rungs make refactoring safe in a way the approximate oracle correlation cannot, and divergence-triage work (M3/M4) is the predictable source of cruft. Full text: <a href="v1_attack_plan.html#practices">attack plan, Section&nbsp;9</a>.</p>
+</div>
+
+<div class="decision" id="d12">
+  <h3><span class="did">D12</span>Spec tie-break: vendored musicdiff code wins over the paper&rsquo;s prose <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision (user, 2026-06-12):</b> The vendored musicdiff checkout (v5.x, post-paper) is the authoritative specification of OMR-NED for this project. Where the paper&rsquo;s prose and the code&rsquo;s behavior disagree, the code wins; each such disagreement is noted in the MEI&rarr;symbol mapping doc when discovered.</p>
+  <p class="field"><b>Rationale:</b> the paper used a modified musicdiff and prose is ambiguous; the vendored code is executable and is also the validation oracle (rung&nbsp;4 and the mutation&ndash;oracle cross-check), so any other choice would put the spec and the oracle in conflict. Deciding the tie-break now, calmly, prevents a mid-milestone philosophical detour under gate pressure. Enforced early by the M1 mutation&ndash;oracle cross-check: analytically derived costs (our reading of the paper) must match oracle output before C++ implementation begins.</p>
+</div>
+
+<h2 id="risks"><span class="secno">5</span>Risks and Mitigations</h2>
+
+<table>
+  <tr><th>Risk</th><th>Impact</th><th>Resolution / Mitigation</th></tr>
+  <tr>
+    <td>Verovio silently drops unparseable content in malformed OMR output, deflating the distance.</td>
+    <td>Metric integrity on exactly the inputs an OMR metric must handle.</td>
+    <td>Deferred per <a href="#d4">D4</a>: start with standard parsing; later capture importer warnings/failures and fold them into the cost.</td>
+  </tr>
+  <tr>
+    <td>Different importers (kern vs. MusicXML) produce systematically different trees for the same notation.</td>
+    <td>Nonzero distance between semantically identical scores.</td>
+    <td>Accepted per <a href="#d5">D5</a>; round-trip tests must score &asymp;&nbsp;0; absorb discrepancies in Layer&nbsp;2 normalization.</td>
+  </tr>
+  <tr>
+    <td>C++ numbers diverge from published Python musicdiff numbers.</td>
+    <td>Comparability with the paper's reported results.</td>
+    <td>Accepted per <a href="#d6">D6</a>: exact parity is not a goal; validate via the comparison harness and corpus correlation.</td>
+  </tr>
+  <tr>
+    <td>Minor known lossiness in Verovio's MusicXML import (<code>notehead-text</code>, some tablature, ending text fallback to <code>@number</code>).</td>
+    <td>A few OMR-NED symbol categories could be under-counted.</td>
+    <td>Audit the lossiness list against the OMR-NED category table during Layer&nbsp;2 design; likely negligible for OMR evaluation.</td>
+  </tr>
+  <tr>
+    <td>Thread-unsafe global state in Verovio (static Humdrum buffer, locale).</td>
+    <td>Crashes or corruption in parallel batch runs.</td>
+    <td>Per <a href="#d7">D7</a>: one Toolkit per thread; never call <code>SetLocale()</code> concurrently.</td>
+  </tr>
+</table>
+
+<h2 id="validation"><span class="secno">6</span>Validation Plan</h2>
+
+<ol>
+  <li><b>Identity tests:</b> any score compared with itself scores exactly 0.</li>
+  <li><b>Round-trip / cross-format tests:</b> the same piece encoded in kern and in MusicXML scores &asymp;&nbsp;0 (guards <a href="#d5">D5</a>). Failures here drive the Layer&nbsp;2 normalization rules.</li>
+  <li><b>Reference comparison harness:</b> a permanent test fixture that runs both the C++ implementation and the Python <code>musicdiff</code> on a shared corpus and reports per-pair deltas and overall correlation (guards <a href="#d6">D6</a>). Exact agreement is not required; large or systematic divergence must be explainable by a parsing difference.</li>
+  <li><b>Symbol-count audits:</b> for a hand-checked set of small scores, the Layer&nbsp;2 symbol extraction is verified against manually counted symbols per the paper's taxonomy.</li>
+  <li><b>Performance benchmarks:</b> wall-clock comparison against the Python implementation on the benchmark corpus, single-threaded and parallel.</li>
+</ol>
+
+<h2 id="open"><span class="secno">7</span>Open Questions and Future Work</h2>
+
+<ul>
+  <li><b>Syntax-error costing</b> (deferred in <a href="#d4">D4</a>): design how Verovio importer warnings/failures map to insertion/deletion costs for non-parseable predictions.</li>
+  <li><b>DetailLevel equivalent:</b> musicdiff exposes <code>DetailLevel</code> flags (<code class="fileref">musicdiff/musicdiff/detaillevel.py</code>) controlling which notation features participate in the comparison. Decide whether the C++ implementation exposes the same switch surface or fixes the paper's default (all objects).</li>
+  <li><b>MEI &rarr; symbol mapping table:</b> the full, documented mapping from Verovio/MEI elements and attributes to OMR-NED symbol categories is the main remaining design artifact for Layer&nbsp;2; it should become a companion document (or a table in this one) as it is worked out.</li>
+  <li><b>Verovio version pinning:</b> importer behavior changes across Verovio releases can shift symbol counts; pin the vendored version and record it alongside published numbers.</li>
+</ul>
+
+<h2 id="references"><span class="secno">8</span>References</h2>
+
+<ul>
+  <li>OMR-NED paper: <a href="OMR-NED_paper.html"><code>docs/OMR-NED_paper.html</code></a> &mdash; metric definition (Section&nbsp;3), symbol categories (Section&nbsp;3.1), kern normalization (Section&nbsp;2.3).</li>
+  <li>Python reference implementation: <code class="fileref">musicdiff/musicdiff/comparison.py</code> (algorithm), <code class="fileref">annotation.py</code> / <code class="fileref">m21utils.py</code> (representation), <code class="fileref">detaillevel.py</code> (feature flags).</li>
+  <li>Verovio: <code class="fileref">verovio/include/vrv/toolkit.h</code> (public API), <code class="fileref">verovio/src/toolkit.cpp:862-920</code> (layout skip with <code>breaks: none</code>), <code class="fileref">verovio/include/vrv/object.h</code> (tree traversal), <code class="fileref">verovio/src/iomusxml.cpp</code> / <code class="fileref">iohumdrum.cpp</code> / <code class="fileref">iomei.cpp</code> (importers), <code class="fileref">verovio/cmake/CMakeLists.txt</code> (<code>BUILD_AS_LIBRARY</code>).</li>
+</ul>
+
+<footer>
+  <p>This is the project's decision record. New decisions get the next D<i>n</i> identifier; superseded decisions are kept with their status changed, never deleted.</p>
+</footer>
+
+</body>
+</html>
