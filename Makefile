@@ -9,7 +9,9 @@ build:
 	cmake -S . -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(BUILD_DIR)
 
-test: build
+# The full test gate (working practice: rungs run on every change) = C++ tests
+# + Python harness tests. Use the individual targets to run one side only.
+test: build harness-test
 	ctest --test-dir $(BUILD_DIR) --output-on-failure
 
 bench:
@@ -46,4 +48,5 @@ sweep: build
 	  --out docs/parse_coverage_m1.md
 
 harness-test:
+	@test -x $(PY) || { echo "harness venv missing — run harness/setup.sh first"; exit 1; }
 	$(PY) -m unittest discover -s harness/tests -v

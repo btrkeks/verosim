@@ -30,6 +30,7 @@ from pathlib import Path
 
 from . import DEFAULT_DATA_ROOT, DETAIL_LEVELS
 from . import cache
+from .oracle import new_record
 from .versions import get_versions
 
 
@@ -46,14 +47,9 @@ def read_pairs(corpus_path: Path) -> list[tuple[str, str]]:
 
 
 def error_record(pred: str, gt: str, detail_name: str, message: str) -> dict:
-    return {
-        "pair": {"pred": pred, "gt": gt},
-        "detail": {"name": detail_name, "value": DETAIL_LEVELS[detail_name]},
-        "distance": None, "n_pred": None, "n_gt": None, "omr_ned": None,
-        "edit_distances_dict": None, "edit_ops": None, "runtime_s": None,
-        "error": message, "pred_parse_error": None, "gt_parse_error": None,
-        "versions": dict(get_versions(), schema=1), "cache_key": None,
-    }
+    record = new_record(pred, gt, detail_name)
+    record["error"] = message
+    return record
 
 
 class Worker:
@@ -62,21 +58,31 @@ class Worker:
     def __init__(self, mem_gb: float):
         self.mem_gb = mem_gb
         self.proc: subprocess.Popen | None = None
+        # kill() runs on both the worker thread and the watchdog timer thread;
+        # the lock prevents a double-kill None-deref, and the flag (set under
+        # the lock by the timer) is what distinguishes timeout from crash —
+        # Timer.is_alive() cannot, since it is True while the callback runs.
+        self._lock = threading.Lock()
+        self._timed_out = False
 
     def _spawn(self) -> None:
-        self.proc = subprocess.Popen(
-            [sys.executable, "-m", "verosim_harness.oracle", "--mem-gb", str(self.mem_gb)],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        )
+        with self._lock:
+            self.proc = subprocess.Popen(
+                [sys.executable, "-m", "verosim_harness.oracle", "--mem-gb", str(self.mem_gb)],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
 
-    def kill(self) -> None:
-        if self.proc is not None:
-            self.proc.kill()
-            self.proc.wait()
-            self.proc = None
+    def kill(self, *, timed_out: bool = False) -> None:
+        with self._lock:
+            if timed_out:
+                self._timed_out = True
+            if self.proc is not None:
+                self.proc.kill()
+                self.proc.wait()
+                self.proc = None
 
     def run(self, pred: str, gt: str, detail: str, data_root: str, timeout_s: float) -> dict:
         if self.proc is None or self.proc.poll() is not None:
@@ -94,18 +100,20 @@ class Worker:
 
         # readline with a hang watchdog: the timer kills the subprocess, which
         # unblocks readline with EOF.
-        timer = threading.Timer(timeout_s, self.kill)
+        self._timed_out = False
+        timer = threading.Timer(timeout_s, lambda: self.kill(timed_out=True))
         timer.start()
         try:
             line = self.proc.stdout.readline()
         finally:
-            timed_out = not timer.is_alive() and self.proc is None
             timer.cancel()
         if not line:
+            # Takes the lock, so an in-flight timer callback finishes first
+            # and its _timed_out write is visible below.
             self.kill()
             reason = (
                 f"worker timeout after {timeout_s}s"
-                if timed_out
+                if self._timed_out
                 else "worker died (OOM kill or crash)"
             )
             return error_record(pred, gt, detail, reason)
@@ -217,12 +225,21 @@ def main(argv: list[str] | None = None) -> int:
         for pred, gt in todo:
             hit = None
             if not args.no_cache:
-                key = cache.cache_key(
-                    Path(args.data_root, pred), Path(args.data_root, gt), detail_value
-                )
+                try:
+                    key = cache.cache_key(
+                        Path(args.data_root, pred), Path(args.data_root, gt), detail_value
+                    )
+                except OSError as exc:
+                    # Missing/unreadable corpus file costs exactly this pair,
+                    # same contract as a worker-side failure.
+                    emit(error_record(pred, gt, args.detail, f"cache pre-pass: {exc}"))
+                    continue
                 hit = cache.load(key)
             if hit is not None:
-                emit(hit)
+                # The key is content-based; the stored pair paths are from the
+                # run that computed the record. Re-stamp them so the resume
+                # index and downstream joins see the pair we were asked for.
+                emit(dict(hit, pair={"pred": pred, "gt": gt}))
             else:
                 work.put((pred, gt))
 

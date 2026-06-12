@@ -69,6 +69,9 @@ int CheckListMain(const std::string &listPath, const std::string &baseDir)
         verosim::CheckResult result = verosim::CheckFile(bridge, path);
         result.path = line; // report the list-relative path, not the joined one
         verosim::WriteCheckJsonl(result, std::cout);
+        // run_sweep.sh's crash-resume protocol requires every completed file's
+        // record to be durable when a later file segfaults the process.
+        std::cout.flush();
     }
     return 0;
 }

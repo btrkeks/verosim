@@ -72,6 +72,30 @@ def _parse(path: Path, accept_syntax_errors: bool):
         return m21.stream.Score(), traceback.format_exc()
 
 
+def new_record(pred_rel: str, gt_rel: str, detail_name: str) -> dict:
+    """The one authoritative constructor of the oracle JSONL record schema.
+
+    Every record in an oracle output file comes from here — run_pair fills in
+    results, run_oracle's driver fills in errors for pairs that never reached
+    a worker (timeout, OOM kill, crash). Keep the schema in this one place."""
+    return {
+        "pair": {"pred": str(pred_rel), "gt": str(gt_rel)},
+        "detail": {"name": detail_name, "value": DETAIL_LEVELS[detail_name]},
+        "distance": None,
+        "n_pred": None,
+        "n_gt": None,
+        "omr_ned": None,
+        "edit_distances_dict": None,
+        "edit_ops": None,
+        "runtime_s": None,
+        "error": None,
+        "pred_parse_error": None,
+        "gt_parse_error": None,
+        "versions": dict(get_versions(), schema=SCHEMA_VERSION),
+        "cache_key": None,
+    }
+
+
 def run_pair(
     pred_path: str | Path,
     gt_path: str | Path,
@@ -86,22 +110,7 @@ def run_pair(
     pred_abs = Path(data_root, pred_path) if data_root else Path(pred_path)
     gt_abs = Path(data_root, gt_path) if data_root else Path(gt_path)
 
-    record = {
-        "pair": {"pred": pred_rel, "gt": gt_rel},
-        "detail": {"name": detail_name, "value": detail_value},
-        "distance": None,
-        "n_pred": None,
-        "n_gt": None,
-        "omr_ned": None,
-        "edit_distances_dict": None,
-        "edit_ops": None,
-        "runtime_s": None,
-        "error": None,
-        "pred_parse_error": None,
-        "gt_parse_error": None,
-        "versions": dict(get_versions(), schema=SCHEMA_VERSION),
-        "cache_key": None,
-    }
+    record = new_record(pred_rel, gt_rel, detail_name)
 
     start = time.monotonic()
     try:
@@ -195,6 +204,21 @@ def serve() -> int:
             cache.store(record["cache_key"], record)
         protocol_out.write(json.dumps(record) + "\n")
         protocol_out.flush()
+        # annotated_scores_diff clears its memoizer at the START of the next
+        # diff, so a MemoryError mid-diff would otherwise leave a near-rlimit
+        # dict alive through the next pair's parse — one monster pair then
+        # poisons the worker and every pair after it MemoryErrors (observed:
+        # 84 consecutive failures in the dev200 tierAB run). Clear it now.
+        try:
+            from musicdiff.comparison import Comparison
+            Comparison._clear_memoizer_caches()
+        except Exception:
+            pass
+        if record["error"] and "MemoryError" in record["error"]:
+            # Even after the clear, CPython's freed arenas stay mapped and
+            # count against RLIMIT_AS. Exit; the parent respawns a fresh
+            # worker with a clean address space.
+            return 0
     return 0
 
 
