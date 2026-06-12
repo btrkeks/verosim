@@ -270,6 +270,14 @@ Tier A+B+C       &rarr;  oracle run adding Ornaments, Directions (lyrics always 
     <li>Test framework wired up (one trivial passing test); a <code>justfile</code>/<code>Makefile</code> with <code>build</code>, <code>test</code>, <code>bench</code> targets.</li>
   </ul>
   <p class="exit"><b>Exit criteria:</b> all three Spike Zero questions answered and recorded (musicdiff runs on both formats; Tier-A DetailLevel scoping confirmed or strategy amended as a D<i>n</i>; oracle runtime measured); <code>verosim --dump-tree</code> works on one lieder <code>.xml</code> and its paired <code>.krn</code> with sane tree contents; build is one command from clean checkout.</p>
+  <p class="field"><b>Exit record (2026-06-12):</b> all criteria met. Spike Zero (<a href="spike_zero_results.md">full results</a>, pair lc28688206):</p>
+  <ul>
+    <li><b>Q1 (R2 probe):</b> musicdiff runs end-to-end on .xml vs .krn &mdash; OMR-NED 0.0671 at full detail &mdash; <em>but only with music21 pinned &lt; 10</em>: converter21 4.0.1 (latest) calls <code>Metadata._convertValue</code>, removed in music21 10, so the kern side fails on music21 10.3. Pinned music21 9.9.2 in <code>harness/setup.sh</code> / <code>PINNED_VERSIONS.md</code>. No strategy change needed.</li>
+    <li><b>Q2:</b> Tier-A-only scoping confirmed: <code>-i notesandrests beams signatures</code> restricts the comparison (symbols 1715&rarr;1095 on the pair) and still emits OMR-NED. Strategy stands; no D<i>n</i> amendment. CLI gotcha: positional files must precede <code>-i</code>/<code>-o</code> (greedy <code>nargs='*'</code>).</li>
+    <li><b>Q3:</b> ~1.3&nbsp;s/pair full detail, ~1.1&nbsp;s Tier A &rarr; DEV-200 &times; 3 detail levels &asymp; 13&nbsp;min single-threaded, ~1&nbsp;min over 16 cores. Oracle precompute is comfortably off the critical path; a simple process-pool driver suffices for M1.</li>
+    <li><b>M1 harness note:</b> musicdiff exits 0 even when a score fails to parse (prints &ldquo;musicdiff failed.&rdquo; to output) &mdash; the M1 harness must detect failure from output, not exit codes.</li>
+    <li><b>Skeleton:</b> <code>make build</code> builds vendored Verovio (<code>BUILD_AS_LIBRARY</code>, pinned <code>b9c58d41</code>, recorded in <code>PINNED_VERSIONS.md</code> + submodule gitlink) and the <code>verosim</code> CLI in one command; <code>--dump-tree</code> verified on lc28688206 .xml (1,966 nodes) and paired .krn (2,097 nodes) with sane, structurally comparable trees; Catch2 wired (2 tests green via <code>make test</code>). Toolkit needs <code>SetResourcePath(verovio/data)</code> even though we never render (LoadData hard-checks font resources, <code class="fileref">toolkit.cpp:516-522</code>); handled in <code>VrvBridge</code>.</li>
+  </ul>
 </div>
 
 <div class="milestone" id="m1">

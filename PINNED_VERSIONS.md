@@ -10,4 +10,6 @@ truth; this file is the human-readable record.
 | musicdiff (submodule) | `f413e5e9b749bba8100b79425912b7db4a0f7a72` (2026-03-03, v5.2.0-1-gf413e5e) | Executable spec + validation oracle (D12) |
 | Catch2 | v3.8.1 (CMake FetchContent) | Test framework |
 | Python (harness venv) | 3.12 (uv-managed, `harness/.venv`) | System 3.14 untested with music21; pinned for safety |
-| music21 / converter21 / numpy | as resolved by `pip install -e ./musicdiff` (music21>=9.9.1, converter21>=4.0.1) | Exact versions in `harness/.venv` |
+| music21 | **9.9.2 (must stay <10)** | converter21 4.0.1 calls `Metadata._convertValue`, removed in music21 10 — kern parsing breaks (Spike Zero finding) |
+| converter21 | 4.0.1 (latest) | music21's Humdrum/kern parser used by musicdiff |
+| numpy | 2.4.6 | as resolved |
