@@ -1,0 +1,38 @@
+{
+ "file": "grand.krn",
+ "total": 24,
+ "categories": {
+  "pitches": 8,
+  "accidentals": 0,
+  "ties": 0,
+  "noteheads": 8,
+  "dots": 0,
+  "beams": 0,
+  "tuplets": 0,
+  "tuplet_info": 0,
+  "grace": 0,
+  "grace_slash": 0,
+  "gaps": 0,
+  "articulations": 0,
+  "expressions": 0,
+  "style": 0,
+  "clef": 2,
+  "keysig": 2,
+  "timesig": 4,
+  "other_extras": 0
+ },
+ "per_part": [
+  {
+   "per_measure": [
+    12,
+    2
+   ]
+  },
+  {
+   "per_measure": [
+    8,
+    2
+   ]
+  }
+ ]
+}

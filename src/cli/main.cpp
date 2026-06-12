@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "verosim/cli/check.h"
+#include "verosim/cli/count_symbols.h"
 #include "verosim/cli/dump_tree.h"
 #include "verosim/extraction/vrv_bridge.h"
 
@@ -18,6 +19,10 @@ void PrintUsage(std::ostream &os)
           "       verosim --check --files-from <list> [--base-dir <dir>]\n"
           "                                      check every file in <list> (one path per line,\n"
           "                                      '#' comments; always exits 0 — failures are data)\n"
+          "       verosim --count-symbols [--per-measure] <file>\n"
+          "                                      Tier-A symbol counts as JSON (M2 Layer 2)\n"
+          "       verosim --count-symbols --files-from <list> [--base-dir <dir>]\n"
+          "                                      counts for every file in <list>, JSONL, exits 0\n"
           "Supported inputs: MusicXML, .mxl, Humdrum/kern, MEI, ... (Verovio autodetect)\n";
 }
 
@@ -76,6 +81,32 @@ int CheckListMain(const std::string &listPath, const std::string &baseDir)
     return 0;
 }
 
+int CountSymbolsOneMain(const std::string &path, bool perMeasure)
+{
+    verosim::VrvBridge bridge;
+    const verosim::CountSymbolsOptions options{ .per_measure = perMeasure };
+    return verosim::CountSymbolsFile(bridge, path, options, std::cout) ? 0 : 1;
+}
+
+int CountSymbolsListMain(const std::string &listPath, const std::string &baseDir)
+{
+    std::ifstream list(listPath);
+    if (!list) {
+        std::cerr << "verosim: cannot read file list " << listPath << '\n';
+        return 2;
+    }
+    verosim::VrvBridge bridge;
+    const verosim::CountSymbolsOptions options;
+    std::string line;
+    while (std::getline(list, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        const std::string path = baseDir.empty() ? line : baseDir + "/" + line;
+        verosim::CountSymbolsFile(bridge, path, options, std::cout);
+        std::cout.flush(); // same durability contract as --check list mode
+    }
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -97,6 +128,23 @@ int main(int argc, char **argv)
             }
             if (!listPath.empty() && (args.size() == 3 || args.size() == 5)) {
                 return CheckListMain(listPath, baseDir);
+            }
+        }
+        if (!args.empty() && args[0] == "--count-symbols") {
+            if (args.size() == 2 && args[1][0] != '-') {
+                return CountSymbolsOneMain(args[1], false);
+            }
+            if (args.size() == 3 && args[1] == "--per-measure" && args[2][0] != '-') {
+                return CountSymbolsOneMain(args[2], true);
+            }
+            std::string listPath, baseDir;
+            for (std::size_t i = 1; i + 1 < args.size(); i += 2) {
+                if (args[i] == "--files-from") listPath = args[i + 1];
+                else if (args[i] == "--base-dir") baseDir = args[i + 1];
+                else { listPath.clear(); break; }
+            }
+            if (!listPath.empty() && (args.size() == 3 || args.size() == 5)) {
+                return CountSymbolsListMain(listPath, baseDir);
             }
         }
         if (args.size() == 2 && args[0][0] != '-' && args[1][0] != '-') {

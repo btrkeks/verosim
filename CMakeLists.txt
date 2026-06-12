@@ -30,7 +30,12 @@ set(VEROVIO_INCLUDE_DIRS
 
 add_library(verosim_core STATIC
     src/extraction/vrv_bridge.cpp
+    src/extraction/extract.cpp
+    src/extraction/effective_pitch.cpp
+    src/extraction/notation_rules.cpp
+    src/model/sym_score.cpp
     src/cli/check.cpp
+    src/cli/count_symbols.cpp
     src/cli/dump_tree.cpp)
 target_include_directories(verosim_core PUBLIC include ${VEROVIO_INCLUDE_DIRS})
 target_link_libraries(verosim_core PUBLIC verovio)

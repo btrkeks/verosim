@@ -3,7 +3,7 @@ PY := harness/.venv/bin/python
 DATA_ROOT := /home/daniel/.local/share/src/Transcoda/main/data/interim
 JOBS := 2
 
-.PHONY: build test bench clean corpora oracle-dev200 mutgen mutcheck sweep harness-test
+.PHONY: build test bench clean corpora oracle-dev200 mutgen mutcheck sweep harness-test count-audit
 
 build:
 	cmake -S . -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -46,6 +46,13 @@ sweep: build
 	BIN=$(BUILD_DIR)/verosim harness/run_sweep.sh corpora/lieder_all_krn.txt $(DATA_ROOT) oracle/sweep_lieder.jsonl
 	$(PY) -m verosim_harness.sweep_report oracle/sweep_perf10k.jsonl oracle/sweep_lieder.jsonl \
 	  --out docs/parse_coverage_m1.md
+
+# ---- M2: DEV-200 symbol-count audit (Layer 2 counts vs oracle n values) ----
+
+count-audit: build
+	$(PY) -m verosim_harness.count_audit --oracle oracle/dev200_tierA.jsonl \
+	  --bin $(BUILD_DIR)/verosim --data-root $(DATA_ROOT) \
+	  --out oracle/count_audit_dev200.jsonl --report docs/count_audit_m2.md
 
 harness-test:
 	@test -x $(PY) || { echo "harness venv missing — run harness/setup.sh first"; exit 1; }

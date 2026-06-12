@@ -27,8 +27,14 @@ public:
     explicit VrvBridge(const VrvBridgeConfig &config = {});
 
     // Loads any supported format from a file path. LoadFile (not LoadData)
-    // is required for compressed .mxl and UTF-16 inputs.
-    bool LoadScoreFile(const std::string &path) { return this->LoadFile(path); }
+    // is required for compressed .mxl and UTF-16 inputs. Records the
+    // identified input format (LoadData identifies but does not store it),
+    // which extraction needs for format-specific conventions (grace slash).
+    bool LoadScoreFile(const std::string &path);
+
+    // Input format of the most recent LoadScoreFile (UNKNOWN before any load;
+    // ZIP is resolved to MUSICXML — .mxl payloads are MusicXML).
+    vrv::FileFormat last_input_format() const { return m_lastInputFormat; }
 
     // With capture_log: the buffered log for the most recent load, cleared on
     // read. LoadFile resets the buffer on entry, so reusing one bridge across
@@ -38,6 +44,9 @@ public:
 
     vrv::Doc &GetDoc() { return m_doc; }
     const vrv::Doc &GetDoc() const { return m_doc; }
+
+private:
+    vrv::FileFormat m_lastInputFormat = vrv::UNKNOWN;
 };
 
 } // namespace verosim

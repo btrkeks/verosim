@@ -1,0 +1,14 @@
+!! two staves (grand staff): part/measure alignment
+**kern	**kern
+*clefF4	*clefG2
+*k[]	*k[]
+*M4/4	*M4/4
+=1	=1
+2C	4c
+.	4d
+2G	4e
+.	4f
+=2	=2
+1CC	1g
+==	==
+*-	*-
