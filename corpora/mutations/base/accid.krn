@@ -1,0 +1,20 @@
+!! C major with explicit accidentals: within-measure carry cases.
+!! m1: f# then f# again (second sharp not displayed, carried);
+!! m2: b- then b natural (natural displayed, cancels the flat).
+**kern
+*clefG2
+*k[]
+*M4/4
+=1
+8f#
+8f#
+4g
+4a
+4b
+=2
+4B-
+4Bn
+4c
+4d
+==
+*-

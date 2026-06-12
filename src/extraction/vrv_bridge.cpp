@@ -7,9 +7,10 @@
 
 namespace verosim {
 
-VrvBridge::VrvBridge() : vrv::Toolkit(false)
+VrvBridge::VrvBridge(const VrvBridgeConfig &config) : vrv::Toolkit(false)
 {
-    vrv::EnableLog(vrv::LOG_ERROR);
+    vrv::EnableLog(config.log_level);
+    vrv::EnableLogToBuffer(config.capture_log);
     if (!this->SetResourcePath(VEROSIM_VRV_DATA_DIR)) {
         throw std::runtime_error(
             "VrvBridge: cannot load Verovio resources from " VEROSIM_VRV_DATA_DIR);

@@ -5,3 +5,4 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 uv venv --python 3.12 "$ROOT/harness/.venv"
 uv pip install --python "$ROOT/harness/.venv/bin/python" -e "$ROOT/musicdiff" 'music21<10'
+uv pip install --python "$ROOT/harness/.venv/bin/python" -e "$ROOT/harness"

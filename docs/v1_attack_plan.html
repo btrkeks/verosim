@@ -166,28 +166,30 @@
 
 <h2 id="data"><span class="secno">2</span>Data Inventory</h2>
 
-<p>Available at <code class="fileref">/home/daniel/.local/share/src/Transcoda/main/data/interim</code> (inspected 2026-06-12):</p>
+<p>Available at <code class="fileref">/home/daniel/.local/share/src/Transcoda/main/data/interim</code> (inspected 2026-06-12; stage semantics corrected same day).</p>
+
+<p><b>Pipeline-stage layout:</b> each dataset is a staged pipeline, not a flat pool. Stage <code>0_raw_xml</code> / <code>0_raw_ekern</code> holds the originals (pdmx&rsquo;s raw XML is archived compressed as <code>0_raw_xml.tar.zst</code>); <code>1_kern_conversions</code> is the kern conversion of those originals; stages <code>2_</code>, <code>3_</code>, <code>4_</code>, &hellip; are progressively filtered/cleaned/normalized <em>derivatives of the same samples</em>. Raw per-extension file counts therefore overcount unique samples by roughly the number of stages. <b>Sampling rule for all corpora below: draw from stages 0/1 only</b> &mdash; later stages alter content, and comparing a raw original against a cleaned derivative would conflate pipeline edits with metric differences.</p>
 
 <table>
-  <tr><th>Dataset</th><th>Contents</th><th>Role in this plan</th></tr>
+  <tr><th>Dataset</th><th>Contents (unique samples)</th><th>Role in this plan</th></tr>
   <tr>
     <td><code>train/openscore-lieder</code></td>
-    <td><b>1,462 paired pieces</b>: <code>0_raw_xml/*.xml</code> + <code>1_kern_conversions/*.krn</code>, matched by basename. Realistic multi-staff vocal music with dynamics, lyrics, spine splits/merges.</td>
+    <td><b>1,462 paired pieces</b>: <code>0_raw_xml/*.xml</code> + <code>1_kern_conversions/*.krn</code>, matched by basename (1,343 survive to <code>3_cleaned</code>). Realistic multi-staff vocal music with dynamics, lyrics, spine splits/merges.</td>
     <td><b>Primary validation corpus.</b> Pairs enable both the oracle comparison and the (non-blocking) cross-importer gap measurement.</td>
   </tr>
   <tr>
     <td><code>train/musetrainer</code></td>
-    <td>273 krn, 69 xml (paired subset)</td>
+    <td>69 paired pieces (<code>0_raw_xml</code> &harr; <code>1_kern_conversions</code>)</td>
     <td>Secondary validation corpus; held out from debugging, used for final v1 acceptance only.</td>
   </tr>
   <tr>
     <td><code>train/grandstaff</code></td>
-    <td>246,696 krn (+ 41,598 ekern)</td>
+    <td>41,598 unique samples (<code>0_raw_ekern</code> &rarr; <code>1_kern_conversions</code>)</td>
     <td>Piano music; identity tests at scale, kern-importer robustness sweep, performance benchmark.</td>
   </tr>
   <tr>
     <td><code>train/pdmx</code></td>
-    <td>1,606,951 krn</td>
+    <td>234,461 unique samples at <code>1_kern_conversions</code> (filtered down to 181,310 by <code>5_quality_filtered</code>; originals in <code>0_raw_xml.tar.zst</code>)</td>
     <td>Large-scale performance benchmark and parse-coverage sweep (sampled).</td>
   </tr>
   <tr>
@@ -199,9 +201,9 @@
 
 <p><b>Corpus definitions used throughout the plan:</b></p>
 <ul>
-  <li><b>DEV-200:</b> 200 pairs sampled from openscore-lieder (fixed seed, committed file list). Used for day-to-day debugging and oracle comparison.</li>
-  <li><b>HOLDOUT-100:</b> 100 openscore-lieder pairs + all 69 musetrainer pairs, never used during debugging. Final acceptance only.</li>
-  <li><b>PERF-10K:</b> 10,000 kern files sampled from pdmx + grandstaff. Parse-coverage sweep and benchmarks.</li>
+  <li><b>DEV-200:</b> 200 pairs sampled from openscore-lieder <code>0_raw_xml</code> &harr; <code>1_kern_conversions</code> (fixed seed, committed file list). Used for day-to-day debugging and oracle comparison.</li>
+  <li><b>HOLDOUT-100:</b> 100 openscore-lieder pairs + all 69 musetrainer pairs, same stage-0/1 pairing, never used during debugging. Final acceptance only.</li>
+  <li><b>PERF-10K:</b> 10,000 kern files sampled from <code>1_kern_conversions</code> of pdmx + grandstaff (~276k unique samples) &mdash; the pre-cleaning stage, deliberately the most adversarial input for the parser. Parse-coverage sweep and benchmarks.</li>
   <li><b>HAND-10:</b> ~10 very small scores (a few measures each, some hand-written) with manually counted symbol inventories per the paper's taxonomy. The only fully human-verified ground truth.</li>
 </ul>
 
@@ -288,11 +290,20 @@ Tier A+B+C       &rarr;  oracle run adding Ornaments, Directions (lyrics always 
     <li>Python harness (<code>harness/</code>): runs musicdiff on a pair at a given DetailLevel, emits JSON <code>{pair, detail, distance, n1, n2, omr_ned, runtime, error, edit_ops}</code>; tolerates and records music21 parse failures (coverage is a measured number, not an assumption). Parallel driver + content-hash cache. <b><code>edit_ops</code> is musicdiff&rsquo;s per-edit operation list</b> &mdash; stored so that rung-4 divergence triage is &ldquo;diff two operation lists&rdquo;, not &ldquo;stare at two scalars&rdquo;; this is the cheapest schedule insurance for the M3 contingency budget.</li>
     <li>Pin the DetailLevel&harr;tier mapping by reading <code class="fileref">detaillevel.py</code>; record it in the decision doc.</li>
     <li>Kick off background oracle precomputation: DEV-200 at the Tier-A-equivalent DetailLevel first, then Tier A+B.</li>
-    <li><b>Mutation corpus generator:</b> a script that applies single, controlled textual mutations to small kern files (change one pitch letter, delete one accidental, drop a dot, remove a barline&rsquo;s note &hellip;) and records the <em>analytically expected</em> cost per the paper&rsquo;s rules. ~50 mutation cases. These are the unit-level ground truth that needs no oracle.</li>
+    <li><b>Mutation corpus generator:</b> a script that applies single, controlled textual mutations to small kern files (change one pitch letter, delete one accidental, drop a dot, remove a barline&rsquo;s note &hellip;) and records the <em>analytically expected</em> cost per the paper&rsquo;s rules. ~50 mutation cases, including key-signature/accidental-state cases (same written note with and without a governing key signature, accidental carry within a measure) to pin the effective-pitch semantics that M2 must reproduce (D13). These are the unit-level ground truth that needs no oracle.</li>
     <li><b>Mutation&ndash;oracle cross-check:</b> run Python musicdiff over every mutation case and require <em>analytic expectation = oracle output</em> before any C++ tier implementation begins. The mutation costs encode <em>our reading of the paper</em>; a mismatch here means we misread a costing rule &mdash; caught at the cheapest possible moment, before the misreading is enforced as a wrong spec by our own exact tests. Where paper and vendored code disagree, the vendored code wins (D12) and the disagreement is noted in the mapping doc.</li>
-    <li>Parse-coverage sweep: run <code>verosim --dump-tree</code> over PERF-10K, count load failures/warnings per dataset. This is cheap and tells us early whether Verovio&rsquo;s humlib chokes on this kern dialect.</li>
+    <li>Parse-coverage sweep: run <code>verosim --dump-tree</code> over PERF-10K, count load failures/warnings per dataset. This is cheap and tells us early whether Verovio&rsquo;s humlib chokes on this kern dialect. <b>Prerequisite (M0 review, D13):</b> <code>VrvBridge</code> currently pins Verovio logging to <code>LOG_ERROR</code>, which suppresses the warnings this sweep is supposed to count &mdash; make the log level a constructor parameter (or capture warnings via Verovio&rsquo;s string-capture logging) first; the same hook is what deferred D4 will eventually consume.</li>
   </ul>
   <p class="exit"><b>Exit criteria:</b> oracle JSON (incl. <code>edit_ops</code>) exists for &ge;&nbsp;150 of DEV-200 at Tier-A DetailLevel (music21 failures documented); mutation corpus with expected costs committed <em>and cross-checked against the oracle with all mismatches resolved</em>; Verovio parse coverage on PERF-10K reported (target &gt;&nbsp;95%; if far below, see <a href="#risks">risk&nbsp;R1</a>).</p>
+  <p class="field"><b>Exit record (2026-06-12):</b> all criteria met. Mapping and conventions recorded as <a href="implementation_decisions.html#d14">D14</a>.</p>
+  <ul>
+    <li><b>Corpora:</b> <code>corpora/dev200.tsv</code> (200), <code>holdout100.tsv</code> (100 lieder + 69 musetrainer, disjointness asserted), <code>perf10k.txt</code> (8,493 pdmx + 1,507 grandstaff, proportional), <code>lieder_all_krn.txt</code> (1,462) &mdash; fixed string seeds, byte-identical on regeneration, invariants in CI (<code>make harness-test</code>).</li>
+    <li><b>Oracle harness</b> (<code>harness/verosim_harness/</code>): mirrors <code>_diff_omr_ned_metrics</code> via the library API and additionally serializes <code>edit_ops</code>; content-hash cache; golden test reproduces Spike Zero exactly (148 / 1095 / 1097 / 0.06752). <b>Tier-A DEV-200: 185/200 ok</b> (median OMR-NED 0.010, q3 0.050, max 0.99 &mdash; a triage seed for M3). 15 documented failures: 8 MemoryError + 4 OOM-killed workers (pathological scores need &gt;8&nbsp;GiB / minutes in <em>Python</em> musicdiff &mdash; the project premise, live), 3 kern files music21 cannot parse (the only R2 exposure: 1.5%). 0 parse substitutions among ok pairs. Tier A+B and A+B+Directions precompute kicked off (both, per D14&rsquo;s deferred Directions choice).</li>
+    <li><b>Oracle driver hardening</b> (found the hard way): persistent isolated worker subprocesses with per-pair timeout, RLIMIT_AS, and respawn &mdash; a ProcessPoolExecutor variant deadlocked when the kernel OOM-killed workers, and music21 printing stray text to stdout required moving the record protocol to a private fd.</li>
+    <li><b>Mutation corpus:</b> 6 hand-written base kern files + 50 single-mutation cases with hand-derived expected costs (<code>corpora/mutations/</code>, generator deterministic via <code>--verify</code>). <b>Cross-check: 50/50 exact</b> (cost and op-multiset). 4 initial expectations were corrected against vendored behavior (D12) and the findings recorded in D14 + per-case rationales &mdash; incl. the D13 effective-pitch family (keysig governance, carry, one-token mutations whose display effects propagate to other notes).</li>
+    <li><b>Parse-coverage sweep</b> (<code>verosim --check --files-from</code>, crash-resuming wrapper): <b>lieder 99.25% / pdmx 99.84% / grandstaff 100.00%</b> &mdash; R1 retired. All 25 failures are clean caught exceptions (<code>vector::_M_default_append</code> dominant); list in <a href="parse_coverage_m1.md"><code>docs/parse_coverage_m1.md</code></a>, seeds M5&rsquo;s regression suite. Caveat: humlib writes rhythm-analysis errors directly to stderr, bypassing captured logs (noted in D14).</li>
+    <li><b>C++:</b> <code>VrvBridgeConfig</code> (log level + buffer capture &mdash; D13 item 2 done), <code>CheckFile</code>/<code>--check</code> in <code>verosim_core</code>, 5 new Catch2 tests (7 total green, no data dir needed).</li>
+  </ul>
 </div>
 
 <div class="milestone" id="m2">
@@ -302,6 +313,7 @@ Tier A+B+C       &rarr;  oracle run adding Ornaments, Directions (lyrics always 
     <li>Define the v1 internal representation: <code>SymScore &rarr; SymPart &rarr; SymMeasure &rarr; SymVoice &rarr; SymNote/SymRest</code>, each carrying its OMR-NED symbol list. Mirrors musicdiff&rsquo;s <code>AnnScore</code> shape (<code class="fileref">annotation.py</code>) so the Layer-3 port maps 1:1.</li>
     <li>Walk the Verovio tree (Score &rarr; Section &rarr; Measure &rarr; Staff &rarr; Layer): notes, rests, chords, beams, tuplets; read pitch/duration via <code>PitchInterface</code>/<code>DurationInterface</code>; clef/key/time from ScoreDef and inline changes.</li>
     <li><b>Offset computation</b> (the known-hard part, tackled first within M2): accumulate rational beat positions per layer; handle tuplet ratios and chords; grace notes get the paper&rsquo;s treatment. Use exact rational arithmetic, no floats.</li>
+    <li><b>Effective pitch resolution (M0 review finding, D13):</b> neither importer puts sounding pitch in the parse-only tree &mdash; iomusxml discards <code>&lt;alter&gt;</code> for regular notes (<code class="fileref">iomusxml.cpp:3140-3150</code>), iohumdrum sets <code>@accid</code> only when the accidental is visible and no <code>@accid.ges</code> on the normal kern path (<code class="fileref">iohumdrum.cpp:26723+</code>). Since musicdiff matches notes by <em>sounding</em> pitch, Layer&nbsp;2 must resolve it: key signature + within-measure accidental carry + ties. Corollary: iohumdrum attaches an <em>empty</em> <code>accid</code> child to every pitched note &mdash; count accidental symbols by <code>@accid</code> value, never by element presence.</li>
     <li>Document the MEI&rarr;symbol mapping table as it is written (companion table in the decision doc or a <code>docs/mei_symbol_mapping.html</code>).</li>
     <li>Validate with symbol-count audits: <code>verosim --count-symbols</code> on HAND-10 must match the hand counts exactly; on DEV-200, total Tier-A symbol counts are compared against the oracle&rsquo;s N values (not expected identical &mdash; parser differences, per D6 &mdash; but large or systematic gaps get investigated).</li>
   </ul>

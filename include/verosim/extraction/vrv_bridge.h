@@ -3,8 +3,18 @@
 #include <string>
 
 #include "toolkit.h"
+#include "toolkitdef.h"
 
 namespace verosim {
+
+struct VrvBridgeConfig {
+    // Verovio logging is process-global state (vrv::logLevel, vrv::logBuffer),
+    // not per-Toolkit: the last constructed bridge wins, and capture_log only
+    // works single-threaded. Consistent with one-Toolkit-per-thread (D7); this
+    // hook is what the M1 parse-coverage sweep and deferred D4 consume (D13).
+    vrv::LogLevel log_level = vrv::LOG_ERROR;
+    bool capture_log = false;
+};
 
 // Layer 1 wrapper: a vrv::Toolkit configured for parse-only use (breaks:none,
 // no layout, no rendering — D2) that exposes the parsed Object tree, which
@@ -14,11 +24,17 @@ public:
     // Throws std::runtime_error if the Verovio resource path is unusable
     // (LoadData refuses to run without font resources even though we never
     // render, and its own error message is misleading).
-    VrvBridge();
+    explicit VrvBridge(const VrvBridgeConfig &config = {});
 
     // Loads any supported format from a file path. LoadFile (not LoadData)
     // is required for compressed .mxl and UTF-16 inputs.
     bool LoadScoreFile(const std::string &path) { return this->LoadFile(path); }
+
+    // With capture_log: the buffered log for the most recent load, cleared on
+    // read. LoadFile resets the buffer on entry, so reusing one bridge across
+    // files yields clean per-file capture. Verovio dedups identical messages
+    // within one load, so line counts are unique-message counts.
+    std::string TakeLog() { return this->GetLog(); }
 
     vrv::Doc &GetDoc() { return m_doc; }
     const vrv::Doc &GetDoc() const { return m_doc; }

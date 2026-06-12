@@ -30,6 +30,7 @@ set(VEROVIO_INCLUDE_DIRS
 
 add_library(verosim_core STATIC
     src/extraction/vrv_bridge.cpp
+    src/cli/check.cpp
     src/cli/dump_tree.cpp)
 target_include_directories(verosim_core PUBLIC include ${VEROVIO_INCLUDE_DIRS})
 target_link_libraries(verosim_core PUBLIC verovio)
