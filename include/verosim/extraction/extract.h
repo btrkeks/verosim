@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include "verosim/model/detail_tier.h"
 #include "verosim/model/sym_score.h"
 
 namespace vrv {
@@ -23,8 +24,7 @@ struct ExtractResult {
 };
 
 struct ExtractOptions {
-    bool include_tier_b = false; // ties/slurs/articulations; compare path opts in
-    bool include_directions = false; // M4 diagnostic: dynamics + hairpins
+    DetailTier detail = DetailTier::kTierA; // count/extraction default remains Tier A
 };
 
 // Walk the parse-only Verovio Object tree of the first <score> into the

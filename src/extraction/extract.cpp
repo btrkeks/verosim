@@ -302,6 +302,14 @@ private:
         const std::vector<Event> &events, std::vector<SymExtra> &extras);
     void RegisterEventLocations(const std::string &staffN, const std::vector<Event> &events);
     void ResolvePendingSpans();
+    Fraction TstampToOffset(double tstamp, const std::string &staffN) const;
+    Fraction Tstamp2ToOffset(
+        const vrv::data_MEASUREBEAT &tstamp2, const std::string &staffN) const;
+    std::optional<Fraction> ControlPointOffset(const vrv::Object *obj,
+        const vrv::TimePointInterface *tpi, const std::string &staffN,
+        const Fraction &startAbs);
+    std::optional<Fraction> ControlSpanDuration(const vrv::TimeSpanningInterface *tsi,
+        const std::string &staffN, const Fraction &startAbs, const Fraction &start);
     void CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &events,
         std::vector<SymExtra> &extras, Fraction &cursor, StaffState &state,
         std::vector<const vrv::Tuplet *> &tupletStack, const vrv::Object *beam);
@@ -570,48 +578,63 @@ void Extractor::ResolvePendingSpans()
     }
 }
 
+Fraction Extractor::TstampToOffset(double tstamp, const std::string &staffN) const
+{
+    return FractionFromDouble(tstamp - 1.0) * staves_.at(staffN).beat_ql;
+}
+
+Fraction Extractor::Tstamp2ToOffset(
+    const vrv::data_MEASUREBEAT &tstamp2, const std::string &staffN) const
+{
+    const StaffState &state = staves_.at(staffN);
+    return state.meter_ql * Fraction(tstamp2.first)
+        + FractionFromDouble(tstamp2.second - 1.0) * state.beat_ql;
+}
+
+std::optional<Fraction> Extractor::ControlPointOffset(const vrv::Object *obj,
+    const vrv::TimePointInterface *tpi, const std::string &staffN, const Fraction &startAbs)
+{
+    if (!tpi) return std::nullopt;
+    if (tpi->HasStartid()) {
+        const auto it = event_locations_.find(StripIdRef(tpi->GetStartid()));
+        if (it != event_locations_.end() && it->second.staff_n == staffN) {
+            return it->second.abs_offset - startAbs;
+        }
+        if (it != event_locations_.end()) return std::nullopt;
+        if (!tpi->HasTstamp()) return std::nullopt;
+    }
+    if (tpi->HasTstamp()) {
+        return TstampToOffset(tpi->GetTstamp(), staffN);
+    }
+    Warn("control element <" + obj->GetClassName() + "> lacks a resolvable start offset");
+    return std::nullopt;
+}
+
+std::optional<Fraction> Extractor::ControlSpanDuration(const vrv::TimeSpanningInterface *tsi,
+    const std::string &staffN, const Fraction &startAbs, const Fraction &start)
+{
+    if (!tsi) return std::nullopt;
+    if (tsi->HasEndid()) {
+        const auto it = event_locations_.find(StripIdRef(tsi->GetEndid()));
+        if (it != event_locations_.end() && it->second.staff_n == staffN) {
+            Fraction dur = it->second.abs_offset + it->second.dur_ql - (startAbs + start);
+            if (dur < Fraction(0)) dur = Fraction(0);
+            return dur;
+        }
+        return Fraction(0); // still counts the span duration symbol across measures
+    }
+    if (tsi->HasTstamp2()) {
+        Fraction dur = Tstamp2ToOffset(tsi->GetTstamp2(), staffN) - start;
+        if (dur < Fraction(0)) dur = Fraction(0);
+        return dur;
+    }
+    return std::nullopt;
+}
+
 void Extractor::CollectControlExtras(const vrv::Measure *measure, const std::string &staffN,
     const std::vector<Event> &events, std::vector<SymExtra> &extras)
 {
     const Fraction start_abs = staves_[staffN].score_offset;
-
-    const auto point_offset = [&](const vrv::Object *obj,
-                                  const vrv::TimePointInterface *tpi) -> std::optional<Fraction> {
-        if (!tpi) return std::nullopt;
-        if (tpi->HasStartid()) {
-            const auto it = event_locations_.find(StripIdRef(tpi->GetStartid()));
-            if (it != event_locations_.end() && it->second.staff_n == staffN) {
-                return it->second.abs_offset - start_abs;
-            }
-        }
-        if (tpi->HasTstamp()) {
-            return FractionFromDouble(tpi->GetTstamp() - 1.0) * staves_[staffN].beat_ql;
-        }
-        Warn("control element <" + obj->GetClassName() + "> lacks a resolvable start offset");
-        return std::nullopt;
-    };
-    const auto span_duration = [&](const vrv::TimeSpanningInterface *tsi,
-                                   const Fraction &start) -> std::optional<Fraction> {
-        if (!tsi) return std::nullopt;
-        if (tsi->HasEndid()) {
-            const auto it = event_locations_.find(StripIdRef(tsi->GetEndid()));
-            if (it != event_locations_.end() && it->second.staff_n == staffN) {
-                Fraction dur = it->second.abs_offset + it->second.dur_ql - (start_abs + start);
-                if (dur < Fraction(0)) dur = Fraction(0);
-                return dur;
-            }
-            return Fraction(0); // still counts the span duration symbol across measures
-        }
-        if (tsi->HasTstamp2()) {
-            const vrv::data_MEASUREBEAT tstamp2 = tsi->GetTstamp2();
-            Fraction end = staves_[staffN].meter_ql * Fraction(tstamp2.first);
-            end = end + FractionFromDouble(tstamp2.second - 1.0) * staves_[staffN].beat_ql;
-            Fraction dur = end - start;
-            if (dur < Fraction(0)) dur = Fraction(0);
-            return dur;
-        }
-        return std::nullopt;
-    };
 
     for (const vrv::Object *obj : measure->GetChildren()) {
         if (!StaffMatches(obj, staffN)) continue;
@@ -620,17 +643,18 @@ void Extractor::CollectControlExtras(const vrv::Measure *measure, const std::str
             && !staff_order_.empty() && staffN != staff_order_.front()) {
             continue;
         }
-        if (options_.include_directions && obj->Is(vrv::DYNAM)) {
+        if (DetailIncludesDirections(options_.detail) && obj->Is(vrv::DYNAM)) {
             const vrv::Dynam *dynam = vrv_cast<const vrv::Dynam *>(obj);
-            if (auto off = point_offset(obj, dynam->GetTimePointInterface())) {
+            if (auto off = ControlPointOffset(obj, dynam->GetTimePointInterface(), staffN, start_abs)) {
                 extras.push_back(MakeDynamicExtra(*dynam, *off));
             }
         }
-        else if (options_.include_directions && obj->Is(vrv::HAIRPIN)) {
+        else if (DetailIncludesDirections(options_.detail) && obj->Is(vrv::HAIRPIN)) {
             const vrv::Hairpin *hairpin = vrv_cast<const vrv::Hairpin *>(obj);
-            if (auto off = point_offset(obj, hairpin->GetTimePointInterface())) {
-                extras.push_back(MakeHairpinExtra(
-                    *hairpin, *off, span_duration(hairpin->GetTimeSpanningInterface(), *off)));
+            if (auto off
+                = ControlPointOffset(obj, hairpin->GetTimePointInterface(), staffN, start_abs)) {
+                extras.push_back(MakeHairpinExtra(*hairpin, *off,
+                    ControlSpanDuration(hairpin->GetTimeSpanningInterface(), staffN, start_abs, *off)));
                 if (hairpin->GetTimeSpanningInterface()->HasEndid()) {
                     const std::string end_id = StripIdRef(hairpin->GetTimeSpanningInterface()->GetEndid());
                     if (!event_locations_.contains(end_id)) {
@@ -639,11 +663,11 @@ void Extractor::CollectControlExtras(const vrv::Measure *measure, const std::str
                 }
             }
         }
-        else if (options_.include_tier_b && obj->Is(vrv::SLUR)) {
+        else if (DetailIncludesTierB(options_.detail) && obj->Is(vrv::SLUR)) {
             const vrv::Slur *slur = vrv_cast<const vrv::Slur *>(obj);
-            if (auto off = point_offset(obj, slur->GetTimePointInterface())) {
-                extras.push_back(MakeSlurExtra(
-                    *slur, *off, span_duration(slur->GetTimeSpanningInterface(), *off)));
+            if (auto off = ControlPointOffset(obj, slur->GetTimePointInterface(), staffN, start_abs)) {
+                extras.push_back(MakeSlurExtra(*slur, *off,
+                    ControlSpanDuration(slur->GetTimeSpanningInterface(), staffN, start_abs, *off)));
                 if (slur->GetTimeSpanningInterface()->HasEndid()) {
                     const std::string end_id = StripIdRef(slur->GetTimeSpanningInterface()->GetEndid());
                     if (!event_locations_.contains(end_id)) {
@@ -723,7 +747,7 @@ Event Extractor::MakeCarrierEvent(const vrv::Object *obj, const Fraction &cursor
     ev.tuplets = tupletStack;
     ev.is_rest = obj->Is(vrv::REST) || obj->Is(vrv::MREST) || obj->Is(vrv::MULTIREST)
         || obj->Is(vrv::SPACE) || obj->Is(vrv::MSPACE);
-    if (options_.include_tier_b) AppendArticulations(obj, ev.articulations);
+    if (DetailIncludesTierB(options_.detail)) AppendArticulations(obj, ev.articulations);
 
     // duration attributes live on the carrier (chord-level for chords)
     const vrv::DurationInterface *durInterface = obj->GetDurationInterface();
@@ -974,7 +998,9 @@ SymNote Extractor::MakeSymNote(const Event &ev, const vrv::Note *note,
     sn.vrv_id = carrier->GetID();
     sn.is_in_chord = idxInChord >= 0;
     sn.note_idx_in_chord = idxInChord;
-    if (options_.include_tier_b && note != carrier) AppendArticulations(note, sn.articulations);
+    if (DetailIncludesTierB(options_.detail) && note != carrier) {
+        AppendArticulations(note, sn.articulations);
+    }
 
     SymPitch pitch;
     const char step = StepFromPname(note->GetPname());
@@ -1030,7 +1056,7 @@ SymNote Extractor::MakeSymNote(const Event &ev, const vrv::Note *note,
     if (step != 0) {
         pitch.sounding_alter
             = state.accids.Resolve(step, note->GetOct(), writtenAlter, gesturalAlter, tied);
-        pitch.tie = options_.include_tier_b && tieStart;
+        pitch.tie = DetailIncludesTierB(options_.detail) && tieStart;
         if (tieStart) {
             state.accids.RegisterTieStart(step, note->GetOct(), pitch.sounding_alter);
         }

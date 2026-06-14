@@ -33,6 +33,7 @@ add_library(verosim_core STATIC
     src/extraction/extract.cpp
     src/extraction/effective_pitch.cpp
     src/extraction/notation_rules.cpp
+    src/model/detail_tier.cpp
     src/model/sym_score.cpp
     src/engine/interner.cpp
     src/engine/myers.cpp
@@ -40,6 +41,7 @@ add_library(verosim_core STATIC
     src/engine/set_distance.cpp
     src/engine/block_diff.cpp
     src/engine/compare.cpp
+    src/cli/args.cpp
     src/cli/check.cpp
     src/cli/compare_cli.cpp
     src/cli/count_symbols.cpp

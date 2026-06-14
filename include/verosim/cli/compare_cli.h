@@ -3,14 +3,15 @@
 #include <iosfwd>
 #include <string>
 
+#include "verosim/model/detail_tier.h"
+
 namespace verosim {
 
 class VrvBridge;
 
 struct CompareCliOptions {
     bool emit_ops = false; // include the per-edit operation list (large)
-    bool include_tier_b = true; // default compare surface is M4 tierAB
-    bool include_directions = false; // tierAB_dir diagnostic: dynamics + hairpins
+    DetailTier detail = DetailTier::kTierAB; // default compare surface is M4 tierAB
 };
 
 // Loads pred and gt, extracts both, runs the comparison engine, and writes

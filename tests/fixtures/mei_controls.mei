@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="6" meter.unit="8"/>
+              <staffDef n="2" lines="5" clef.shape="F" clef.line="4" meter.count="6" meter.unit="8"/>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1">
+              <staff n="1">
+                <layer n="1">
+                  <note xml:id="s1n1" dur="8" oct="4" pname="c"/>
+                  <note xml:id="s1n2" dur="8" oct="4" pname="d"/>
+                  <note xml:id="s1n3" dur="4" oct="4" pname="e"/>
+                  <note xml:id="s1n4" dur="4" oct="4" pname="f"/>
+                </layer>
+              </staff>
+              <staff n="2">
+                <layer n="1">
+                  <note xml:id="s2n1" dur="8" oct="3" pname="c"/>
+                  <note xml:id="s2n2" dur="8" oct="3" pname="d"/>
+                  <note xml:id="s2n3" dur="4" oct="3" pname="e"/>
+                  <note xml:id="s2n4" dur="4" oct="3" pname="f"/>
+                </layer>
+              </staff>
+              <dynam xml:id="dyn_unstaffed" tstamp="5">f</dynam>
+              <dynam xml:id="dyn_staff2" staff="2" tstamp="3">p</dynam>
+              <hairpin xml:id="hp_tstamp2" staff="1" tstamp="2" tstamp2="0m+5" form="cres"/>
+              <slur xml:id="slur_startid_staff2" startid="#s2n1" endid="#s2n3"/>
+              <slur xml:id="slur_cross_measure" staff="1" startid="#s1n3" endid="#m2n2"/>
+            </measure>
+            <measure n="2">
+              <staff n="1">
+                <layer n="1">
+                  <note xml:id="m2n1" dur="4" oct="4" pname="g"/>
+                  <note xml:id="m2n2" dur="4" oct="4" pname="a"/>
+                  <note xml:id="m2n3" dur="4" oct="4" pname="b"/>
+                </layer>
+              </staff>
+              <staff n="2">
+                <layer n="1">
+                  <note xml:id="m2s2n1" dur="4" oct="3" pname="g"/>
+                  <note xml:id="m2s2n2" dur="4" oct="3" pname="a"/>
+                  <note xml:id="m2s2n3" dur="4" oct="3" pname="b"/>
+                </layer>
+              </staff>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>

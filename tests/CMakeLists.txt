@@ -1,5 +1,6 @@
 add_executable(verosim_tests
     test_smoke.cpp
+    test_cli_args.cpp
     test_check.cpp
     test_fraction.cpp
     test_notation_rules.cpp

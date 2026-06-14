@@ -9,6 +9,7 @@
 #include <thread>
 #include <vector>
 
+#include "verosim/cli/args.h"
 #include "verosim/cli/check.h"
 #include "verosim/cli/compare_cli.h"
 #include "verosim/cli/count_symbols.h"
@@ -219,72 +220,17 @@ int main(int argc, char **argv)
     std::vector<std::string> args(argv + 1, argv + argc);
     // --ops and --detail modify the compare modes only; strip before dispatch.
     verosim::CompareCliOptions compareOptions;
-    for (std::size_t i = 0; i < args.size();) {
-        if (args[i] == "--ops") {
-            compareOptions.emit_ops = true;
-            args.erase(args.begin() + static_cast<std::ptrdiff_t>(i));
-        }
-        else if (args[i] == "--detail" && i + 1 < args.size()) {
-            if (args[i + 1] == "tierA") {
-                compareOptions.include_tier_b = false;
-                compareOptions.include_directions = false;
-            }
-            else if (args[i + 1] == "tierAB_dir") {
-                compareOptions.include_tier_b = true;
-                compareOptions.include_directions = true;
-            }
-            else if (args[i + 1] != "tierAB") {
-                PrintUsage(std::cerr);
-                return 2;
-            }
-            else {
-                compareOptions.include_tier_b = true;
-                compareOptions.include_directions = false;
-            }
-            args.erase(args.begin() + static_cast<std::ptrdiff_t>(i),
-                args.begin() + static_cast<std::ptrdiff_t>(i + 2));
-        }
-        else {
-            ++i;
-        }
+    std::string parseError;
+    if (!verosim::StripCompareOptions(args, compareOptions, parseError)) {
+        PrintUsage(std::cerr);
+        return 2;
     }
     try {
-        if (!args.empty() && args[0] == "--pairs") {
-            std::string listPath, baseDir;
-            if (args.size() >= 2 && args[1][0] != '-') listPath = args[1];
-            for (std::size_t i = 2; i + 1 < args.size(); i += 2) {
-                if (args[i] == "--base-dir") baseDir = args[i + 1];
-                else { listPath.clear(); break; }
-            }
-            if (!listPath.empty() && (args.size() == 2 || args.size() == 4)) {
-                return ComparePairsMain(listPath, baseDir, compareOptions);
-            }
+        if (auto pairs = verosim::ParsePairsArgs(args)) {
+            return ComparePairsMain(pairs->list_path, pairs->base_dir, compareOptions);
         }
-        if (!args.empty() && args[0] == "--batch") {
-            std::string listPath, baseDir;
-            int jobs = 1;
-            if (args.size() >= 2 && args[1][0] != '-') listPath = args[1];
-            for (std::size_t i = 2; i < args.size();) {
-                if (i + 1 >= args.size()) {
-                    listPath.clear();
-                    break;
-                }
-                if (args[i] == "--base-dir") {
-                    baseDir = args[i + 1];
-                    i += 2;
-                }
-                else if (args[i] == "--jobs") {
-                    jobs = std::stoi(args[i + 1]);
-                    i += 2;
-                }
-                else {
-                    listPath.clear();
-                    break;
-                }
-            }
-            if (!listPath.empty()) {
-                return CompareBatchMain(listPath, baseDir, jobs, compareOptions);
-            }
+        if (auto batch = verosim::ParseBatchArgs(args)) {
+            return CompareBatchMain(batch->list_path, batch->base_dir, batch->jobs, compareOptions);
         }
         if (args.size() == 2 && args[0] == "--dump-tree") {
             return DumpTreeMain(args[1]);

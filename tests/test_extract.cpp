@@ -27,6 +27,14 @@ ExtractResult ExtractFixture(const std::string &name, SourceFormat format)
     return ExtractSymScore(bridge.GetDoc(), format);
 }
 
+ExtractResult ExtractFixture(
+    const std::string &name, SourceFormat format, const ExtractOptions &options)
+{
+    VrvBridge bridge;
+    REQUIRE(bridge.LoadScoreFile(std::string(VEROSIM_TEST_FIXTURE_DIR) + "/" + name));
+    return ExtractSymScore(bridge.GetDoc(), format, options);
+}
+
 } // namespace
 
 TEST_CASE("mono.krn: offsets, beams, dots", "[extract]")
@@ -274,4 +282,57 @@ TEST_CASE("single_number.xml: single-number timesig counts one symbol", "[extrac
     CHECK(timesig.kind == ExtraKind::kTimeSig);
     CHECK(timesig.notation_size() == 1);
     CHECK(result.score.notation_size() == 9);
+}
+
+TEST_CASE("mei_controls.mei: timestamp controls use active meter and staff resolution", "[extract]")
+{
+    const ExtractResult result = ExtractFixture(
+        "mei_controls.mei", SourceFormat::kOther, ExtractOptions{ .detail = DetailTier::kTierABDir });
+    CHECK(result.warnings.empty());
+    REQUIRE(result.score.parts.size() == 2);
+    REQUIRE(result.score.parts[0].bar_list.size() == 2);
+    REQUIRE(result.score.parts[1].bar_list.size() == 2);
+
+    const auto find_extra = [](const SymMeasure &measure, const std::string &id) -> const SymExtra * {
+        for (const SymExtra &extra : measure.extras) {
+            if (extra.vrv_id == id) return &extra;
+        }
+        return nullptr;
+    };
+
+    const SymMeasure &staff1_m1 = result.score.parts[0].bar_list[0];
+    const SymMeasure &staff2_m1 = result.score.parts[1].bar_list[0];
+
+    const SymExtra *unstaffed = find_extra(staff1_m1, "dyn_unstaffed");
+    REQUIRE(unstaffed != nullptr);
+    CHECK(unstaffed->kind == ExtraKind::kDynamic);
+    CHECK(unstaffed->offset == Fraction(2)); // 6/8: (tstamp 5 - 1) * 1/2
+    CHECK(find_extra(staff2_m1, "dyn_unstaffed") == nullptr);
+
+    const SymExtra *staff2_dynamic = find_extra(staff2_m1, "dyn_staff2");
+    REQUIRE(staff2_dynamic != nullptr);
+    CHECK(staff2_dynamic->kind == ExtraKind::kDynamic);
+    CHECK(staff2_dynamic->offset == Fraction(1)); // (tstamp 3 - 1) * 1/2
+    CHECK(find_extra(staff1_m1, "dyn_staff2") == nullptr);
+
+    const SymExtra *hairpin = find_extra(staff1_m1, "hp_tstamp2");
+    REQUIRE(hairpin != nullptr);
+    CHECK(hairpin->kind == ExtraKind::kCrescendo);
+    CHECK(hairpin->offset == Fraction(1, 2));
+    REQUIRE(hairpin->duration.has_value());
+    CHECK(*hairpin->duration == Fraction(3, 2)); // tstamp2 0m+5 in 6/8 ends at QL 2
+
+    const SymExtra *startid_slur = find_extra(staff2_m1, "slur_startid_staff2");
+    REQUIRE(startid_slur != nullptr);
+    CHECK(startid_slur->kind == ExtraKind::kSlur);
+    CHECK(startid_slur->offset == Fraction(0));
+    REQUIRE(startid_slur->duration.has_value());
+    CHECK(*startid_slur->duration == Fraction(2));
+    CHECK(find_extra(staff1_m1, "slur_startid_staff2") == nullptr);
+
+    const SymExtra *cross_slur = find_extra(staff1_m1, "slur_cross_measure");
+    REQUIRE(cross_slur != nullptr);
+    CHECK(cross_slur->offset == Fraction(1));
+    REQUIRE(cross_slur->duration.has_value());
+    CHECK(*cross_slur->duration == Fraction(4));
 }
