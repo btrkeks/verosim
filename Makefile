@@ -54,7 +54,7 @@ count-audit: build
 	  --bin $(BUILD_DIR)/verosim --data-root $(DATA_ROOT) \
 	  --out oracle/count_audit_dev200.jsonl --report docs/count_audit_m2.md
 
-# ---- M3: comparison-engine gates (a) identity and (c) oracle correlation ----
+# ---- M3/M4: comparison-engine gates (a) identity and (c) oracle correlation ----
 # (gate (b), the mutation corpus, runs in `make test` via tests/test_mutation_gate.cpp)
 # Gate (c) per D15: the engine-fidelity gate is the same-format (engine-
 # isolating) Spearman on healthy sources >= 0.95; the xml<->krn DEV-200 audit
@@ -65,14 +65,14 @@ identity-gate: build
 	  --data-root $(DATA_ROOT) --out oracle/identity_m3.jsonl
 
 corr-audit: build
-	$(PY) -m verosim_harness.corr_audit --oracle oracle/dev200_tierA.jsonl \
+	$(PY) -m verosim_harness.corr_audit --oracle oracle/dev200_tierAB.jsonl \
 	  --bin $(BUILD_DIR)/verosim --data-root $(DATA_ROOT) \
 	  --explained corpora/dev200_explained_pairs.tsv --threshold 0.80 \
-	  --out oracle/corr_audit_dev200.jsonl --report docs/corr_audit_m3.md
+	  --out oracle/corr_audit_dev200_tierAB.jsonl --report docs/corr_audit_m4.md
 	$(PY) -m verosim_harness.synth_corr --bin $(BUILD_DIR)/verosim \
-	  --data-root $(DATA_ROOT) --out oracle/synth_corr_m3.jsonl \
+	  --data-root $(DATA_ROOT) --detail tierAB --jobs $(JOBS) --out oracle/synth_corr_m4.jsonl \
 	  --explained corpora/dev200_explained_pairs.tsv --threshold 0.95 \
-	  --report-append docs/corr_audit_m3.md
+	  --report-append docs/corr_audit_m4.md
 
 # ---- M4: quantify the Directions granularity gap before choosing the gate ----
 

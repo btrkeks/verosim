@@ -87,7 +87,8 @@ struct LoadedScore {
     bool ok = false;
 };
 
-LoadedScore LoadAndExtract(VrvBridge &bridge, const std::string &path)
+LoadedScore LoadAndExtract(
+    VrvBridge &bridge, const std::string &path, const ExtractOptions &options)
 {
     LoadedScore loaded;
     // Verovio throws on some adversarial inputs (the PERF-10K sweep's known
@@ -101,7 +102,7 @@ LoadedScore LoadAndExtract(VrvBridge &bridge, const std::string &path)
         const SourceFormat format = bridge.last_input_format() == vrv::HUMDRUM
             ? SourceFormat::kKern
             : SourceFormat::kMusicXml;
-        ExtractResult result = ExtractSymScore(bridge.GetDoc(), format);
+        ExtractResult result = ExtractSymScore(bridge.GetDoc(), format, options);
         loaded.score = std::move(result.score);
         loaded.warnings = std::move(result.warnings);
         loaded.ok = true;
@@ -121,8 +122,12 @@ bool ComparePairToJson(VrvBridge &bridge, const std::string &pred_path,
 
     // One bridge, two loads: SymScore is self-contained, so the first
     // extraction survives the second load.
-    const LoadedScore pred = LoadAndExtract(bridge, pred_path);
-    const LoadedScore gt = pred.ok ? LoadAndExtract(bridge, gt_path) : LoadedScore{};
+    const ExtractOptions extract_options{
+        .include_tier_b = options.include_tier_b,
+        .include_directions = options.include_directions
+    };
+    const LoadedScore pred = LoadAndExtract(bridge, pred_path, extract_options);
+    const LoadedScore gt = pred.ok ? LoadAndExtract(bridge, gt_path, extract_options) : LoadedScore{};
 
     const auto write_header = [&] {
         out << "{\"pair\":{\"pred\":";

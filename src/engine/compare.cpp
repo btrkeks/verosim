@@ -49,6 +49,12 @@ std::string_view OpNameStr(OpName name)
         case OpName::kInsTuplet: return "instuplet";
         case OpName::kDelTuplet: return "deltuplet";
         case OpName::kEditTuplet: return "edittuplet";
+        case OpName::kInsArticulation: return "insarticulation";
+        case OpName::kDelArticulation: return "delarticulation";
+        case OpName::kEditArticulation: return "editarticulation";
+        case OpName::kInsExpression: return "insexpression";
+        case OpName::kDelExpression: return "delexpression";
+        case OpName::kEditExpression: return "editexpression";
         case OpName::kInsSpace: return "insspace";
         case OpName::kDelSpace: return "delspace";
         case OpName::kEditSpace: return "editspace";
@@ -148,6 +154,12 @@ std::string HeaderName(const std::string &edit_name)
         { "graceslashedit", "wrong graceness OMR-ED" },
         { "tiedel", "wrong tie OMR-ED" },
         { "tieins", "wrong tie OMR-ED" },
+        { "insarticulation", "wrong articulation OMR-ED" },
+        { "delarticulation", "wrong articulation OMR-ED" },
+        { "editarticulation", "wrong articulation OMR-ED" },
+        { "insexpression", "wrong expression OMR-ED" },
+        { "delexpression", "wrong expression OMR-ED" },
+        { "editexpression", "wrong expression OMR-ED" },
         { "clefins", "wrong clef OMR-ED" },
         { "clefdel", "wrong clef OMR-ED" },
         { "clefcontentedit", "wrong clef OMR-ED" },
@@ -172,6 +184,38 @@ std::string HeaderName(const std::string &edit_name)
         { "keysigoffsetedit", "wrong keysig OMR-ED" },
         { "keysigdurationedit", "wrong keysig OMR-ED" },
         { "keysigstyleedit", "wrong keysig OMR-ED" },
+        { "slurins", "wrong slur OMR-ED" },
+        { "slurdel", "wrong slur OMR-ED" },
+        { "slurcontentedit", "wrong slur OMR-ED" },
+        { "slursymboledit", "wrong slur OMR-ED" },
+        { "slurinfoedit", "wrong slur OMR-ED" },
+        { "sluroffsetedit", "wrong slur OMR-ED" },
+        { "slurdurationedit", "wrong slur OMR-ED" },
+        { "slurstyleedit", "wrong slur OMR-ED" },
+        { "dynamicins", "wrong dynamic OMR-ED" },
+        { "dynamicdel", "wrong dynamic OMR-ED" },
+        { "dynamiccontentedit", "wrong dynamic OMR-ED" },
+        { "dynamicsymboledit", "wrong dynamic OMR-ED" },
+        { "dynamicinfoedit", "wrong dynamic OMR-ED" },
+        { "dynamicoffsetedit", "wrong dynamic OMR-ED" },
+        { "dynamicdurationedit", "wrong dynamic OMR-ED" },
+        { "dynamicstyleedit", "wrong dynamic OMR-ED" },
+        { "crescendoins", "wrong crescendo OMR-ED" },
+        { "crescendodel", "wrong crescendo OMR-ED" },
+        { "crescendocontentedit", "wrong crescendo OMR-ED" },
+        { "crescendosymboledit", "wrong crescendo OMR-ED" },
+        { "crescendoinfoedit", "wrong crescendo OMR-ED" },
+        { "crescendooffsetedit", "wrong crescendo OMR-ED" },
+        { "crescendodurationedit", "wrong crescendo OMR-ED" },
+        { "crescendostyleedit", "wrong crescendo OMR-ED" },
+        { "diminuendoins", "wrong diminuendo OMR-ED" },
+        { "diminuendodel", "wrong diminuendo OMR-ED" },
+        { "diminuendocontentedit", "wrong diminuendo OMR-ED" },
+        { "diminuendosymboledit", "wrong diminuendo OMR-ED" },
+        { "diminuendoinfoedit", "wrong diminuendo OMR-ED" },
+        { "diminuendooffsetedit", "wrong diminuendo OMR-ED" },
+        { "diminuendodurationedit", "wrong diminuendo OMR-ED" },
+        { "diminuendostyleedit", "wrong diminuendo OMR-ED" },
         { "insbar", "entire measure insert/delete OMR-ED" },
         { "delbar", "entire measure insert/delete OMR-ED" },
         { "inspart", "entire staff insert/delete OMR-ED" },

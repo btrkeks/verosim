@@ -29,10 +29,9 @@ private:
 };
 
 // AnnExtra.__str__-equivalent comparison key (annotation.py:837-859) over the
-// fields materialized at v1 tiers: kind, symbolic, offset, duration, infodict
-// (content/styledict are never set, see SymExtra::notation_size). Not
-// byte-compatible with Python (both operands are C++-side); equality
-// semantics are what must match.
+// fields materialized at v1 tiers: kind, content, symbolic, offset, duration,
+// infodict. Not byte-compatible with Python (both operands are C++-side);
+// equality semantics are what must match.
 std::string ExtraComparisonKey(const SymExtra &extra);
 
 // Per-comparison precompute: interned content ids and cached notation sizes,

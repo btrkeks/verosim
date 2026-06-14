@@ -1,7 +1,12 @@
+#include <algorithm>
+#include <atomic>
 #include <exception>
 #include <fstream>
+#include <future>
 #include <iostream>
+#include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "verosim/cli/check.h"
@@ -14,11 +19,14 @@ namespace {
 
 void PrintUsage(std::ostream &os)
 {
-    os << "usage: verosim <pred> <gt> [--ops]    compare two scores, OMR-NED as JSON\n"
+    os << "usage: verosim <pred> <gt> [--ops] [--detail tierA|tierAB|tierAB_dir]\n"
+          "                                      compare two scores, OMR-NED as JSON\n"
           "                                      (--ops includes the per-edit operation list)\n"
           "       verosim --pairs <tsv> [--base-dir <dir>] [--ops]\n"
           "                                      compare every pred<TAB>gt pair in <tsv>\n"
           "                                      (JSONL, one record per pair, always exits 0)\n"
+          "       verosim --batch <tsv> [--base-dir <dir>] [--jobs N] [--ops]\n"
+          "                                      parallel JSONL batch compare, one Toolkit per worker\n"
           "       verosim --dump-tree <file>     print the parsed Verovio object tree\n"
           "       verosim --check <file>         load one file, report warnings/errors (JSONL)\n"
           "       verosim --check --files-from <list> [--base-dir <dir>]\n"
@@ -42,14 +50,15 @@ int DumpTreeMain(const std::string &path)
     return 0;
 }
 
-int CompareMain(const std::string &predPath, const std::string &gtPath, bool emitOps)
+int CompareMain(
+    const std::string &predPath, const std::string &gtPath, const verosim::CompareCliOptions &options)
 {
     verosim::VrvBridge bridge;
-    const verosim::CompareCliOptions options{ .emit_ops = emitOps };
     return verosim::ComparePairToJson(bridge, predPath, gtPath, options, std::cout) ? 0 : 1;
 }
 
-int ComparePairsMain(const std::string &listPath, const std::string &baseDir, bool emitOps)
+int ComparePairsMain(
+    const std::string &listPath, const std::string &baseDir, const verosim::CompareCliOptions &options)
 {
     std::ifstream list(listPath);
     if (!list) {
@@ -57,7 +66,6 @@ int ComparePairsMain(const std::string &listPath, const std::string &baseDir, bo
         return 2;
     }
     verosim::VrvBridge bridge;
-    const verosim::CompareCliOptions options{ .emit_ops = emitOps };
     std::string line;
     while (std::getline(list, line)) {
         if (line.empty() || line[0] == '#') continue;
@@ -76,6 +84,76 @@ int ComparePairsMain(const std::string &listPath, const std::string &baseDir, bo
         std::cout.flush(); // same durability contract as --check list mode
     }
     return 0; // failures are data (recorded per pair), like the other list modes
+}
+
+struct PairRow {
+    std::string pred;
+    std::string gt;
+};
+
+std::vector<PairRow> ReadPairsList(const std::string &listPath)
+{
+    std::ifstream list(listPath);
+    if (!list) throw std::runtime_error("cannot read pairs list " + listPath);
+    std::vector<PairRow> pairs;
+    std::string line;
+    while (std::getline(list, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        const auto tab = line.find('\t');
+        if (tab == std::string::npos) {
+            std::cerr << "verosim: skipping malformed pairs line (no tab): " << line << '\n';
+            continue;
+        }
+        pairs.push_back({ line.substr(0, tab), line.substr(tab + 1) });
+    }
+    return pairs;
+}
+
+int CompareBatchMain(
+    const std::string &listPath, const std::string &baseDir, int jobs,
+    const verosim::CompareCliOptions &options)
+{
+    std::vector<PairRow> pairs;
+    try {
+        pairs = ReadPairsList(listPath);
+    }
+    catch (const std::exception &e) {
+        std::cerr << "verosim: " << e.what() << '\n';
+        return 2;
+    }
+
+    if (jobs <= 0) {
+        const unsigned hw = std::thread::hardware_concurrency();
+        jobs = hw == 0 ? 1 : static_cast<int>(hw);
+    }
+    jobs = std::max(1, std::min(jobs, static_cast<int>(std::max<std::size_t>(pairs.size(), 1))));
+
+    std::vector<std::string> records(pairs.size());
+
+    std::atomic<std::size_t> next{ 0 };
+    std::vector<std::future<void>> workers;
+    for (int w = 0; w < jobs; ++w) {
+        workers.push_back(std::async(std::launch::async, [&] {
+            verosim::VrvBridge bridge;
+            for (;;) {
+                const std::size_t i = next.fetch_add(1);
+                if (i >= pairs.size()) break;
+                std::string pred = pairs[i].pred;
+                std::string gt = pairs[i].gt;
+                if (!baseDir.empty()) {
+                    pred = baseDir + "/" + pred;
+                    gt = baseDir + "/" + gt;
+                }
+                std::ostringstream out;
+                verosim::ComparePairToJson(bridge, pred, gt, options, out);
+                records[i] = out.str();
+            }
+        }));
+    }
+    for (auto &worker : workers) worker.get();
+
+    for (const std::string &record : records) std::cout << record;
+    return 0; // failures are data, as with --pairs
 }
 
 int CheckOneMain(const std::string &path)
@@ -139,15 +217,37 @@ int CountSymbolsListMain(const std::string &listPath, const std::string &baseDir
 int main(int argc, char **argv)
 {
     std::vector<std::string> args(argv + 1, argv + argc);
-    // --ops modifies the compare modes only; strip it before dispatch.
-    bool emitOps = false;
-    std::erase_if(args, [&](const std::string &a) {
-        if (a == "--ops") {
-            emitOps = true;
-            return true;
+    // --ops and --detail modify the compare modes only; strip before dispatch.
+    verosim::CompareCliOptions compareOptions;
+    for (std::size_t i = 0; i < args.size();) {
+        if (args[i] == "--ops") {
+            compareOptions.emit_ops = true;
+            args.erase(args.begin() + static_cast<std::ptrdiff_t>(i));
         }
-        return false;
-    });
+        else if (args[i] == "--detail" && i + 1 < args.size()) {
+            if (args[i + 1] == "tierA") {
+                compareOptions.include_tier_b = false;
+                compareOptions.include_directions = false;
+            }
+            else if (args[i + 1] == "tierAB_dir") {
+                compareOptions.include_tier_b = true;
+                compareOptions.include_directions = true;
+            }
+            else if (args[i + 1] != "tierAB") {
+                PrintUsage(std::cerr);
+                return 2;
+            }
+            else {
+                compareOptions.include_tier_b = true;
+                compareOptions.include_directions = false;
+            }
+            args.erase(args.begin() + static_cast<std::ptrdiff_t>(i),
+                args.begin() + static_cast<std::ptrdiff_t>(i + 2));
+        }
+        else {
+            ++i;
+        }
+    }
     try {
         if (!args.empty() && args[0] == "--pairs") {
             std::string listPath, baseDir;
@@ -157,7 +257,33 @@ int main(int argc, char **argv)
                 else { listPath.clear(); break; }
             }
             if (!listPath.empty() && (args.size() == 2 || args.size() == 4)) {
-                return ComparePairsMain(listPath, baseDir, emitOps);
+                return ComparePairsMain(listPath, baseDir, compareOptions);
+            }
+        }
+        if (!args.empty() && args[0] == "--batch") {
+            std::string listPath, baseDir;
+            int jobs = 1;
+            if (args.size() >= 2 && args[1][0] != '-') listPath = args[1];
+            for (std::size_t i = 2; i < args.size();) {
+                if (i + 1 >= args.size()) {
+                    listPath.clear();
+                    break;
+                }
+                if (args[i] == "--base-dir") {
+                    baseDir = args[i + 1];
+                    i += 2;
+                }
+                else if (args[i] == "--jobs") {
+                    jobs = std::stoi(args[i + 1]);
+                    i += 2;
+                }
+                else {
+                    listPath.clear();
+                    break;
+                }
+            }
+            if (!listPath.empty()) {
+                return CompareBatchMain(listPath, baseDir, jobs, compareOptions);
             }
         }
         if (args.size() == 2 && args[0] == "--dump-tree") {
@@ -195,7 +321,7 @@ int main(int argc, char **argv)
             }
         }
         if (args.size() == 2 && args[0][0] != '-' && args[1][0] != '-') {
-            return CompareMain(args[0], args[1], emitOps);
+            return CompareMain(args[0], args[1], compareOptions);
         }
     }
     catch (const std::exception &e) {

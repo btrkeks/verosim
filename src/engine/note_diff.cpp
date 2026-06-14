@@ -181,6 +181,32 @@ DiffResult BeamTupletLevenshteinDiff(const std::vector<T> &orig, const std::vect
     });
 }
 
+DiffResult GenericLevenshteinDiff(const std::vector<std::string> &orig,
+    const std::vector<std::string> &comp, const SymNote &n1, const SymNote &n2,
+    OpName del, OpName ins, OpName edit)
+{
+    const int m = static_cast<int>(orig.size());
+    const int n = static_cast<int>(comp.size());
+
+    DpTable dp = FillDp(
+        m, n, [](int) { return 1L; }, [](int) { return 1L; },
+        [&](int i, int j) { return orig[i] == comp[j] ? 0L : 1L; });
+
+    const auto unit_op = [&](OpName name) {
+        return EditOp{ .name = name, .a = OpSide::Note(&n1), .b = OpSide::Note(&n2), .cost = 1 };
+    };
+
+    return Backtrack(dp, [&](Choice choice, int i, int j, std::vector<EditOp> &group) {
+        switch (choice) {
+            case Choice::kDel: group.push_back(unit_op(del)); break;
+            case Choice::kIns: group.push_back(unit_op(ins)); break;
+            case Choice::kEdit:
+                if (orig[i] != comp[j]) group.push_back(unit_op(edit));
+                break;
+        }
+    });
+}
+
 void Extend(DiffResult &into, DiffResult &&part)
 {
     into.cost += part.cost;
@@ -271,7 +297,18 @@ DiffResult AnnotatedNoteDiff(const SymNote &n1, const SymNote &n2)
         Extend(result,
             BeamTupletLevenshteinDiff(n1.tuplet_info, n2.tuplet_info, n1, n2, /*beam=*/false));
     }
-    // articulations / expressions: Tier B/C fields, not materialized until M4/M5.
+    // articulations / expressions: same generic unit-cost Levenshtein as
+    // musicdiff._generic_levenshtein_diff.
+    if (n1.articulations != n2.articulations) {
+        Extend(result, GenericLevenshteinDiff(n1.articulations, n2.articulations, n1, n2,
+                           OpName::kDelArticulation, OpName::kInsArticulation,
+                           OpName::kEditArticulation));
+    }
+    if (n1.expressions != n2.expressions) {
+        Extend(result, GenericLevenshteinDiff(n1.expressions, n2.expressions, n1, n2,
+                           OpName::kDelExpression, OpName::kInsExpression,
+                           OpName::kEditExpression));
+    }
 
     // gap from previous note (horizontal position shift); always 0 in flat
     // (non-voicing) mode, ported for completeness.

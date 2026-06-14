@@ -44,6 +44,8 @@ struct SymNote {
     std::vector<BeamValue> beamings; // post get_enhance_beamings
     std::vector<TupletValue> tuplets; // post get_tuplets_type
     std::vector<std::string> tuplet_info; // parallel to tuplets; "" on non-start
+    std::vector<std::string> articulations; // sorted music21 articulation names
+    std::vector<std::string> expressions; // Tier C/stretch; normally empty in v1
     std::string grace_type; // "", "acc", "unacc"
     bool grace_slash = false;
     Fraction gap_dur; // always 0 in flat mode (annotation.py:1224,1237)
@@ -61,13 +63,14 @@ struct SymNote {
 
 // kind strings are musicdiff's; enum order == lexicographic order of the
 // kind strings, so sorting by (kind, offset) matches annotation.py:1255.
-enum class ExtraKind { kClef, kKeySig, kTimeSig };
+enum class ExtraKind { kClef, kCrescendo, kDiminuendo, kDynamic, kKeySig, kSlur, kTimeSig };
 std::string_view ExtraKindName(ExtraKind kind);
 
 struct SymExtra {
     std::string vrv_id;
     ExtraKind kind = ExtraKind::kClef;
-    std::optional<std::string> symbolic; // clef: "G2", "F4", "G2+8"; else nullopt
+    std::optional<std::string> symbolic; // clef: "G2"; dynamic: "p", "ff"; else nullopt
+    std::optional<std::string> content; // directions/text; unused for core tierAB
     // insertion-ordered, deterministic (mirrors AnnExtra.infodict)
     std::vector<std::pair<std::string, std::string>> infodict;
     Fraction offset; // offset in measure

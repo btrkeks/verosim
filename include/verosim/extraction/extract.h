@@ -22,9 +22,15 @@ struct ExtractResult {
     std::vector<std::string> warnings;
 };
 
+struct ExtractOptions {
+    bool include_tier_b = false; // ties/slurs/articulations; compare path opts in
+    bool include_directions = false; // M4 diagnostic: dynamics + hairpins
+};
+
 // Walk the parse-only Verovio Object tree of the first <score> into the
 // Layer 2 SymScore (Tier A symbols). Tree shape and per-element mapping are
 // documented in docs/mei_symbol_mapping.md.
-ExtractResult ExtractSymScore(vrv::Doc &doc, SourceFormat format);
+ExtractResult ExtractSymScore(
+    vrv::Doc &doc, SourceFormat format, const ExtractOptions &options = ExtractOptions());
 
 } // namespace verosim

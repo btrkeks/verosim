@@ -8,11 +8,14 @@
 #include <string>
 
 #include "accid.h"
+#include "artic.h"
 #include "beam.h"
 #include "chord.h"
 #include "clef.h"
 #include "doc.h"
+#include "dynam.h"
 #include "gracegrp.h"
+#include "hairpin.h"
 #include "keysig.h"
 #include "layer.h"
 #include "measure.h"
@@ -22,10 +25,12 @@
 #include "rest.h"
 #include "score.h"
 #include "scoredef.h"
+#include "slur.h"
 #include "staff.h"
 #include "staffdef.h"
 #include "timeinterface.h"
 #include "tuplet.h"
+#include "vrv.h"
 
 #include "verosim/extraction/effective_pitch.h"
 #include "verosim/extraction/notation_rules.h"
@@ -127,6 +132,73 @@ std::string ClefSign(vrv::data_CLEFSHAPE shape)
     }
 }
 
+std::string ArticulationName(vrv::data_ARTICULATION artic)
+{
+    switch (artic) {
+        case vrv::ARTICULATION_acc: return "accent";
+        case vrv::ARTICULATION_acc_inv: return "inverted accent";
+        case vrv::ARTICULATION_acc_long: return "strong accent";
+        case vrv::ARTICULATION_acc_soft: return "soft accent";
+        case vrv::ARTICULATION_stacc: return "staccato";
+        case vrv::ARTICULATION_ten: return "tenuto";
+        case vrv::ARTICULATION_stacciss: return "staccatissimo";
+        case vrv::ARTICULATION_marc: return "strong accent";
+        case vrv::ARTICULATION_spicc: return "spiccato";
+        case vrv::ARTICULATION_doit: return "doit";
+        case vrv::ARTICULATION_scoop: return "scoop";
+        case vrv::ARTICULATION_fall: return "falloff";
+        case vrv::ARTICULATION_dnbow: return "down bow";
+        case vrv::ARTICULATION_upbow: return "up bow";
+        case vrv::ARTICULATION_harm: return "harmonic";
+        case vrv::ARTICULATION_snap: return "snap pizzicato";
+        case vrv::ARTICULATION_open: return "open string";
+        case vrv::ARTICULATION_stop: return "stopped";
+        case vrv::ARTICULATION_dbltongue: return "double tongue";
+        case vrv::ARTICULATION_trpltongue: return "triple tongue";
+        default: return "";
+    }
+}
+
+void AppendArticulations(const vrv::Object *obj, std::vector<std::string> &out)
+{
+    const auto append_list = [&](const vrv::data_ARTICULATION_List &list) {
+        for (const vrv::data_ARTICULATION artic : list) {
+            std::string name = ArticulationName(artic);
+            if (!name.empty()) out.push_back(std::move(name));
+        }
+    };
+    if (const auto *att = dynamic_cast<const vrv::AttArticulation *>(obj)) {
+        if (att->HasArtic()) append_list(att->GetArtic());
+    }
+    for (const vrv::Object *child : obj->GetChildren()) {
+        if (!child->Is(vrv::ARTIC)) continue;
+        const auto *artic = vrv_cast<const vrv::Artic *>(child);
+        if (artic->HasArtic()) append_list(artic->GetArtic());
+    }
+}
+
+std::string StripIdRef(std::string ref)
+{
+    if (!ref.empty() && ref[0] == '#') ref.erase(0, 1);
+    return ref;
+}
+
+bool StaffMatches(const vrv::Object *obj, const std::string &staffN)
+{
+    const auto *staffIdent = dynamic_cast<const vrv::AttStaffIdent *>(obj);
+    if (!staffIdent || !staffIdent->HasStaff()) return true;
+    for (const int n : staffIdent->GetStaff()) {
+        if (std::to_string(n) == staffN) return true;
+    }
+    return false;
+}
+
+bool HasStaffIdent(const vrv::Object *obj)
+{
+    const auto *staffIdent = dynamic_cast<const vrv::AttStaffIdent *>(obj);
+    return staffIdent && staffIdent->HasStaff();
+}
+
 // governing measure length in QL from a meterSig; false when the element
 // carries neither a usable count/unit nor a common/cut symbol
 bool MeterQLFromMeterSig(const vrv::MeterSig &metersig, Fraction &ql)
@@ -143,6 +215,17 @@ bool MeterQLFromMeterSig(const vrv::MeterSig &metersig, Fraction &ql)
         return true;
     }
     return false;
+}
+
+Fraction BeatQLFromMeterSig(const vrv::MeterSig &metersig)
+{
+    if (metersig.GetUnit() > 0) return Fraction(4, metersig.GetUnit());
+    return Fraction(1);
+}
+
+Fraction FractionFromDouble(double value)
+{
+    return Fraction(static_cast<std::int64_t>(value * 10000), 10000);
 }
 
 // ---------------------------------------------------------------------------
@@ -163,6 +246,7 @@ struct Event {
     bool grace_slash = false;
     const vrv::Object *beam = nullptr; // innermost enclosing Beam
     std::vector<const vrv::Tuplet *> tuplets; // outermost first
+    std::vector<std::string> articulations;
 };
 
 struct PendingSig {
@@ -176,13 +260,30 @@ struct StaffState {
     int part_idx = -1;
     AccidentalState accids;
     Fraction meter_ql = Fraction(4); // governing measure length
+    Fraction beat_ql = Fraction(1); // QL represented by one MEI timestamp beat
     bool has_meter = false;
+    Fraction score_offset; // absolute QL offset at the start of the current measure
     PendingSig pending; // signature extras to emit at offset 0 of the next measure
+};
+
+struct EventLocation {
+    std::string staff_n;
+    Fraction abs_offset;
+    Fraction dur_ql;
+};
+
+struct PendingSpan {
+    std::string extra_id;
+    std::string end_id;
+    Fraction start_abs;
 };
 
 class Extractor {
 public:
-    Extractor(vrv::Doc &doc, SourceFormat format) : doc_(doc), format_(format) {}
+    Extractor(vrv::Doc &doc, SourceFormat format, ExtractOptions options)
+        : doc_(doc), format_(format), options_(options)
+    {
+    }
 
     ExtractResult Run();
 
@@ -197,6 +298,10 @@ private:
     void ApplyScoreDefChange(const vrv::ScoreDef *scoreDef);
     void ApplyStaffDef(const vrv::StaffDef *staffDef, const vrv::ScoreDef *parentScoreDef);
     void HandleMeasure(const vrv::Measure *measure);
+    void CollectControlExtras(const vrv::Measure *measure, const std::string &staffN,
+        const std::vector<Event> &events, std::vector<SymExtra> &extras);
+    void RegisterEventLocations(const std::string &staffN, const std::vector<Event> &events);
+    void ResolvePendingSpans();
     void CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &events,
         std::vector<SymExtra> &extras, Fraction &cursor, StaffState &state,
         std::vector<const vrv::Tuplet *> &tupletStack, const vrv::Object *beam);
@@ -210,9 +315,15 @@ private:
     SymExtra MakeClefExtra(const vrv::Clef &clef, const Fraction &offset);
     SymExtra MakeKeySigExtra(const vrv::KeySig &keysig, const Fraction &offset);
     SymExtra MakeMeterSigExtra(const vrv::MeterSig &metersig, const Fraction &offset);
+    SymExtra MakeDynamicExtra(const vrv::Dynam &dynam, const Fraction &offset);
+    SymExtra MakeHairpinExtra(const vrv::Hairpin &hairpin, const Fraction &offset,
+        const std::optional<Fraction> &duration);
+    SymExtra MakeSlurExtra(const vrv::Slur &slur, const Fraction &offset,
+        const std::optional<Fraction> &duration);
 
     vrv::Doc &doc_;
     SourceFormat format_;
+    ExtractOptions options_;
     ExtractResult result_;
     std::set<std::string> warned_;
     std::map<std::string, StaffState> staves_; // staff @n -> state
@@ -223,6 +334,8 @@ private:
     // when the referenced note is resolved (MakeSymNote).
     std::set<std::string> tie_end_ids_;
     std::set<std::string> tie_start_ids_;
+    std::map<std::string, EventLocation> event_locations_;
+    std::vector<PendingSpan> pending_spans_;
 };
 
 ExtractResult Extractor::Run()
@@ -389,6 +502,7 @@ void Extractor::HandleMeasure(const vrv::Measure *measure)
             if (MeterQLFromMeterSig(*state.pending.metersig, state.meter_ql)) {
                 state.has_meter = true;
             }
+            state.beat_ql = BeatQLFromMeterSig(*state.pending.metersig);
         }
         state.pending = PendingSig();
 
@@ -398,8 +512,146 @@ void Extractor::HandleMeasure(const vrv::Measure *measure)
             std::vector<const vrv::Tuplet *> tupletStack;
             CollectLayerEvents(staffChild, events, extras, cursor, state, tupletStack, nullptr);
         }
-
+        RegisterEventLocations(n, events);
+        CollectControlExtras(measure, n, events, extras);
+        Fraction measure_span = state.meter_ql;
+        for (const Event &ev : events) {
+            const Fraction rel_end = ev.offset + ev.dur_ql;
+            if (rel_end > measure_span) measure_span = rel_end;
+        }
         EmitMeasure(measure, n, std::move(events), std::move(extras), state);
+        state.score_offset = state.score_offset + measure_span;
+        ResolvePendingSpans();
+    }
+}
+
+void Extractor::RegisterEventLocations(const std::string &staffN, const std::vector<Event> &events)
+{
+    const Fraction start_abs = staves_[staffN].score_offset;
+    for (const Event &ev : events) {
+        const EventLocation loc{ staffN, start_abs + ev.offset, ev.dur_ql };
+        if (!ev.obj->GetID().empty()) event_locations_[ev.obj->GetID()] = loc;
+        if (ev.obj->Is(vrv::CHORD)) {
+            for (const vrv::Object *child : ev.obj->GetChildren()) {
+                if (child->Is(vrv::NOTE) && !child->GetID().empty()) {
+                    event_locations_[child->GetID()] = loc;
+                }
+            }
+        }
+    }
+}
+
+void Extractor::ResolvePendingSpans()
+{
+    auto pending = pending_spans_.begin();
+    while (pending != pending_spans_.end()) {
+        const auto loc = event_locations_.find(pending->end_id);
+        if (loc == event_locations_.end()) {
+            ++pending;
+            continue;
+        }
+        Fraction duration = loc->second.abs_offset + loc->second.dur_ql - pending->start_abs;
+        if (duration < Fraction(0)) duration = Fraction(0);
+        bool resolved = false;
+        for (SymPart &part : result_.score.parts) {
+            for (SymMeasure &measure : part.bar_list) {
+                for (SymExtra &extra : measure.extras) {
+                    if (extra.vrv_id == pending->extra_id) {
+                        extra.duration = duration;
+                        resolved = true;
+                        break;
+                    }
+                }
+                if (resolved) break;
+            }
+            if (resolved) break;
+        }
+        pending = pending_spans_.erase(pending);
+    }
+}
+
+void Extractor::CollectControlExtras(const vrv::Measure *measure, const std::string &staffN,
+    const std::vector<Event> &events, std::vector<SymExtra> &extras)
+{
+    const Fraction start_abs = staves_[staffN].score_offset;
+
+    const auto point_offset = [&](const vrv::Object *obj,
+                                  const vrv::TimePointInterface *tpi) -> std::optional<Fraction> {
+        if (!tpi) return std::nullopt;
+        if (tpi->HasStartid()) {
+            const auto it = event_locations_.find(StripIdRef(tpi->GetStartid()));
+            if (it != event_locations_.end() && it->second.staff_n == staffN) {
+                return it->second.abs_offset - start_abs;
+            }
+        }
+        if (tpi->HasTstamp()) {
+            return FractionFromDouble(tpi->GetTstamp() - 1.0) * staves_[staffN].beat_ql;
+        }
+        Warn("control element <" + obj->GetClassName() + "> lacks a resolvable start offset");
+        return std::nullopt;
+    };
+    const auto span_duration = [&](const vrv::TimeSpanningInterface *tsi,
+                                   const Fraction &start) -> std::optional<Fraction> {
+        if (!tsi) return std::nullopt;
+        if (tsi->HasEndid()) {
+            const auto it = event_locations_.find(StripIdRef(tsi->GetEndid()));
+            if (it != event_locations_.end() && it->second.staff_n == staffN) {
+                Fraction dur = it->second.abs_offset + it->second.dur_ql - (start_abs + start);
+                if (dur < Fraction(0)) dur = Fraction(0);
+                return dur;
+            }
+            return Fraction(0); // still counts the span duration symbol across measures
+        }
+        if (tsi->HasTstamp2()) {
+            const vrv::data_MEASUREBEAT tstamp2 = tsi->GetTstamp2();
+            Fraction end = staves_[staffN].meter_ql * Fraction(tstamp2.first);
+            end = end + FractionFromDouble(tstamp2.second - 1.0) * staves_[staffN].beat_ql;
+            Fraction dur = end - start;
+            if (dur < Fraction(0)) dur = Fraction(0);
+            return dur;
+        }
+        return std::nullopt;
+    };
+
+    for (const vrv::Object *obj : measure->GetChildren()) {
+        if (!StaffMatches(obj, staffN)) continue;
+        const vrv::TimePointInterface *timePoint = obj->GetTimePointInterface();
+        if (!HasStaffIdent(obj) && (!timePoint || !timePoint->HasStartid())
+            && !staff_order_.empty() && staffN != staff_order_.front()) {
+            continue;
+        }
+        if (options_.include_directions && obj->Is(vrv::DYNAM)) {
+            const vrv::Dynam *dynam = vrv_cast<const vrv::Dynam *>(obj);
+            if (auto off = point_offset(obj, dynam->GetTimePointInterface())) {
+                extras.push_back(MakeDynamicExtra(*dynam, *off));
+            }
+        }
+        else if (options_.include_directions && obj->Is(vrv::HAIRPIN)) {
+            const vrv::Hairpin *hairpin = vrv_cast<const vrv::Hairpin *>(obj);
+            if (auto off = point_offset(obj, hairpin->GetTimePointInterface())) {
+                extras.push_back(MakeHairpinExtra(
+                    *hairpin, *off, span_duration(hairpin->GetTimeSpanningInterface(), *off)));
+                if (hairpin->GetTimeSpanningInterface()->HasEndid()) {
+                    const std::string end_id = StripIdRef(hairpin->GetTimeSpanningInterface()->GetEndid());
+                    if (!event_locations_.contains(end_id)) {
+                        pending_spans_.push_back({ hairpin->GetID(), end_id, start_abs + *off });
+                    }
+                }
+            }
+        }
+        else if (options_.include_tier_b && obj->Is(vrv::SLUR)) {
+            const vrv::Slur *slur = vrv_cast<const vrv::Slur *>(obj);
+            if (auto off = point_offset(obj, slur->GetTimePointInterface())) {
+                extras.push_back(MakeSlurExtra(
+                    *slur, *off, span_duration(slur->GetTimeSpanningInterface(), *off)));
+                if (slur->GetTimeSpanningInterface()->HasEndid()) {
+                    const std::string end_id = StripIdRef(slur->GetTimeSpanningInterface()->GetEndid());
+                    if (!event_locations_.contains(end_id)) {
+                        pending_spans_.push_back({ slur->GetID(), end_id, start_abs + *off });
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -447,6 +699,7 @@ void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &e
             // mirror the inline KEYSIG case: the new meter governs any
             // following mRest (in this measure and beyond)
             if (MeterQLFromMeterSig(*metersig, state.meter_ql)) state.has_meter = true;
+            state.beat_ql = BeatQLFromMeterSig(*metersig);
         }
         else if (child->Is(vrv::BARLINE) || child->Is(vrv::MNUM) || child->Is(vrv::TUPLET_NUM)
             || child->Is(vrv::TUPLET_BRACKET)) {
@@ -470,6 +723,7 @@ Event Extractor::MakeCarrierEvent(const vrv::Object *obj, const Fraction &cursor
     ev.tuplets = tupletStack;
     ev.is_rest = obj->Is(vrv::REST) || obj->Is(vrv::MREST) || obj->Is(vrv::MULTIREST)
         || obj->Is(vrv::SPACE) || obj->Is(vrv::MSPACE);
+    if (options_.include_tier_b) AppendArticulations(obj, ev.articulations);
 
     // duration attributes live on the carrier (chord-level for chords)
     const vrv::DurationInterface *durInterface = obj->GetDurationInterface();
@@ -654,12 +908,17 @@ void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staf
 
     for (std::size_t i = 0; i < events.size(); ++i) {
         const Event &ev = events[i];
-        const auto fillShared = [&](SymNote &sn) {
+        const auto fillShared = [&](SymNote &sn, bool includeCarrierArticulations) {
             sn.note_head = NoteHeadFromTypeNum(ev.type_num);
             sn.dots = ev.dots;
             sn.beamings = beamings[i];
             sn.tuplets = tuplets[i];
             sn.tuplet_info = tupletInfo[i];
+            if (includeCarrierArticulations) {
+                sn.articulations.insert(
+                    sn.articulations.end(), ev.articulations.begin(), ev.articulations.end());
+            }
+            std::sort(sn.articulations.begin(), sn.articulations.end());
             sn.grace_type = ev.grace_type;
             sn.grace_slash = ev.grace_slash;
             sn.note_offset = ev.offset;
@@ -682,8 +941,9 @@ void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staf
                 });
             int idx = 0;
             for (const vrv::Note *member : members) {
-                SymNote sn = MakeSymNote(ev, member, chord, idx++, state);
-                fillShared(sn);
+                SymNote sn = MakeSymNote(ev, member, chord, idx, state);
+                fillShared(sn, idx == 0);
+                ++idx;
                 symMeasure.notes.push_back(std::move(sn));
             }
         }
@@ -691,13 +951,13 @@ void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staf
             SymNote sn;
             sn.vrv_id = ev.obj->GetID();
             sn.pitches.push_back(SymPitch{ "R", "None", false, 0 });
-            fillShared(sn);
+            fillShared(sn, true);
             symMeasure.notes.push_back(std::move(sn));
         }
         else {
             const vrv::Note *note = vrv_cast<const vrv::Note *>(ev.obj);
             SymNote sn = MakeSymNote(ev, note, note, -1, state);
-            fillShared(sn);
+            fillShared(sn, true);
             symMeasure.notes.push_back(std::move(sn));
         }
     }
@@ -714,6 +974,7 @@ SymNote Extractor::MakeSymNote(const Event &ev, const vrv::Note *note,
     sn.vrv_id = carrier->GetID();
     sn.is_in_chord = idxInChord >= 0;
     sn.note_idx_in_chord = idxInChord;
+    if (options_.include_tier_b && note != carrier) AppendArticulations(note, sn.articulations);
 
     SymPitch pitch;
     const char step = StepFromPname(note->GetPname());
@@ -769,6 +1030,7 @@ SymNote Extractor::MakeSymNote(const Event &ev, const vrv::Note *note,
     if (step != 0) {
         pitch.sounding_alter
             = state.accids.Resolve(step, note->GetOct(), writtenAlter, gesturalAlter, tied);
+        pitch.tie = options_.include_tier_b && tieStart;
         if (tieStart) {
             state.accids.RegisterTieStart(step, note->GetOct(), pitch.sounding_alter);
         }
@@ -857,11 +1119,47 @@ SymExtra Extractor::MakeMeterSigExtra(const vrv::MeterSig &metersig, const Fract
     return extra;
 }
 
+SymExtra Extractor::MakeDynamicExtra(const vrv::Dynam &dynam, const Fraction &offset)
+{
+    SymExtra extra;
+    extra.vrv_id = dynam.GetID();
+    extra.kind = ExtraKind::kDynamic;
+    extra.offset = offset;
+    const std::string text = vrv::UTF32to8(dynam.GetText());
+    // musicdiff stores Dynamic.value via dynamic_to_symbolic(); content is only
+    // for TextExpression-like direction payloads.
+    if (!text.empty()) extra.symbolic = text;
+    return extra;
+}
+
+SymExtra Extractor::MakeHairpinExtra(const vrv::Hairpin &hairpin, const Fraction &offset,
+    const std::optional<Fraction> &duration)
+{
+    SymExtra extra;
+    extra.vrv_id = hairpin.GetID();
+    extra.kind = hairpin.GetForm() == vrv::hairpinLog_FORM_dim ? ExtraKind::kDiminuendo
+                                                               : ExtraKind::kCrescendo;
+    extra.offset = offset;
+    extra.duration = duration;
+    return extra;
+}
+
+SymExtra Extractor::MakeSlurExtra(const vrv::Slur &slur, const Fraction &offset,
+    const std::optional<Fraction> &duration)
+{
+    SymExtra extra;
+    extra.vrv_id = slur.GetID();
+    extra.kind = ExtraKind::kSlur;
+    extra.offset = offset;
+    extra.duration = duration;
+    return extra;
+}
+
 } // namespace
 
-ExtractResult ExtractSymScore(vrv::Doc &doc, SourceFormat format)
+ExtractResult ExtractSymScore(vrv::Doc &doc, SourceFormat format, const ExtractOptions &options)
 {
-    Extractor extractor(doc, format);
+    Extractor extractor(doc, format, options);
     return extractor.Run();
 }
 

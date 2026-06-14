@@ -57,7 +57,11 @@ std::string_view ExtraKindName(ExtraKind kind)
 {
     switch (kind) {
         case ExtraKind::kClef: return "clef";
+        case ExtraKind::kCrescendo: return "crescendo";
+        case ExtraKind::kDiminuendo: return "diminuendo";
+        case ExtraKind::kDynamic: return "dynamic";
         case ExtraKind::kKeySig: return "keysig";
+        case ExtraKind::kSlur: return "slur";
         case ExtraKind::kTimeSig: return "timesig";
     }
     return "?";
@@ -78,6 +82,8 @@ int SymNote::notation_size() const
     size += static_cast<int>(beamings.size());
     size += static_cast<int>(tuplets.size());
     size += static_cast<int>(tuplet_info.size());
+    size += static_cast<int>(articulations.size());
+    size += static_cast<int>(expressions.size());
     if (!grace_type.empty()) {
         size += 1;
         if (grace_slash) size += 1;
@@ -115,6 +121,14 @@ std::string SymNote::str() const
             if (!ti.empty()) s += "(" + ti + ")";
         }
     }
+    if (!articulations.empty()) {
+        s += "A";
+        for (const std::string &a : articulations) s += a;
+    }
+    if (!expressions.empty()) {
+        s += "E";
+        for (const std::string &e : expressions) s += e;
+    }
     if (gap_dur != Fraction(0)) s += " spaceBefore=" + gap_dur.str();
     return s;
 }
@@ -147,15 +161,25 @@ std::string SymNote::repr() const
         if (i > 0) os << ", ";
         os << "'" << tuplet_info[i] << "'";
     }
-    os << "],A:[],E:[],S:{}";
+    os << "],A:[";
+    for (std::size_t i = 0; i < articulations.size(); ++i) {
+        if (i > 0) os << ", ";
+        os << "'" << articulations[i] << "'";
+    }
+    os << "],E:[";
+    for (std::size_t i = 0; i < expressions.size(); ++i) {
+        if (i > 0) os << ", ";
+        os << "'" << expressions[i] << "'";
+    }
+    os << "],S:{}";
     return os.str();
 }
 
 int SymExtra::notation_size() const
 {
-    // AnnExtra.notation_size (annotation.py:717-737); content/styledict never
-    // set for v1-tier extras.
+    // AnnExtra.notation_size (annotation.py:717-737); content is per-character.
     int size = 0;
+    if (content.has_value()) size += static_cast<int>(content->size());
     if (symbolic.has_value()) size += 1;
     if (duration.has_value()) size += 1;
     size += static_cast<int>(infodict.size());
@@ -166,6 +190,7 @@ std::string SymExtra::str() const
 {
     std::string s(ExtraKindName(kind));
     s += "@" + offset.str() + ":";
+    if (content.has_value()) s += "content=" + *content;
     if (symbolic.has_value()) s += *symbolic;
     for (const auto &[k, v] : infodict) s += " " + k + ":" + v;
     return s;
@@ -216,6 +241,8 @@ SymbolCounts CountSymbols(const SymScore &score)
                 c.beams += static_cast<long>(note.beamings.size());
                 c.tuplets += static_cast<long>(note.tuplets.size());
                 c.tuplet_info += static_cast<long>(note.tuplet_info.size());
+                c.articulations += static_cast<long>(note.articulations.size());
+                c.expressions += static_cast<long>(note.expressions.size());
                 if (!note.grace_type.empty()) {
                     c.grace += 1;
                     if (note.grace_slash) c.grace_slash += 1;
@@ -226,6 +253,10 @@ SymbolCounts CountSymbols(const SymScore &score)
                 long body = extra.notation_size();
                 switch (extra.kind) {
                     case ExtraKind::kClef: c.clef += body; break;
+                    case ExtraKind::kCrescendo:
+                    case ExtraKind::kDiminuendo:
+                    case ExtraKind::kDynamic:
+                    case ExtraKind::kSlur: c.other_extras += body; break;
                     case ExtraKind::kKeySig: c.keysig += body; break;
                     case ExtraKind::kTimeSig: c.timesig += body; break;
                 }

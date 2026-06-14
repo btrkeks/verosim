@@ -5,6 +5,7 @@ namespace verosim {
 std::string ExtraComparisonKey(const SymExtra &extra)
 {
     std::string key(ExtraKindName(extra.kind));
+    if (extra.content.has_value()) key += ",content=" + *extra.content;
     if (extra.symbolic.has_value()) key += ",symbol=" + *extra.symbolic;
     key += ",off=" + extra.offset.str(); // offset is always set (AnnExtra: not None)
     if (extra.duration.has_value()) key += ",dur=" + extra.duration->str();

@@ -12,8 +12,8 @@ what the piece contains.
 
 Usage:
   python -m verosim_harness.synth_corr --bin build/verosim \\
-      [--data-root <root>] [--n 100] [--out oracle/synth_corr_m3.jsonl] \\
-      [--report-append docs/corr_audit_m3.md]
+      [--data-root <root>] [--detail tierAB] [--n 100] \\
+      [--out oracle/synth_corr_m4.jsonl] [--report-append docs/corr_audit_m4.md]
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import DEFAULT_DATA_ROOT
+from . import DEFAULT_DATA_ROOT, DETAIL_LEVELS
 from .corr_audit import spearman
 from .versions import REPO_ROOT
 
@@ -40,9 +40,10 @@ PITCH_RUN = re.compile(r"([a-gA-G])\1*")
 
 
 def mutate_kern(text: str, rng: random.Random) -> tuple[str, int]:
-    """Apply k rhythm-safe pitch-letter swaps; returns (mutated, k applied)."""
+    """Apply k rhythm-safe pitch/articulation edits; returns (mutated, k applied)."""
     lines = text.splitlines(keepends=True)
-    # candidate (line, cell) positions: data lines only, cells with a pitch run
+    # candidate (line, cell) positions: data lines only, cells with a pitch run.
+    # Articulation edits append/remove kern staccato marks and preserve rhythm.
     candidates = []
     for i, line in enumerate(lines):
         stripped = line.rstrip("\n")
@@ -59,13 +60,16 @@ def mutate_kern(text: str, rng: random.Random) -> tuple[str, int]:
         cells = lines[i].rstrip("\n").split("\t")
         eol = "\n" if lines[i].endswith("\n") else ""
         cell = cells[j]
-        runs = list(PITCH_RUN.finditer(cell))
-        run = rng.choice(runs)
-        old = run.group(1)
-        new = rng.choice([c for c in LETTERS if c != old.lower()])
-        if old.isupper():
-            new = new.upper()
-        cells[j] = cell[: run.start()] + new * len(run.group(0)) + cell[run.end():]
+        if rng.random() < 0.25:
+            cells[j] = cell.replace("'", "", 1) if "'" in cell else cell + "'"
+        else:
+            runs = list(PITCH_RUN.finditer(cell))
+            run = rng.choice(runs)
+            old = run.group(1)
+            new = rng.choice([c for c in LETTERS if c != old.lower()])
+            if old.isupper():
+                new = new.upper()
+            cells[j] = cell[: run.start()] + new * len(run.group(0)) + cell[run.end():]
         lines[i] = "\t".join(cells) + eol
     return "".join(lines), k
 
@@ -74,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--bin", type=Path, required=True)
     ap.add_argument("--data-root", default=DEFAULT_DATA_ROOT)
+    ap.add_argument("--detail", default="tierAB", choices=sorted(DETAIL_LEVELS))
     ap.add_argument("--n", type=int, default=100)
     ap.add_argument("--jobs", type=int, default=8)
     ap.add_argument("--out", type=Path)
@@ -140,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
             "--corpus",
             str(pairs_path),
             "--detail",
-            "tierA",
+            args.detail,
             "--jobs",
             str(args.jobs),
             "--data-root",
@@ -155,8 +160,11 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # C++ side
+    cpp_cmd = [str(args.bin), "--batch", str(pairs_path), "--base-dir", str(workdir), "--jobs", str(args.jobs)]
+    if args.detail != "tierAB":
+        cpp_cmd += ["--detail", args.detail]
     proc = subprocess.run(
-        [str(args.bin), "--pairs", str(pairs_path), "--base-dir", str(workdir)],
+        cpp_cmd,
         capture_output=True,
         text=True,
         check=True,
@@ -227,7 +235,7 @@ def main(argv: list[str] | None = None) -> int:
             f.write(
                 "\n## Same-format (engine-isolating) correlation\n\n"
                 "Both stacks compare identical kern file pairs (original vs "
-                "rhythm-safe random pitch-letter mutations; "
+                f"rhythm-safe random {args.detail} pitch/articulation mutations; "
                 "`verosim_harness/synth_corr.py`), removing the cross-importer "
                 "confound of the xml<->krn gate:\n\n"
             )

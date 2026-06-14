@@ -1,6 +1,7 @@
 #include "verosim/engine/set_distance.h"
 
 #include <algorithm>
+#include <array>
 #include <numeric>
 #include <utility>
 
@@ -84,6 +85,46 @@ bool InfodictsEqual(const std::vector<std::pair<std::string, std::string>> &a,
     return true;
 }
 
+long StringsNdiffDistance(const std::string &a, const std::string &b)
+{
+    const std::size_t m = a.size();
+    const std::size_t n = b.size();
+    std::vector<int> lcs((m + 1) * (n + 1), 0);
+    const auto at = [&](std::size_t i, std::size_t j) -> int & { return lcs[i * (n + 1) + j]; };
+    for (std::size_t i = m; i-- > 0;) {
+        for (std::size_t j = n; j-- > 0;) {
+            at(i, j) = a[i] == b[j] ? at(i + 1, j + 1) + 1 : std::max(at(i + 1, j), at(i, j + 1));
+        }
+    }
+
+    long distance = 0;
+    std::array<long, 2> counter{ 0, 0 }; // '-' then '+'
+    std::size_t i = 0, j = 0;
+    const auto flush_equal = [&] {
+        distance += std::max(counter[0], counter[1]);
+        counter = { 0, 0 };
+    };
+    while (i < m && j < n) {
+        if (a[i] == b[j]) {
+            flush_equal();
+            ++i;
+            ++j;
+        }
+        else if (at(i + 1, j) >= at(i, j + 1)) {
+            ++counter[0];
+            ++i;
+        }
+        else {
+            ++counter[1];
+            ++j;
+        }
+    }
+    while (i++ < m) ++counter[0];
+    while (j++ < n) ++counter[1];
+    flush_equal();
+    return distance;
+}
+
 } // namespace
 
 DiffResult NotesSetDistance(const SymMeasure &orig, const SymMeasure &comp,
@@ -153,10 +194,15 @@ DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,
         const SymExtra &ce = comp.extras[c];
         if (AreDifferentEnough(oe.duration, ce.duration)) return false;
         // kind-specific preferences (two simultaneous keysigs/timesigs/clefs
-        // must not be cross-paired); 'direction'/'ending'/'slur' kinds arrive
-        // with Tier B+.
+        // must not be cross-paired). 'slur' placement is Style-gated and
+        // therefore vacuous at v1, exactly like musicdiff.
         switch (oe.kind) {
             case ExtraKind::kClef: return oe.symbolic == ce.symbolic;
+            case ExtraKind::kCrescendo:
+            case ExtraKind::kDiminuendo:
+            case ExtraKind::kDynamic:
+            case ExtraKind::kSlur:
+                return true;
             case ExtraKind::kKeySig:
             case ExtraKind::kTimeSig: return InfodictsEqual(oe.infodict, ce.infodict);
         }
@@ -198,7 +244,12 @@ DiffResult AnnotatedExtraDiff(const SymExtra &e1, const SymExtra &e2)
             .name = name, .a = OpSide::Extra(&e1), .b = OpSide::Extra(&e2), .cost = cost
         };
     };
-    // content: never set for v1-tier extras (extracontentedit unreachable).
+    // content
+    if (e1.content != e2.content) {
+        const long content_cost = StringsNdiffDistance(e1.content.value_or(""), e2.content.value_or(""));
+        result.cost += content_cost;
+        result.ops.push_back(extra_op(OpName::kExtraContentEdit, content_cost));
+    }
 
     // symbolic (cost 2: delete one symbol, add the other); optional<> equality
     // matches Python None semantics
