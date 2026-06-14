@@ -16,17 +16,11 @@ import time
 from pathlib import Path
 
 from . import DEFAULT_DATA_ROOT
+from .gates import RecordCompleteness
+from .lists import read_list
 from .versions import REPO_ROOT
 
 PERF_BENCH_SEED = "verosim-m5-perf"
-
-
-def read_list(path: Path) -> list[str]:
-    return [
-        line.strip()
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.startswith("#")
-    ]
 
 
 def percentile(values: list[float], pct: float) -> float:
@@ -71,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     records = [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
     ok = [r for r in records if r.get("ok")]
     failures = [r for r in records if not r.get("ok")]
-    missing_records = sample_n - len(records)
+    completeness = RecordCompleteness(expected=sample_n, emitted=len(records))
     omr_nonzero = [r for r in ok if r.get("distance") != 0]
     per_record_ms = [
         sum((r.get("timings_ms") or {}).values())
@@ -93,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         f"- sample seed: `{PERF_BENCH_SEED}`",
         f"- requested sample: {args.sample}",
         f"- records: {len(records)}",
-        f"- missing records: {missing_records}",
+        f"- missing records: {completeness.missing}",
         f"- loaded ok: {len(ok)}",
         f"- load failures: {len(failures)}",
         f"- nonzero identity distances: {len(omr_nonzero)}",
@@ -121,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"wrote {args.out}")
-    return 1 if missing_records or failures or omr_nonzero else 0
+    return 1 if not completeness.ok or failures or omr_nonzero else 0
 
 
 if __name__ == "__main__":

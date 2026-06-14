@@ -1,9 +1,14 @@
 #include <string>
 #include <vector>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include "verosim/cli/args.h"
+#include "verosim/cli/batch.h"
+#include "verosim/cli/list_io.h"
 #include "verosim/model/detail_tier.h"
 
 using namespace verosim;
@@ -74,4 +79,57 @@ TEST_CASE("ParseBatchArgs accepts base-dir and jobs", "[cli]")
     CHECK_FALSE(ParseBatchArgs({ "--batch", "pairs.tsv", "--jobs", "abc" }).has_value());
     CHECK_FALSE(ParseBatchArgs({ "--batch", "pairs.tsv", "--jobs", "2x" }).has_value());
     CHECK_FALSE(ParseBatchArgs({ "--batch", "pairs.tsv", "--unknown", "x" }).has_value());
+}
+
+TEST_CASE("List readers skip comments and preserve relative rows", "[cli]")
+{
+    const std::filesystem::path dir = std::filesystem::temp_directory_path()
+        / std::filesystem::path("verosim-list-test.txt");
+    {
+        std::ofstream out(dir);
+        out << "# comment\n\npred.krn\tgt.krn\nmalformed\nnext.xml\tnext.krn\n";
+    }
+
+    std::ostringstream err;
+    const std::vector<PairRow> pairs = ReadPairList(dir.string(), err);
+    REQUIRE(pairs.size() == 2);
+    CHECK(pairs[0].pred == "pred.krn");
+    CHECK(pairs[0].gt == "gt.krn");
+    CHECK(pairs[1].pred == "next.xml");
+    CHECK(pairs[1].gt == "next.krn");
+    CHECK(err.str().find("malformed pairs line") != std::string::npos);
+
+    std::filesystem::remove(dir);
+}
+
+TEST_CASE("File list reader and base-dir joining match list-mode contracts", "[cli]")
+{
+    const std::filesystem::path path = std::filesystem::temp_directory_path()
+        / std::filesystem::path("verosim-files-test.txt");
+    {
+        std::ofstream out(path);
+        out << "# comment\nalpha.krn\n\nbeta.xml\n";
+    }
+
+    const std::vector<std::string> files = ReadFileList(path.string());
+    CHECK(files == std::vector<std::string>{ "alpha.krn", "beta.xml" });
+    CHECK(JoinBaseDir("", "alpha.krn") == "alpha.krn");
+    CHECK(JoinBaseDir("data", "alpha.krn") == "data/alpha.krn");
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("Batch runner accepts jobs zero and preserves output order", "[cli]")
+{
+    const std::vector<PairRow> pairs{ { "first.krn", "first.gt.krn" }, { "second.krn", "second.gt.krn" } };
+    std::ostringstream out;
+
+    CompareBatchToJson(pairs, "missing-base", 0, CompareCliOptions{}, out);
+    const std::string records = out.str();
+
+    const auto first = records.find("missing-base/first.krn");
+    const auto second = records.find("missing-base/second.krn");
+    REQUIRE(first != std::string::npos);
+    REQUIRE(second != std::string::npos);
+    CHECK(first < second);
 }

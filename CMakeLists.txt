@@ -31,6 +31,11 @@ set(VEROVIO_INCLUDE_DIRS
 add_library(verosim_core STATIC
     src/extraction/vrv_bridge.cpp
     src/extraction/extract.cpp
+    src/extraction/event_extraction.cpp
+    src/extraction/pitch_context.cpp
+    src/extraction/meter_context.cpp
+    src/extraction/control_extraction.cpp
+    src/extraction/signature_extraction.cpp
     src/extraction/effective_pitch.cpp
     src/extraction/notation_rules.cpp
     src/model/detail_tier.cpp
@@ -42,6 +47,8 @@ add_library(verosim_core STATIC
     src/engine/block_diff.cpp
     src/engine/compare.cpp
     src/cli/args.cpp
+    src/cli/list_io.cpp
+    src/cli/batch.cpp
     src/cli/check.cpp
     src/cli/compare_cli.cpp
     src/cli/count_symbols.cpp

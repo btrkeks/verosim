@@ -1,19 +1,15 @@
-#include <algorithm>
-#include <atomic>
 #include <exception>
-#include <fstream>
-#include <future>
 #include <iostream>
-#include <sstream>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include "verosim/cli/args.h"
+#include "verosim/cli/batch.h"
 #include "verosim/cli/check.h"
 #include "verosim/cli/compare_cli.h"
 #include "verosim/cli/count_symbols.h"
 #include "verosim/cli/dump_tree.h"
+#include "verosim/cli/list_io.h"
 #include "verosim/extraction/vrv_bridge.h"
 
 namespace {
@@ -61,99 +57,37 @@ int CompareMain(
 int ComparePairsMain(
     const std::string &listPath, const std::string &baseDir, const verosim::CompareCliOptions &options)
 {
-    std::ifstream list(listPath);
-    if (!list) {
-        std::cerr << "verosim: cannot read pairs list " << listPath << '\n';
+    std::vector<verosim::PairRow> pairs;
+    try {
+        pairs = verosim::ReadPairList(listPath, std::cerr);
+    }
+    catch (const std::exception &e) {
+        std::cerr << "verosim: " << e.what() << '\n';
         return 2;
     }
     verosim::VrvBridge bridge;
-    std::string line;
-    while (std::getline(list, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        const auto tab = line.find('\t');
-        if (tab == std::string::npos) {
-            std::cerr << "verosim: skipping malformed pairs line (no tab): " << line << '\n';
-            continue;
-        }
-        std::string pred = line.substr(0, tab);
-        std::string gt = line.substr(tab + 1);
-        if (!baseDir.empty()) {
-            pred = baseDir + "/" + pred;
-            gt = baseDir + "/" + gt;
-        }
+    for (const verosim::PairRow &pair : pairs) {
+        const std::string pred = verosim::JoinBaseDir(baseDir, pair.pred);
+        const std::string gt = verosim::JoinBaseDir(baseDir, pair.gt);
         verosim::ComparePairToJson(bridge, pred, gt, options, std::cout);
         std::cout.flush(); // same durability contract as --check list mode
     }
     return 0; // failures are data (recorded per pair), like the other list modes
 }
 
-struct PairRow {
-    std::string pred;
-    std::string gt;
-};
-
-std::vector<PairRow> ReadPairsList(const std::string &listPath)
-{
-    std::ifstream list(listPath);
-    if (!list) throw std::runtime_error("cannot read pairs list " + listPath);
-    std::vector<PairRow> pairs;
-    std::string line;
-    while (std::getline(list, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        const auto tab = line.find('\t');
-        if (tab == std::string::npos) {
-            std::cerr << "verosim: skipping malformed pairs line (no tab): " << line << '\n';
-            continue;
-        }
-        pairs.push_back({ line.substr(0, tab), line.substr(tab + 1) });
-    }
-    return pairs;
-}
-
 int CompareBatchMain(
     const std::string &listPath, const std::string &baseDir, int jobs,
     const verosim::CompareCliOptions &options)
 {
-    std::vector<PairRow> pairs;
+    std::vector<verosim::PairRow> pairs;
     try {
-        pairs = ReadPairsList(listPath);
+        pairs = verosim::ReadPairList(listPath, std::cerr);
     }
     catch (const std::exception &e) {
         std::cerr << "verosim: " << e.what() << '\n';
         return 2;
     }
-
-    if (jobs <= 0) {
-        const unsigned hw = std::thread::hardware_concurrency();
-        jobs = hw == 0 ? 1 : static_cast<int>(hw);
-    }
-    jobs = std::max(1, std::min(jobs, static_cast<int>(std::max<std::size_t>(pairs.size(), 1))));
-
-    std::vector<std::string> records(pairs.size());
-
-    std::atomic<std::size_t> next{ 0 };
-    std::vector<std::future<void>> workers;
-    for (int w = 0; w < jobs; ++w) {
-        workers.push_back(std::async(std::launch::async, [&] {
-            verosim::VrvBridge bridge;
-            for (;;) {
-                const std::size_t i = next.fetch_add(1);
-                if (i >= pairs.size()) break;
-                std::string pred = pairs[i].pred;
-                std::string gt = pairs[i].gt;
-                if (!baseDir.empty()) {
-                    pred = baseDir + "/" + pred;
-                    gt = baseDir + "/" + gt;
-                }
-                std::ostringstream out;
-                verosim::ComparePairToJson(bridge, pred, gt, options, out);
-                records[i] = out.str();
-            }
-        }));
-    }
-    for (auto &worker : workers) worker.get();
-
-    for (const std::string &record : records) std::cout << record;
+    verosim::CompareBatchToJson(pairs, baseDir, jobs, options, std::cout);
     return 0; // failures are data, as with --pairs
 }
 
@@ -167,16 +101,17 @@ int CheckOneMain(const std::string &path)
 
 int CheckListMain(const std::string &listPath, const std::string &baseDir)
 {
-    std::ifstream list(listPath);
-    if (!list) {
-        std::cerr << "verosim: cannot read file list " << listPath << '\n';
+    std::vector<std::string> files;
+    try {
+        files = verosim::ReadFileList(listPath);
+    }
+    catch (const std::exception &e) {
+        std::cerr << "verosim: " << e.what() << '\n';
         return 2;
     }
     verosim::VrvBridge bridge({ .log_level = vrv::LOG_WARNING, .capture_log = true });
-    std::string line;
-    while (std::getline(list, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        const std::string path = baseDir.empty() ? line : baseDir + "/" + line;
+    for (const std::string &line : files) {
+        const std::string path = verosim::JoinBaseDir(baseDir, line);
         verosim::CheckResult result = verosim::CheckFile(bridge, path);
         result.path = line; // report the list-relative path, not the joined one
         verosim::WriteCheckJsonl(result, std::cout);
@@ -196,17 +131,18 @@ int CountSymbolsOneMain(const std::string &path, bool perMeasure)
 
 int CountSymbolsListMain(const std::string &listPath, const std::string &baseDir)
 {
-    std::ifstream list(listPath);
-    if (!list) {
-        std::cerr << "verosim: cannot read file list " << listPath << '\n';
+    std::vector<std::string> files;
+    try {
+        files = verosim::ReadFileList(listPath);
+    }
+    catch (const std::exception &e) {
+        std::cerr << "verosim: " << e.what() << '\n';
         return 2;
     }
     verosim::VrvBridge bridge;
     const verosim::CountSymbolsOptions options;
-    std::string line;
-    while (std::getline(list, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        const std::string path = baseDir.empty() ? line : baseDir + "/" + line;
+    for (const std::string &line : files) {
+        const std::string path = verosim::JoinBaseDir(baseDir, line);
         verosim::CountSymbolsFile(bridge, path, options, std::cout);
         std::cout.flush(); // same durability contract as --check list mode
     }

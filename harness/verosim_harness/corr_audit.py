@@ -33,6 +33,8 @@ import tempfile
 from pathlib import Path
 
 from . import DEFAULT_DATA_ROOT
+from .gates import threshold_status
+from .stats import spearman
 
 SYNTAX_KEY = "bad kern syntax OMR-ED"
 
@@ -87,38 +89,6 @@ def detail_from_oracle_path(path: Path) -> str:
         f"cannot infer detail tier from {path}; expected a name ending in "
         "tierA, tierAB, or tierAB_dir"
     )
-
-
-def ranks(values: list[float]) -> list[float]:
-    """Average ranks (ties share the mean rank), 1-based."""
-    order = sorted(range(len(values)), key=lambda i: values[i])
-    result = [0.0] * len(values)
-    i = 0
-    while i < len(order):
-        j = i
-        while j + 1 < len(order) and values[order[j + 1]] == values[order[i]]:
-            j += 1
-        avg = (i + j) / 2 + 1
-        for k in range(i, j + 1):
-            result[order[k]] = avg
-        i = j + 1
-    return result
-
-
-def pearson(xs: list[float], ys: list[float]) -> float:
-    n = len(xs)
-    mx = sum(xs) / n
-    my = sum(ys) / n
-    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
-    vx = sum((x - mx) ** 2 for x in xs)
-    vy = sum((y - my) ** 2 for y in ys)
-    if vx == 0 or vy == 0:
-        return float("nan")
-    return cov / (vx * vy) ** 0.5
-
-
-def spearman(xs: list[float], ys: list[float]) -> float:
-    return pearson(ranks(xs), ranks(ys))
 
 
 def oracle_adjusted_omr_ned(r: dict) -> float:
@@ -228,7 +198,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     summary.append(
         f"regression floor (cross-importer audit, D15): raw >= {args.threshold} -> "
-        f"{'PASS' if raw >= args.threshold else 'FAIL'}"
+        f"{threshold_status(raw, args.threshold)}"
     )
     print("corr_audit:", *summary, sep="\n  ")
 

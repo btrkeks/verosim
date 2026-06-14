@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import random
 import re
 import subprocess
@@ -29,7 +28,9 @@ import tempfile
 from pathlib import Path
 
 from . import DEFAULT_DATA_ROOT, DETAIL_LEVELS
-from .corr_audit import spearman
+from .gates import threshold_status
+from .lists import read_list
+from .stats import format_rho, spearman_or_none
 from .versions import REPO_ROOT
 
 SEED = "verosim-synthcorr-m3"
@@ -38,17 +39,6 @@ LETTERS = "abcdefg"
 # A run of one repeated kern pitch letter (the repetition count is the octave,
 # so preserving it preserves rhythm AND octave register shape).
 PITCH_RUN = re.compile(r"([a-gA-G])\1*")
-
-
-def spearman_or_none(rows: list[dict]) -> float | None:
-    if len(rows) < 2:
-        return None
-    rho = spearman([r["cpp_omr_ned"] for r in rows], [r["oracle_omr_ned"] for r in rows])
-    return rho if math.isfinite(rho) else None
-
-
-def format_rho(value: float | None) -> str:
-    return "n/a" if value is None else f"{value:.4f}"
 
 
 def mutate_kern(text: str, rng: random.Random) -> tuple[str, int]:
@@ -134,9 +124,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # sample kern files from the corpus gt column
     gt_files = []
-    for line in args.corpus.read_text().splitlines():
-        if line.strip() and not line.startswith("#"):
-            gt_files.append(line.split("\t")[1])
+    for line in read_list(args.corpus):
+        gt_files.append(line.split("\t")[1])
     files = random.Random(SEED).sample(gt_files, min(args.n, len(gt_files)))
 
     workdir = args.workdir or Path(tempfile.mkdtemp(prefix="verosim-synthcorr-"))
@@ -250,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.threshold is not None:
         summary.append(
             f"gate (engine-isolating Spearman >= {args.threshold}): "
-            f"{'PASS' if gate_rho is not None and gate_rho >= args.threshold else 'FAIL'}"
+            f"{threshold_status(gate_rho, args.threshold)}"
         )
     summary.append(f"workdir: {workdir}")
     print("synth_corr:", *summary, sep="\n  ")

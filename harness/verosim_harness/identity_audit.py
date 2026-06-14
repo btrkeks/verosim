@@ -22,18 +22,11 @@ import tempfile
 from pathlib import Path
 
 from . import DEFAULT_DATA_ROOT
+from .gates import RecordCompleteness
+from .lists import read_list
 from .versions import REPO_ROOT
 
 PERF_SAMPLE_SEED = "verosim-identity-m3"
-
-
-def read_list(path: Path) -> list[str]:
-    lines = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line and not line.startswith("#"):
-            lines.append(line)
-    return lines
 
 
 def collect_files(perf_sample: int) -> list[str]:
@@ -74,6 +67,7 @@ def main(argv: list[str] | None = None) -> int:
 
     load_failures = [r for r in records if not r["ok"]]
     nonzero = [r for r in records if r["ok"] and r["distance"] != 0]
+    completeness = RecordCompleteness(expected=len(files), emitted=len(records))
 
     print(f"identity_audit: {len(records)} self-pairs ({len(files)} requested)")
     print(f"  loadable, distance == 0: {len(records) - len(load_failures) - len(nonzero)}")
@@ -82,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     for r in nonzero[:20]:
         print(f"    {r['pair']['pred']}: distance={r['distance']}")
 
-    if len(records) != len(files):
+    if not completeness.ok:
         print(f"identity_audit: record count mismatch ({len(records)} != {len(files)})")
         return 2
     return 1 if nonzero else 0
