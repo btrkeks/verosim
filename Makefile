@@ -3,7 +3,7 @@ PY := harness/.venv/bin/python
 DATA_ROOT := /home/daniel/.local/share/src/Transcoda/main/data/interim
 JOBS := 2
 
-.PHONY: build test bench clean corpora oracle-dev200 mutgen mutcheck sweep harness-test count-audit identity-gate corr-audit
+.PHONY: build test bench clean corpora oracle-dev200 mutgen mutcheck sweep harness-test count-audit identity-gate corr-audit directions-audit
 
 build:
 	cmake -S . -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -73,6 +73,12 @@ corr-audit: build
 	  --data-root $(DATA_ROOT) --out oracle/synth_corr_m3.jsonl \
 	  --explained corpora/dev200_explained_pairs.tsv --threshold 0.95 \
 	  --report-append docs/corr_audit_m3.md
+
+# ---- M4: quantify the Directions granularity gap before choosing the gate ----
+
+directions-audit:
+	$(PY) -m verosim_harness.directions_audit --oracle oracle/dev200_tierAB_dir.jsonl \
+	  --out docs/m4_directions_audit.md
 
 harness-test:
 	@test -x $(PY) || { echo "harness venv missing — run harness/setup.sh first"; exit 1; }
