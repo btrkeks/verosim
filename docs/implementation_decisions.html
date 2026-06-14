@@ -314,6 +314,14 @@
   <p class="field"><b>Rationale:</b> This keeps &ldquo;compare like with like&rdquo; intact. Treating unfiltered Directions as Tier B would force the implementation to chase text directions, pedal marks, endings, tempo, and rehearsal marks despite the plan excluding or deferring those categories. Treating dynamics/hairpins as exact-fixture plus diagnostic coverage preserves the v1 feature commitment without letting a coarse oracle bit redefine the milestone.</p>
 </div>
 
+<div class="decision" id="d17">
+  <h3><span class="did">D17</span>M4 consolidation notes before M5 <span class="status deferred">deferred</span></h3>
+  <p class="field"><b>Decision (2026-06-14, M4 exit):</b> Do not block M5 on a broad cleanup, but carry a focused refactor backlog forward. M4 made the extraction layer substantially more capable: Tier-B ties, slurs, articulations, dynamics, hairpins, cross-measure span resolution, MEI timestamp controls, Tier-A/Tier-A+B detail modes, and parallel batch scoring are now implemented. The main technical debt is concentrated in the extraction and CLI seams rather than in the comparison engine.</p>
+  <p class="field"><b>Notes for future developers:</b> dynamics intentionally use <code>Extra.symbolic</code>, not <code>Extra.content</code>, matching vendored <code>musicdiff</code>: <code>dynamic_to_symbolic()</code> returns the dynamic value and <code>dynamic_to_string()</code> returns nothing. Text-like direction payloads use <code>content</code>. Comparison keys include both fields. MEI <code>@tstamp</code> and <code>@tstamp2</code> values are beat-relative, so they must be scaled by the active meter denominator before being compared as quarter-length offsets. Unstaffed timestamp controls should not be duplicated across every staff; controls with <code>@startid</code> still resolve through their referenced event.</p>
+  <p class="field"><b>Refactor backlog:</b> Split the large extraction implementation into note, extra/span, and importer-specific helpers; centralize MEI musical-location conversion; replace the growing set of detail booleans with an explicit detail-tier enum/config; and move batch/detail CLI parsing out of the monolithic entry point if M5 expands the command surface further. See <a href="m5_refactor_handoff.md"><code>docs/m5_refactor_handoff.md</code></a> for a handoff prompt.</p>
+  <p class="field"><b>Validation guardrail:</b> Refactor only while the exact fixture rungs and corpus audits are green. In particular, preserve the distinction that default extraction/counting is Tier A, while comparison defaults to Tier A+B unless <code>--detail tierA</code> is requested.</p>
+</div>
+
 <h2 id="risks"><span class="secno">5</span>Risks and Mitigations</h2>
 
 <table>
@@ -359,9 +367,10 @@
 
 <ul>
   <li><b>Syntax-error costing</b> (deferred in <a href="#d4">D4</a>): design how Verovio importer warnings/failures map to insertion/deletion costs for non-parseable predictions.</li>
-  <li><b>DetailLevel equivalent:</b> musicdiff exposes <code>DetailLevel</code> flags (<code class="fileref">musicdiff/musicdiff/detaillevel.py</code>) controlling which notation features participate in the comparison. Decide whether the C++ implementation exposes the same switch surface or fixes the paper's default (all objects).</li>
+  <li><b>DetailLevel equivalent:</b> musicdiff exposes <code>DetailLevel</code> flags (<code class="fileref">musicdiff/musicdiff/detaillevel.py</code>) controlling which notation features participate in the comparison. M4 exposes <code>tierA</code>, <code>tierAB</code>, and <code>tierAB_dir</code>; future tiers should consolidate this surface into the explicit configuration described in <a href="#d17">D17</a>.</li>
   <li><b>MEI &rarr; symbol mapping table:</b> the full, documented mapping from Verovio/MEI elements and attributes to OMR-NED symbol categories is the main remaining design artifact for Layer&nbsp;2; it should become a companion document (or a table in this one) as it is worked out.</li>
   <li><b>Verovio version pinning:</b> importer behavior changes across Verovio releases can shift symbol counts; pin the vendored version and record it alongside published numbers.</li>
+  <li><b>M4 extraction consolidation:</b> the M4 implementation deliberately favored correctness and auditability over file-level shape. The recommended refactor is captured in <a href="m5_refactor_handoff.md"><code>docs/m5_refactor_handoff.md</code></a>.</li>
 </ul>
 
 <h2 id="references"><span class="secno">8</span>References</h2>
