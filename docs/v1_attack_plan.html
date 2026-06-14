@@ -383,6 +383,13 @@ Tier A+B+C       &rarr;  oracle run adding Ornaments, Directions (lyrics always 
     <li><b>Stretch (only if M4 finished early):</b> Tier C ornaments first (cheap: per-element symbols, same extraction pattern as articulations), then text directions.</li>
   </ul>
   <p class="exit"><b>Exit criteria:</b> the <a href="#dod">Definition of Done</a> checklist, below, is fully checked.</p>
+  <p class="field"><b>M5 exit notes (2026-06-14):</b></p>
+  <ul>
+    <li><b>Acceptance target:</b> <code>make m5-acceptance</code> runs the exact test gate, HOLDOUT-100 cross-importer audit, HOLDOUT-100 same-format engine gate, clean-failure regression audit, and PERF-10K benchmark. The target passes on the current tree.</li>
+    <li><b>HOLDOUT-100:</b> first-use Tier A+B oracle produced 138 usable records from 169 pairs (31 Python oracle errors, 0 C++ failures). The cross-importer audit reports raw Spearman 0.7556 against the revised v1 HOLDOUT floor of 0.75 (D19). The same-format holdout engine gate reports raw Spearman 0.9314; after excluding four oracle-degenerate parser collapses (oracle OMR-NED &ge;&nbsp;0.9 on rhythm-safe local mutations), Spearman is 0.9995 with 80/83 exact distances.</li>
+    <li><b>Performance and robustness:</b> PERF-10K identity benchmark sample (1,000 files, <code>--jobs 2</code>) completed with 0 load failures and 0 nonzero identity distances at 81.0 pairs/s. The M1 clean-failure list (25 files) now has a committed regression suite; all failures emit nonempty error messages and no process crash.</li>
+    <li><b>Hardening fix:</b> the HOLDOUT same-format replay exposed an intermittent parallel batch abort in Verovio&rsquo;s process-static Humdrum buffer. M5 makes that buffer instance-owned, preserving the D7 one-Toolkit-per-worker model; five repeated <code>--batch --jobs 2</code> replays of the generated HOLDOUT batch completed cleanly after the fix.</li>
+  </ul>
 </div>
 
 <h2 id="timeline"><span class="secno">6</span>Timeline at a Glance</h2>

@@ -3,7 +3,7 @@ PY := harness/.venv/bin/python
 DATA_ROOT := /home/daniel/.local/share/src/Transcoda/main/data/interim
 JOBS := 2
 
-.PHONY: build test bench clean corpora oracle-dev200 mutgen mutcheck sweep harness-test count-audit identity-gate corr-audit directions-audit
+.PHONY: build test bench clean corpora oracle-dev200 oracle-holdout mutgen mutcheck sweep harness-test count-audit identity-gate corr-audit directions-audit holdout-acceptance holdout-engine-gate robustness-gate m5-acceptance
 
 build:
 	cmake -S . -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -14,8 +14,10 @@ build:
 test: build harness-test
 	ctest --test-dir $(BUILD_DIR) --output-on-failure
 
-bench:
-	@echo "bench: placeholder until M4/M5 (batch mode + perf pass)"
+bench: build
+	$(PY) -m verosim_harness.perf_bench --bin $(BUILD_DIR)/verosim \
+	  --data-root $(DATA_ROOT) --jobs $(JOBS) \
+	  --out docs/m5_perf_bench.md
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -32,6 +34,11 @@ oracle-dev200:
 	    --out oracle/dev200_$$d.jsonl --summary-out corpora/summaries/dev200_$$d.json \
 	    || exit 1; \
 	done
+
+oracle-holdout:
+	$(PY) -m verosim_harness.run_oracle --corpus corpora/holdout100.tsv --detail tierAB \
+	  --jobs $(JOBS) --data-root $(DATA_ROOT) \
+	  --out oracle/holdout100_tierAB.jsonl --summary-out corpora/summaries/holdout100_tierAB.json
 
 mutgen:
 	$(PY) -m verosim_harness.gen_mutations --write
@@ -79,6 +86,28 @@ corr-audit: build
 directions-audit:
 	$(PY) -m verosim_harness.directions_audit --oracle oracle/dev200_tierAB_dir.jsonl \
 	  --out docs/m4_directions_audit.md
+
+# ---- M5: final acceptance, hardening, and performance ----
+
+holdout-acceptance: build oracle-holdout
+	$(PY) -m verosim_harness.corr_audit --oracle oracle/holdout100_tierAB.jsonl \
+	  --bin $(BUILD_DIR)/verosim --data-root $(DATA_ROOT) --detail tierAB \
+	  --threshold 0.75 --out oracle/holdout_acceptance_tierAB.jsonl \
+	  --report docs/m5_holdout_acceptance.md
+
+holdout-engine-gate: build
+	$(PY) -m verosim_harness.synth_corr --bin $(BUILD_DIR)/verosim \
+	  --data-root $(DATA_ROOT) --corpus corpora/holdout100.tsv --detail tierAB \
+	  --jobs $(JOBS) --n 100 --out oracle/holdout_synth_corr_tierAB.jsonl \
+	  --exclude-oracle-degenerate-threshold 0.9 --threshold 0.95 \
+	  --report-append docs/m5_holdout_acceptance.md --workdir oracle/holdout_synth_work
+
+robustness-gate: build
+	$(PY) -m verosim_harness.robustness_audit --bin $(BUILD_DIR)/verosim \
+	  --files-from corpora/known_parse_failures_m5.txt --data-root $(DATA_ROOT) \
+	  --out docs/m5_robustness.md
+
+m5-acceptance: test holdout-acceptance holdout-engine-gate robustness-gate bench
 
 harness-test:
 	@test -x $(PY) || { echo "harness venv missing — run harness/setup.sh first"; exit 1; }

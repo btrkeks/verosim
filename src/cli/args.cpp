@@ -1,6 +1,7 @@
 #include "verosim/cli/args.h"
 
 #include <cstddef>
+#include <exception>
 
 #include "verosim/model/detail_tier.h"
 
@@ -62,7 +63,14 @@ std::optional<BatchArgs> ParseBatchArgs(const std::vector<std::string> &args)
             i += 2;
         }
         else if (args[i] == "--jobs") {
-            parsed.jobs = std::stoi(args[i + 1]);
+            try {
+                std::size_t consumed = 0;
+                parsed.jobs = std::stoi(args[i + 1], &consumed);
+                if (consumed != args[i + 1].size()) return std::nullopt;
+            }
+            catch (const std::exception &) {
+                return std::nullopt;
+            }
             i += 2;
         }
         else {

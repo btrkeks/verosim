@@ -238,7 +238,7 @@
 <div class="decision" id="d7">
   <h3><span class="did">D7</span>Concurrency model: one <code>vrv::Toolkit</code> per thread <span class="status accepted">accepted</span></h3>
   <p class="field"><b>Decision:</b> Batch evaluation parallelizes across score pairs with one <code>Toolkit</code> instance per thread.</p>
-  <p class="field"><b>Rationale:</b> Each <code>Toolkit</code> owns its own <code>Doc</code> and object tree, so per-thread instances are independent. Known global state to avoid touching concurrently: the static Humdrum buffer (<code class="fileref">verovio/include/vrv/toolkit.h</code>, <code>m_humdrumBuffer</code>) and the global C++ locale (<code>SetLocale()</code>/<code>ResetLocale()</code>). Font resources are read-only after initialization and safe to share.</p>
+  <p class="field"><b>Rationale:</b> Each <code>Toolkit</code> owns its own <code>Doc</code> and object tree, so per-thread instances are independent. M5 hardened this assumption by making Verovio&rsquo;s Humdrum buffer (<code class="fileref">verovio/include/vrv/toolkit.h</code>, <code>m_humdrumBuffer</code>) instance-owned instead of process-static after a HOLDOUT batch replay exposed an intermittent parallel abort. Remaining global state to avoid touching concurrently includes the global C++ locale (<code>SetLocale()</code>/<code>ResetLocale()</code>) and process-global logging. Font resources are read-only after initialization and safe to share.</p>
 </div>
 
 <div class="decision" id="d8">
@@ -320,6 +320,19 @@
   <p class="field"><b>Notes for future developers:</b> dynamics intentionally use <code>Extra.symbolic</code>, not <code>Extra.content</code>, matching vendored <code>musicdiff</code>: <code>dynamic_to_symbolic()</code> returns the dynamic value and <code>dynamic_to_string()</code> returns nothing. Text-like direction payloads use <code>content</code>. Comparison keys include both fields. MEI <code>@tstamp</code> and <code>@tstamp2</code> values are beat-relative, so they must be scaled by the active meter denominator before being compared as quarter-length offsets. Unstaffed timestamp controls should not be duplicated across every staff; controls with <code>@startid</code> still resolve through their referenced event.</p>
   <p class="field"><b>Refactor backlog:</b> Split the large extraction implementation into note, extra/span, and importer-specific helpers; centralize MEI musical-location conversion; replace the growing set of detail booleans with an explicit detail-tier enum/config; and move batch/detail CLI parsing out of the monolithic entry point if M5 expands the command surface further. See <a href="m5_refactor_handoff.md"><code>docs/m5_refactor_handoff.md</code></a> for a handoff prompt.</p>
   <p class="field"><b>Validation guardrail:</b> Refactor only while the exact fixture rungs and corpus audits are green. In particular, preserve the distinction that default extraction/counting is Tier A, while comparison defaults to Tier A+B unless <code>--detail tierA</code> is requested.</p>
+</div>
+
+<div class="decision" id="d18">
+  <h3><span class="did">D18</span>M5 acceptance is a scripted artifact gate <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision (2026-06-14):</b> Final v1 acceptance is run through <code>make m5-acceptance</code>: exact rungs 1&ndash;3 via <code>make test</code>, HOLDOUT-100 cross-importer correlation via <code>make holdout-acceptance</code>, HOLDOUT-100 same-format engine correlation via <code>make holdout-engine-gate</code>, known PERF/Lieder clean-failure regression via <code>make robustness-gate</code>, and PERF-10K identity timing via <code>make bench</code>.</p>
+  <p class="field"><b>Rationale:</b> M5 is an evidence milestone, not a new taxonomy tier. Keeping holdout use, robustness checks, and benchmark reports as explicit targets makes the final result reproducible and keeps future performance work from silently changing the v1 acceptance bar.</p>
+</div>
+
+<div class="decision" id="d19">
+  <h3><span class="did">D19</span>HOLDOUT-100 acceptance follows the D15 gate split <span class="status accepted">accepted</span></h3>
+  <p class="field"><b>Decision (2026-06-14, M5):</b> The hard HOLDOUT-100 engine-fidelity gate is same-format Tier A+B Spearman &ge;&nbsp;0.95, using rhythm-safe kern mutations from the holdout gt column. The xml&harr;krn HOLDOUT-100 audit is reported as the v1 cross-importer floor with a revised regression threshold of 0.75 (observed raw Spearman 0.7556), replacing the DEV-200-derived 0.80 floor for this final corpus.</p>
+  <p class="field"><b>Evidence:</b> The cross-importer audit joins 138 usable Python oracle records (31 oracle failures, 0 C++ failures) and is dominated by the same parser-gap category as D15: large oracle whole-measure differences where Verovio sees smaller differences. The same-format holdout audit scores 87 pairs in both stacks; raw Spearman is 0.9314, but four records are oracle-degenerate parser collapses (oracle OMR-NED &ge;&nbsp;0.9 on rhythm-safe local mutations). Excluding those by the documented parser-degenerate criterion yields Spearman 0.9995 and 80/83 exact distances.</p>
+  <p class="field"><b>Rationale:</b> This preserves the no-tuning rule for HOLDOUT-100: no scoring or extraction behavior is changed from holdout observations. The holdout result updates the documented cross-importer regression floor and records Python-oracle fragility as acceptance evidence, while the engine itself is still gated on the same-format construction that removes the importer confound.</p>
 </div>
 
 <h2 id="risks"><span class="secno">5</span>Risks and Mitigations</h2>

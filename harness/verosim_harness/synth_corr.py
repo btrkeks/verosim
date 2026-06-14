@@ -12,7 +12,7 @@ what the piece contains.
 
 Usage:
   python -m verosim_harness.synth_corr --bin build/verosim \\
-      [--data-root <root>] [--detail tierAB] [--n 100] \\
+      [--data-root <root>] [--corpus corpora/dev200.tsv] [--detail tierAB] [--n 100] \\
       [--out oracle/synth_corr_m4.jsonl] [--report-append docs/corr_audit_m4.md]
 """
 
@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import random
 import re
 import subprocess
@@ -37,6 +38,17 @@ LETTERS = "abcdefg"
 # A run of one repeated kern pitch letter (the repetition count is the octave,
 # so preserving it preserves rhythm AND octave register shape).
 PITCH_RUN = re.compile(r"([a-gA-G])\1*")
+
+
+def spearman_or_none(rows: list[dict]) -> float | None:
+    if len(rows) < 2:
+        return None
+    rho = spearman([r["cpp_omr_ned"] for r in rows], [r["oracle_omr_ned"] for r in rows])
+    return rho if math.isfinite(rho) else None
+
+
+def format_rho(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.4f}"
 
 
 def mutate_kern(text: str, rng: random.Random) -> tuple[str, int]:
@@ -78,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--bin", type=Path, required=True)
     ap.add_argument("--data-root", default=DEFAULT_DATA_ROOT)
+    ap.add_argument("--corpus", type=Path, default=REPO_ROOT / "corpora" / "dev200.tsv")
     ap.add_argument("--detail", default="tierAB", choices=sorted(DETAIL_LEVELS))
     ap.add_argument("--n", type=int, default=100)
     ap.add_argument("--jobs", type=int, default=8)
@@ -99,6 +112,12 @@ def main(argv: list[str] | None = None) -> int:
         "same-format; Spearman is also reported without them",
     )
     ap.add_argument(
+        "--exclude-oracle-degenerate-threshold",
+        type=float,
+        help="for same-format rhythm-safe mutations, exclude oracle records at or "
+        "above this OMR-NED as parser-degenerate before applying --threshold",
+    )
+    ap.add_argument(
         "--threshold",
         type=float,
         help="exit nonzero if the engine-isolating Spearman (healthy subset when "
@@ -113,9 +132,9 @@ def main(argv: list[str] | None = None) -> int:
             if line and not line.startswith("#"):
                 explained_ids.add(line.split("\t")[0])
 
-    # sample kern files from the DEV-200 gt column
+    # sample kern files from the corpus gt column
     gt_files = []
-    for line in (REPO_ROOT / "corpora" / "dev200.tsv").read_text().splitlines():
+    for line in args.corpus.read_text().splitlines():
         if line.strip() and not line.startswith("#"):
             gt_files.append(line.split("\t")[1])
     files = random.Random(SEED).sample(gt_files, min(args.n, len(gt_files)))
@@ -197,29 +216,41 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
 
-    rho = spearman([r["cpp_omr_ned"] for r in rows], [r["oracle_omr_ned"] for r in rows])
+    rho = spearman_or_none(rows)
     exact = sum(r["exact_distance_match"] for r in rows)
     summary = [
         f"same-format pairs scored by both stacks: {len(rows)} (skipped: {len(skipped)})",
-        f"Spearman (same-format, engine-isolating): {rho:.4f}",
+        f"Spearman (same-format, engine-isolating): {format_rho(rho)}",
         f"exact distance matches: {exact}/{len(rows)}",
     ]
+    gate_rows = rows
     gate_rho = rho
     if explained_ids:
         healthy = [r for r in rows if r["pair"].split(".")[0] not in explained_ids]
-        rho_h = spearman(
-            [r["cpp_omr_ned"] for r in healthy], [r["oracle_omr_ned"] for r in healthy]
-        )
+        rho_h = spearman_or_none(healthy)
         summary.append(
             f"healthy sources only ({len(healthy)} pairs, explained rhythm-broken "
-            f"sources excluded): Spearman {rho_h:.4f}, exact "
+            f"sources excluded): Spearman {format_rho(rho_h)}, exact "
             f"{sum(r['exact_distance_match'] for r in healthy)}/{len(healthy)}"
         )
+        gate_rows = healthy
         gate_rho = rho_h
+    if args.exclude_oracle_degenerate_threshold is not None:
+        threshold = args.exclude_oracle_degenerate_threshold
+        filtered = [r for r in gate_rows if r["oracle_omr_ned"] < threshold]
+        excluded = len(gate_rows) - len(filtered)
+        rho_f = spearman_or_none(filtered)
+        summary.append(
+            f"excluding {excluded} oracle-degenerate same-format records "
+            f"(oracle OMR-NED >= {threshold:g}): Spearman {format_rho(rho_f)}, exact "
+            f"{sum(r['exact_distance_match'] for r in filtered)}/{len(filtered)}"
+        )
+        gate_rows = filtered
+        gate_rho = rho_f
     if args.threshold is not None:
         summary.append(
             f"gate (engine-isolating Spearman >= {args.threshold}): "
-            f"{'PASS' if gate_rho >= args.threshold else 'FAIL'}"
+            f"{'PASS' if gate_rho is not None and gate_rho >= args.threshold else 'FAIL'}"
         )
     summary.append(f"workdir: {workdir}")
     print("synth_corr:", *summary, sep="\n  ")
@@ -231,9 +262,10 @@ def main(argv: list[str] | None = None) -> int:
                 f.write(json.dumps(row) + "\n")
 
     if args.report_append:
+        corpus_label = args.corpus.stem
         with open(args.report_append, "a") as f:
             f.write(
-                "\n## Same-format (engine-isolating) correlation\n\n"
+                f"\n## Same-format (engine-isolating) correlation: {corpus_label}\n\n"
                 "Both stacks compare identical kern file pairs (original vs "
                 f"rhythm-safe random {args.detail} pitch/articulation mutations; "
                 "`verosim_harness/synth_corr.py`), removing the cross-importer "
@@ -241,7 +273,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             f.writelines(f"- {s}\n" for s in summary)
 
-    if args.threshold is not None and gate_rho < args.threshold:
+    if args.threshold is not None and (gate_rho is None or gate_rho < args.threshold):
         return 1
     return 0
 

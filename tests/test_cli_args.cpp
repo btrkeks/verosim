@@ -71,5 +71,7 @@ TEST_CASE("ParseBatchArgs accepts base-dir and jobs", "[cli]")
     CHECK(parsed->jobs == 4);
 
     CHECK_FALSE(ParseBatchArgs({ "--batch", "pairs.tsv", "--jobs" }).has_value());
+    CHECK_FALSE(ParseBatchArgs({ "--batch", "pairs.tsv", "--jobs", "abc" }).has_value());
+    CHECK_FALSE(ParseBatchArgs({ "--batch", "pairs.tsv", "--jobs", "2x" }).has_value());
     CHECK_FALSE(ParseBatchArgs({ "--batch", "pairs.tsv", "--unknown", "x" }).has_value());
 }

@@ -1,7 +1,6 @@
 # MEI → OMR-NED symbol mapping (Layer 2)
 
-Status: M2 working document — grows as extraction is implemented; finalized at
-M5. The authoritative counting semantics are the vendored musicdiff's
+Status: v1 finalized (M5). The authoritative counting semantics are the vendored musicdiff's
 (`AnnNote.notation_size`, annotation.py:264; `AnnExtra.notation_size`,
 annotation.py:717) per D12; this table maps Verovio's parse-only Object tree
 onto them. Empirical findings below were probed with `verosim --dump-tree`
@@ -38,7 +37,7 @@ measure             → staff@n → layer@n → events; control elements (tie @s
 | `chord` | one SymNote per member note, diatonic-ascending order; carrier (chord) supplies dur/dots/beams/tuplets/offset | per member: pitch + head + dots; beams/tuplets repeated per member |
 | `rest` | SymNote, pitch "R" | head 1 + dots n (+ beam entries when beamed/flagged: enhanced-beam rules) |
 | `mRest` | SymNote "R"; duration = governing meter's measure length | head (+ dot if meter length needs one, e.g. 3/4 → dotted half) |
-| `multiRest` | not yet seen in parse-only corpus output; treated as mRest of @num measures — TODO M5 if it appears | — |
+| `multiRest` | SymNote "R"; treated as one full-measure rest with a warning (v1 corpus does not require multi-measure expansion) | head (+ dot if meter length needs one, like `mRest`) |
 | `space` (hidden, e.g. kern `4ryy`) | nothing (advances offset cursor) | 0 — musicdiff skips `hideObjectOnPrint` notes |
 | `beam` (container) | per-note beam-type lists, then musicdiff `get_enhance_beamings` fixups | 1 per beam/flag entry |
 | `tuplet` (container, @num @numbase) | per-note tuplet-type entries + tuplet_info (num string on start, "" otherwise) | 2 per active tuplet per note (type + info) |
