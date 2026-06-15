@@ -22,6 +22,7 @@ CompareResult CompareScores(const SymScore &pred, const SymScore &gt);
 // names rewritten by extra kind, bucketed under musicdiff's header names,
 // plus the always-present 'bad kern syntax OMR-ED' (0 here — D4 deferred).
 std::map<std::string, long> EditDistancesDict(const std::vector<EditOp> &ops);
+std::string EditOpCategory(const EditOp &op);
 
 // Visualization.get_omr_ned (visualization.py:3167-3179).
 double OmrNed(long cost, long n_pred, long n_gt);

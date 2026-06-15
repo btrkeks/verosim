@@ -13,6 +13,7 @@
 #endif
 
 #include "toolkitdef.h"
+#include "verosim/extraction/score_normalizer.h"
 #include "vrv.h"
 
 namespace verosim {
@@ -59,15 +60,26 @@ std::string JoinTriedPaths(const std::vector<std::string> &paths)
     return out.str();
 }
 
+bool LooksLikeResourcePath(const std::string &path)
+{
+    if (path.empty()) return false;
+    const std::filesystem::path root(path);
+    return std::filesystem::is_regular_file(root / "Bravura.xml")
+        && std::filesystem::is_regular_file(root / "Leipzig.xml")
+        && std::filesystem::is_regular_file(root / "text" / "Times.xml");
+}
+
 } // namespace
 
-VrvBridge::VrvBridge(const VrvBridgeConfig &config) : vrv::Toolkit(false)
+VrvBridge::VrvBridge(const VrvBridgeConfig &config)
+    : vrv::Toolkit(false), m_normalizeRepairSpaces(config.normalize_repair_spaces)
 {
     vrv::EnableLog(config.log_level);
     vrv::EnableLogToBuffer(config.capture_log);
     const std::vector<std::string> resourcePaths = ResourcePathCandidates();
     bool loadedResources = false;
     for (const std::string &resourcePath : resourcePaths) {
+        if (!LooksLikeResourcePath(resourcePath)) continue;
         if (this->SetResourcePath(resourcePath)) {
             loadedResources = true;
             break;
@@ -101,7 +113,10 @@ bool VrvBridge::LoadScoreFile(const std::string &path)
             m_lastInputFormat = this->IdentifyInputFrom(head);
         }
     }
-    return this->LoadFile(path);
+    const bool loaded = this->LoadFile(path);
+    if (loaded) NormalizeImportedScore();
+    else m_lastNormalizedRhythmRepairSpaces = 0;
+    return loaded;
 }
 
 bool VrvBridge::LoadScoreData(const std::string &data, vrv::FileFormat format)
@@ -117,7 +132,19 @@ bool VrvBridge::LoadScoreData(const std::string &data, vrv::FileFormat format)
             m_lastInputFormat = this->IdentifyInputFrom(data);
             break;
     }
-    return this->LoadData(data);
+    const bool loaded = this->LoadData(data);
+    if (loaded) NormalizeImportedScore();
+    else m_lastNormalizedRhythmRepairSpaces = 0;
+    return loaded;
+}
+
+void VrvBridge::NormalizeImportedScore()
+{
+    if (!m_normalizeRepairSpaces) {
+        m_lastNormalizedRhythmRepairSpaces = 0;
+        return;
+    }
+    m_lastNormalizedRhythmRepairSpaces = NormalizeVerovioRhythmRepairSpaces(this->GetDoc());
 }
 
 } // namespace verosim

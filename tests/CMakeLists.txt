@@ -8,7 +8,8 @@ add_executable(verosim_tests
     test_hand10.cpp
     test_engine_units.cpp
     test_engine_identity.cpp
-    test_mutation_gate.cpp)
+    test_mutation_gate.cpp
+    test_visual.cpp)
 target_link_libraries(verosim_tests PRIVATE verosim_core Catch2::Catch2WithMain)
 target_compile_definitions(verosim_tests PRIVATE
     VEROSIM_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"

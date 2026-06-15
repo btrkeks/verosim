@@ -226,21 +226,31 @@ std::string HeaderName(const std::string &edit_name)
     return it->second;
 }
 
+std::string CategoryEditName(const EditOp &op)
+{
+    std::string edit_name(OpNameStr(op.name));
+    if (edit_name.rfind("extra", 0) == 0) {
+        const SymExtra *extra = op.a.kind == OpSide::Kind::kExtra ? op.a.extra : op.b.extra;
+        if (extra != nullptr) {
+            // re.sub('extra', kind, edit_name)
+            edit_name = std::string(ExtraKindName(extra->kind)) + edit_name.substr(5);
+        }
+    }
+    return edit_name;
+}
+
 } // namespace
+
+std::string EditOpCategory(const EditOp &op)
+{
+    return HeaderName(CategoryEditName(op));
+}
 
 std::map<std::string, long> EditDistancesDict(const std::vector<EditOp> &ops)
 {
     std::map<std::string, long> dict;
     for (const EditOp &op : ops) {
-        std::string edit_name(OpNameStr(op.name));
-        if (edit_name.rfind("extra", 0) == 0) {
-            const SymExtra *extra = op.a.kind == OpSide::Kind::kExtra ? op.a.extra : op.b.extra;
-            if (extra != nullptr) {
-                // re.sub('extra', kind, edit_name)
-                edit_name = std::string(ExtraKindName(extra->kind)) + edit_name.substr(5);
-            }
-        }
-        dict[HeaderName(edit_name)] += op.cost;
+        dict[EditOpCategory(op)] += op.cost;
     }
     dict["bad kern syntax OMR-ED"] = 0; // D4 deferred; always present like Python
     return dict;

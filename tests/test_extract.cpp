@@ -293,6 +293,15 @@ TEST_CASE("repair_space_beamspan.mei: repair spaces and beamSpan controls", "[ex
     CHECK(m1.notes[4].beamings.empty());
 }
 
+TEST_CASE("VrvBridge normalizes Verovio rhythm-repair spaces after import", "[extract]")
+{
+    VrvBridge bridge;
+    REQUIRE(bridge.LoadScoreFile(std::string(VEROSIM_TEST_FIXTURE_DIR) + "/repair_space_beamspan.mei"));
+
+    CHECK(bridge.last_normalized_rhythm_repair_spaces() == 1);
+    CHECK(bridge.GetDoc().FindAllDescendantsByType(vrv::SPACE).size() == 2);
+}
+
 TEST_CASE("cross_measure_beamspan.mei: beamSpan continues across barlines", "[extract]")
 {
     const ExtractResult result = ExtractFixture("cross_measure_beamspan.mei", SourceFormat::kOther);

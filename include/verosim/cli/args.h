@@ -32,10 +32,17 @@ struct BatchJsonlArgs {
     int jobs = 0;
 };
 
+struct VisualizeArgs {
+    std::string pred_path;
+    std::string gt_path;
+    std::string out_path;
+};
+
 bool StripCompareOptions(
     std::vector<std::string> &args, CompareCliOptions &options, std::string &error);
 std::optional<PairsArgs> ParsePairsArgs(const std::vector<std::string> &args);
 std::optional<BatchArgs> ParseBatchArgs(const std::vector<std::string> &args);
 std::optional<BatchJsonlArgs> ParseBatchJsonlArgs(const std::vector<std::string> &args);
+std::optional<VisualizeArgs> ParseVisualizeArgs(const std::vector<std::string> &args);
 
 } // namespace verosim

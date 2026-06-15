@@ -117,6 +117,21 @@ TEST_CASE("ParseBatchJsonlArgs accepts validation JSONL options", "[cli]")
             .has_value());
 }
 
+TEST_CASE("ParseVisualizeArgs accepts the pair report form only", "[cli]")
+{
+    const auto parsed = ParseVisualizeArgs({ "--visualize", "pred.krn", "gt.krn", "--out", "report.html" });
+    REQUIRE(parsed.has_value());
+    CHECK(parsed->pred_path == "pred.krn");
+    CHECK(parsed->gt_path == "gt.krn");
+    CHECK(parsed->out_path == "report.html");
+
+    CHECK_FALSE(ParseVisualizeArgs({ "--visualize", "pred.krn", "gt.krn" }).has_value());
+    CHECK_FALSE(ParseVisualizeArgs({ "--visualize", "pred.krn", "gt.krn", "--html", "report.html" })
+                    .has_value());
+    CHECK_FALSE(ParseVisualizeArgs({ "--visualize", "--bad", "gt.krn", "--out", "report.html" })
+                    .has_value());
+}
+
 TEST_CASE("List readers skip comments and preserve relative rows", "[cli]")
 {
     const std::filesystem::path dir = std::filesystem::temp_directory_path()

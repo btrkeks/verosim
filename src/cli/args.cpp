@@ -149,4 +149,15 @@ std::optional<BatchJsonlArgs> ParseBatchJsonlArgs(const std::vector<std::string>
     return parsed;
 }
 
+std::optional<VisualizeArgs> ParseVisualizeArgs(const std::vector<std::string> &args)
+{
+    if (args.empty() || args[0] != "--visualize") return std::nullopt;
+    if (args.size() != 5) return std::nullopt;
+    if (args[1].empty() || args[1][0] == '-') return std::nullopt;
+    if (args[2].empty() || args[2][0] == '-') return std::nullopt;
+    if (args[3] != "--out") return std::nullopt;
+    if (args[4].empty() || args[4][0] == '-') return std::nullopt;
+    return VisualizeArgs{ .pred_path = args[1], .gt_path = args[2], .out_path = args[4] };
+}
+
 } // namespace verosim

@@ -11,6 +11,7 @@
 #include "verosim/cli/dump_tree.h"
 #include "verosim/cli/list_io.h"
 #include "verosim/extraction/vrv_bridge.h"
+#include "verosim/visual/visualize.h"
 
 namespace {
 
@@ -19,6 +20,8 @@ void PrintUsage(std::ostream &os)
     os << "usage: verosim <pred> <gt> [--ops] [--detail tierA|tierAB|tierAB_dir]\n"
           "                                      compare two scores, OMR-NED as JSON\n"
           "                                      (--ops includes the per-edit operation list)\n"
+          "       verosim --visualize <pred> <gt> --out <html> [--detail tierA|tierAB|tierAB_dir]\n"
+          "                                      compare and write a side-by-side SVG HTML report\n"
           "       verosim --pairs <tsv> [--base-dir <dir>] [--ops]\n"
           "                                      compare every pred<TAB>gt pair in <tsv>\n"
           "                                      (JSONL, one record per pair, always exits 0)\n"
@@ -108,6 +111,17 @@ int CompareJsonlBatchMain(
     return 0; // failures are data, as with --batch
 }
 
+int VisualizeMain(
+    const verosim::VisualizeArgs &args, const verosim::CompareCliOptions &options)
+{
+    std::string error;
+    if (!verosim::VisualizePairToHtml(args.pred_path, args.gt_path, args.out_path, options, error)) {
+        std::cerr << "verosim: " << error << '\n';
+        return 1;
+    }
+    return 0;
+}
+
 int CheckOneMain(const std::string &path)
 {
     verosim::VrvBridge bridge({ .log_level = vrv::LOG_WARNING, .capture_log = true });
@@ -192,6 +206,9 @@ int main(int argc, char **argv)
         }
         if (auto batchJsonl = verosim::ParseBatchJsonlArgs(args)) {
             return CompareJsonlBatchMain(*batchJsonl, compareOptions);
+        }
+        if (auto visual = verosim::ParseVisualizeArgs(args)) {
+            return VisualizeMain(*visual, compareOptions);
         }
         if (args.size() == 2 && args[0] == "--dump-tree") {
             return DumpTreeMain(args[1]);

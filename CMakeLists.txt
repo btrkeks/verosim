@@ -50,6 +50,7 @@ add_library(verosim_core STATIC
     src/extraction/meter_context.cpp
     src/extraction/control_extraction.cpp
     src/extraction/signature_extraction.cpp
+    src/extraction/score_normalizer.cpp
     src/extraction/effective_pitch.cpp
     src/extraction/notation_rules.cpp
     src/model/detail_tier.cpp
@@ -66,7 +67,14 @@ add_library(verosim_core STATIC
     src/cli/check.cpp
     src/cli/compare_cli.cpp
     src/cli/count_symbols.cpp
-    src/cli/dump_tree.cpp)
+    src/cli/dump_tree.cpp
+    src/visual/html_report.cpp
+    src/visual/score_renderer.cpp
+    src/visual/svg_annotator.cpp
+    src/visual/svg_overlap.cpp
+    src/visual/visual_mark.cpp
+    src/visual/visual_plan.cpp
+    src/visual/visualize.cpp)
 target_include_directories(verosim_core PUBLIC include ${VEROVIO_INCLUDE_DIRS})
 target_link_libraries(verosim_core PUBLIC verovio)
 # Toolkit needs the font resources from the vendored data dir even though we

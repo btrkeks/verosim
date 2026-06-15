@@ -120,4 +120,4 @@ acceptance: test holdout-acceptance holdout-engine-gate robustness-gate bench
 
 harness-test:
 	@test -x $(PY) || { echo "harness venv missing — run harness/setup.sh first"; exit 1; }
-	$(PY) -m unittest discover -s harness/tests -v
+	PYTHONPATH=harness $(PY) -m unittest discover -s harness/tests -v

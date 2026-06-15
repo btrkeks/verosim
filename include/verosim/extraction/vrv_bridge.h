@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
 
 #include "toolkit.h"
@@ -14,6 +15,7 @@ struct VrvBridgeConfig {
     // hook is what the parse-coverage audit and deferred D4 consume (D13).
     vrv::LogLevel log_level = vrv::LOG_OFF;
     bool capture_log = false;
+    bool normalize_repair_spaces = true;
 };
 
 // Layer 1 wrapper: a vrv::Toolkit configured for parse-only use (breaks:none,
@@ -41,6 +43,11 @@ public:
     // ZIP is resolved to MUSICXML — .mxl payloads are MusicXML).
     vrv::FileFormat last_input_format() const { return m_lastInputFormat; }
 
+    std::size_t last_normalized_rhythm_repair_spaces() const
+    {
+        return m_lastNormalizedRhythmRepairSpaces;
+    }
+
     // With capture_log: the buffered log for the most recent load, cleared on
     // read. LoadFile resets the buffer on entry, so reusing one bridge across
     // files yields clean per-file capture. Verovio dedups identical messages
@@ -51,7 +58,11 @@ public:
     const vrv::Doc &GetDoc() const { return m_doc; }
 
 private:
+    void NormalizeImportedScore();
+
     vrv::FileFormat m_lastInputFormat = vrv::UNKNOWN;
+    bool m_normalizeRepairSpaces = true;
+    std::size_t m_lastNormalizedRhythmRepairSpaces = 0;
 };
 
 } // namespace verosim
