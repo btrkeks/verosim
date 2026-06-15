@@ -1,0 +1,9 @@
+build/
+build-static/
+harness/.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+# oracle outputs: reproducible from the content-hash cache; large (edit_ops)
+harness/cache/
+oracle/

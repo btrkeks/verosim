@@ -1,0 +1,129 @@
+{
+  "detail": "tierA",
+  "n_pairs": 200,
+  "n_ok": 185,
+  "n_error": 15,
+  "n_ok_with_parse_substitution": 0,
+  "omr_ned": {
+    "min": 0.0,
+    "q1": 0.0009974318425710561,
+    "median": 0.010001714579642225,
+    "q3": 0.049901407713210125,
+    "max": 0.9897882564949693,
+    "mean": 0.09961018363321891
+  },
+  "wall_s": 953.3,
+  "versions": {
+    "musicdiff": "f413e5e9b749bba8100b79425912b7db4a0f7a72",
+    "music21": "9.9.2",
+    "converter21": "4.0.1"
+  },
+  "errors": [
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc6575283.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc6575283.krn"
+      },
+      "error": "MemoryError"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc6404150.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc6404150.krn"
+      },
+      "error": "MemoryError"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc6179292.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc6179292.krn"
+      },
+      "error": "MemoryError"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc6189616.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc6189616.krn"
+      },
+      "error": "MemoryError"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc6762153.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc6762153.krn"
+      },
+      "error": "MemoryError"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc6117412.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc6117412.krn"
+      },
+      "error": "MemoryError"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc5712131.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc5712131.krn"
+      },
+      "error": "worker died (OOM kill or crash)"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc6217375.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc6217375.krn"
+      },
+      "error": "gt_empty_or_unparseable"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc5060932.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc5060932.krn"
+      },
+      "error": "worker died (OOM kill or crash)"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc6218728.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc6218728.krn"
+      },
+      "error": "gt_empty_or_unparseable"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc5712146.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc5712146.krn"
+      },
+      "error": "gt_empty_or_unparseable"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc4978400.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc4978400.krn"
+      },
+      "error": "worker died (OOM kill or crash)"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc6449397.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc6449397.krn"
+      },
+      "error": "MemoryError"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc5026266.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc5026266.krn"
+      },
+      "error": "MemoryError"
+    },
+    {
+      "pair": {
+        "pred": "train/openscore-lieder/0_raw_xml/lc5060961.xml",
+        "gt": "train/openscore-lieder/1_kern_conversions/lc5060961.krn"
+      },
+      "error": "worker died (OOM kill or crash)"
+    }
+  ],
+  "parse_substitutions": []
+}

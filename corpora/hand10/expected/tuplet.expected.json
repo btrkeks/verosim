@@ -1,0 +1,31 @@
+{
+ "file": "tuplet.krn",
+ "total": 23,
+ "categories": {
+  "pitches": 5,
+  "accidentals": 0,
+  "ties": 0,
+  "noteheads": 5,
+  "dots": 0,
+  "beams": 3,
+  "tuplets": 3,
+  "tuplet_info": 3,
+  "grace": 0,
+  "grace_slash": 0,
+  "gaps": 0,
+  "articulations": 0,
+  "expressions": 0,
+  "style": 0,
+  "clef": 1,
+  "keysig": 1,
+  "timesig": 2,
+  "other_extras": 0
+ },
+ "per_part": [
+  {
+   "per_measure": [
+    23
+   ]
+  }
+ ]
+}

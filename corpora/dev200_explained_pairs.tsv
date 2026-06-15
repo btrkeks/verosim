@@ -1,0 +1,30 @@
+# DEV-200 pairs whose C++-vs-oracle OMR-NED divergence is explained by a
+# documented importer difference (D6), not by the comparison engine.
+# Consumed by harness/verosim_harness/corr_audit.py (--explained); corr_audit
+# reports Spearman with and without these pairs.
+# columns: piece_id<TAB>reason
+#
+# 1. converter21 signature restating on rhythm-broken kern: the oracle's kern
+#    parse restates clef+keysig+timesig in every measure, so its measure
+#    alignment collapses and its OMR-NED saturates near 1.0 while the C++
+#    parse stays healthy. See docs/validation.md for the audit summary.
+lc6260379	converter21-signature-restating
+lc5197231	converter21-signature-restating
+lc5644072	converter21-signature-restating
+lc6209605	converter21-signature-restating
+lc6510502	converter21-signature-restating
+lc6451405	converter21-signature-restating
+lc5060910	converter21-signature-restating
+lc5003150	converter21-signature-restating
+lc5659823	converter21-signature-restating
+lc6199572	converter21-signature-restating
+lc5051349	converter21-signature-restating
+lc5033089	converter21-signature-restating
+lc6236155	converter21-signature-restating
+#
+# 2. iomusxml drops <time-modification> without <tuplet> notation (measured
+#    tremolos): the affected notes' tuplet symbols and offsets are
+#    unrepresentable on the C++ side; flagged in the Tier-A count audit.
+lc6189652	iomusxml-time-modification-drop
+lc6581327	iomusxml-time-modification-drop
+lc6182149	iomusxml-time-modification-drop

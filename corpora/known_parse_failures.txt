@@ -1,0 +1,30 @@
+# Known clean parse failures from the PERF-10K/Lieder parse-coverage sweep.
+# These files must emit JSONL records under:
+#   verosim --check --files-from corpora/known_parse_failures.txt
+# Failed loads must include a nonempty error message. Recovered successful
+# loads are reported by the robustness audit so this list can be pruned deliberately.
+train/openscore-lieder/1_kern_conversions/lc5025982.krn
+train/openscore-lieder/1_kern_conversions/lc5098709.krn
+train/openscore-lieder/1_kern_conversions/lc5712146.krn
+train/openscore-lieder/1_kern_conversions/lc6197282.krn
+train/openscore-lieder/1_kern_conversions/lc6218728.krn
+train/openscore-lieder/1_kern_conversions/lc6236154.krn
+train/openscore-lieder/1_kern_conversions/lc6474919.krn
+train/openscore-lieder/1_kern_conversions/lc6569855.krn
+train/openscore-lieder/1_kern_conversions/lc6573515.krn
+train/openscore-lieder/1_kern_conversions/lc6575466.krn
+train/openscore-lieder/1_kern_conversions/lc6974646.krn
+train/pdmx/1_kern_conversions/QmYL1oFYbvNjSy1YSP7GbxBYTx2As6Gv7nUeJSMqfjU2d9.krn
+train/pdmx/1_kern_conversions/QmSYzHmvKkcy7LkVnmH9BejKfcJzVkZgNTZCt38cWauoVW.krn
+train/pdmx/1_kern_conversions/Qmdqsq9dVoStuQfHfvayroMqSAbzSykSqfThobSmq7qtsg.krn
+train/pdmx/1_kern_conversions/QmVoKrgBQcPE7esc31XkGSxWasEiU65HuW2wJwRMqgXCQs.krn
+train/pdmx/1_kern_conversions/QmfKwojamTzc9eL9SsC4vdYxD1vyVHJuJBbJfMkPPNDvR5.krn
+train/pdmx/1_kern_conversions/QmThGK4no2yoKL6nvFa2o8HFabMcFLphJVvcoBazsPfs6W.krn
+train/pdmx/1_kern_conversions/QmXHGMWs1b1zu9pRZ5ZAU2HWTEmrADb3ijAopS1Q4K1ef7.krn
+train/pdmx/1_kern_conversions/QmURMz6Gn4sAamnR3b7zpjgri2XQg65NKQ9LdYKZGXi1FC.krn
+train/pdmx/1_kern_conversions/QmUcwYeV2QahFGXQZhyrevagLGgRFgQtpvXJ3r475RkjYj.krn
+train/pdmx/1_kern_conversions/QmXGpmdbEE6hAHHNdQ9JuvvHAhwNyXZHfgWEDoPM5gRPUN.krn
+train/pdmx/1_kern_conversions/QmTtsF2HGFVd6onPuiUWhBVrHhd8CpvCnezm29MS6L4gEE.krn
+train/pdmx/1_kern_conversions/QmWmiqUKZZpS2zF8jKRna8QfnFv2k4eiwwLrzze6wofST6.krn
+train/pdmx/1_kern_conversions/QmaHDXERTd4C2j6RvvqM5dXUysr2rzxeDhmbaAE4D1Kcdb.krn
+train/pdmx/1_kern_conversions/QmasDRy7rFCGZmvQtNxAW2AgRT8iCveUw1JDjW3gBn9gNm.krn

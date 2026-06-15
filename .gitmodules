@@ -1,0 +1,6 @@
+[submodule "verovio"]
+	path = verovio
+	url = https://github.com/rism-digital/verovio.git
+[submodule "musicdiff"]
+	path = musicdiff
+	url = https://github.com/gregchapman-dev/musicdiff.git

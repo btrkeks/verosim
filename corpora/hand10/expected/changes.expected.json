@@ -1,0 +1,33 @@
+{
+ "file": "changes.krn",
+ "total": 23,
+ "categories": {
+  "pitches": 6,
+  "accidentals": 1,
+  "ties": 0,
+  "noteheads": 6,
+  "dots": 1,
+  "beams": 0,
+  "tuplets": 0,
+  "tuplet_info": 0,
+  "grace": 0,
+  "grace_slash": 0,
+  "gaps": 0,
+  "articulations": 0,
+  "expressions": 0,
+  "style": 0,
+  "clef": 2,
+  "keysig": 3,
+  "timesig": 4,
+  "other_extras": 0
+ },
+ "per_part": [
+  {
+   "per_measure": [
+    13,
+    6,
+    4
+   ]
+  }
+ ]
+}
