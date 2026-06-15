@@ -87,6 +87,16 @@ struct LoadedScore {
     bool ok = false;
 };
 
+SourceFormat SourceFormatFromBridge(const VrvBridge &bridge)
+{
+    switch (bridge.last_input_format()) {
+        case vrv::HUMDRUM: return SourceFormat::kKern;
+        case vrv::MUSICXML:
+        case vrv::MUSICXMLHUM: return SourceFormat::kMusicXml;
+        default: return SourceFormat::kOther;
+    }
+}
+
 LoadedScore LoadAndExtract(
     VrvBridge &bridge, const std::string &path, const ExtractOptions &options)
 {
@@ -99,10 +109,7 @@ LoadedScore LoadAndExtract(
             loaded.error = "failed to load " + path;
             return loaded;
         }
-        const SourceFormat format = bridge.last_input_format() == vrv::HUMDRUM
-            ? SourceFormat::kKern
-            : SourceFormat::kMusicXml;
-        ExtractResult result = ExtractSymScore(bridge.GetDoc(), format, options);
+        ExtractResult result = ExtractSymScore(bridge.GetDoc(), SourceFormatFromBridge(bridge), options);
         loaded.score = std::move(result.score);
         loaded.warnings = std::move(result.warnings);
         loaded.ok = true;
@@ -113,30 +120,34 @@ LoadedScore LoadAndExtract(
     return loaded;
 }
 
-} // namespace
-
-bool ComparePairToJson(VrvBridge &bridge, const std::string &pred_path,
-    const std::string &gt_path, const CompareCliOptions &options, std::ostream &out)
+LoadedScore LoadAndExtractData(VrvBridge &bridge, const std::string &data, const std::string &label,
+    const ExtractOptions &options)
 {
-    const auto start = std::chrono::steady_clock::now();
+    LoadedScore loaded;
+    try {
+        if (!bridge.LoadScoreData(data, vrv::HUMDRUM)) {
+            loaded.error = "failed to load " + label;
+            return loaded;
+        }
+        ExtractResult result = ExtractSymScore(bridge.GetDoc(), SourceFormatFromBridge(bridge), options);
+        loaded.score = std::move(result.score);
+        loaded.warnings = std::move(result.warnings);
+        loaded.ok = true;
+    }
+    catch (const std::exception &e) {
+        loaded.error = "exception loading " + label + ": " + e.what();
+    }
+    return loaded;
+}
 
-    // One bridge, two loads: SymScore is self-contained, so the first
-    // extraction survives the second load.
-    const ExtractOptions extract_options{ .detail = options.detail };
-    const LoadedScore pred = LoadAndExtract(bridge, pred_path, extract_options);
-    const LoadedScore gt = pred.ok ? LoadAndExtract(bridge, gt_path, extract_options) : LoadedScore{};
-
-    const auto write_header = [&] {
-        out << "{\"pair\":{\"pred\":";
-        WriteJsonString(pred_path, out);
-        out << ",\"gt\":";
-        WriteJsonString(gt_path, out);
-        out << "}";
-    };
-
+bool WriteComparisonJson(const LoadedScore &pred, const LoadedScore &gt,
+    const CompareCliOptions &options, const std::string &json_prefix,
+    const std::chrono::steady_clock::time_point &start, std::ostream &out)
+{
+    out << json_prefix;
+    const char *field_sep = json_prefix == "{" ? "" : ",";
     if (!pred.ok || !gt.ok) {
-        write_header();
-        out << ",\"ok\":false,\"error\":";
+        out << field_sep << "\"ok\":false,\"error\":";
         WriteJsonString(!pred.ok ? pred.error : gt.error, out);
         out << ",\"distance\":null,\"n_pred\":null,\"n_gt\":null,\"omr_ned\":null,"
                "\"edit_distances_dict\":null,\"warnings\":[],\"runtime_s\":0}\n";
@@ -150,8 +161,7 @@ bool ComparePairToJson(VrvBridge &bridge, const std::string &pred_path,
     const double runtime
         = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 
-    write_header();
-    out << ",\"ok\":true,\"error\":null,\"distance\":" << result.cost << ",\"n_pred\":" << n_pred
+    out << field_sep << "\"ok\":true,\"error\":null,\"distance\":" << result.cost << ",\"n_pred\":" << n_pred
         << ",\"n_gt\":" << n_gt << ",\"omr_ned\":";
     WriteDouble(OmrNed(result.cost, n_pred, n_gt), out);
     out << ",\"edit_distances_dict\":{";
@@ -176,6 +186,40 @@ bool ComparePairToJson(VrvBridge &bridge, const std::string &pred_path,
     WriteDouble(runtime, out);
     out << "}\n";
     return true;
+}
+
+} // namespace
+
+bool ComparePairToJson(VrvBridge &bridge, const std::string &pred_path,
+    const std::string &gt_path, const CompareCliOptions &options, std::ostream &out)
+{
+    const auto start = std::chrono::steady_clock::now();
+
+    // One bridge, two loads: SymScore is self-contained, so the first
+    // extraction survives the second load.
+    const ExtractOptions extract_options{ .detail = options.detail };
+    const LoadedScore pred = LoadAndExtract(bridge, pred_path, extract_options);
+    const LoadedScore gt = pred.ok ? LoadAndExtract(bridge, gt_path, extract_options) : LoadedScore{};
+
+    std::ostringstream prefix;
+    prefix << "{\"pair\":{\"pred\":";
+    WriteJsonString(pred_path, prefix);
+    prefix << ",\"gt\":";
+    WriteJsonString(gt_path, prefix);
+    prefix << "}";
+    return WriteComparisonJson(pred, gt, options, prefix.str(), start, out);
+}
+
+bool CompareScoreDataToJson(VrvBridge &bridge, const std::string &pred_data,
+    const std::string &gt_data, const CompareCliOptions &options, const std::string &json_prefix,
+    std::ostream &out)
+{
+    const auto start = std::chrono::steady_clock::now();
+    const ExtractOptions extract_options{ .detail = options.detail };
+    const LoadedScore pred = LoadAndExtractData(bridge, pred_data, "prediction", extract_options);
+    const LoadedScore gt = pred.ok ? LoadAndExtractData(bridge, gt_data, "target", extract_options)
+                                   : LoadedScore{};
+    return WriteComparisonJson(pred, gt, options, json_prefix, start, out);
 }
 
 } // namespace verosim

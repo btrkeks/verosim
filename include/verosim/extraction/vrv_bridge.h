@@ -32,6 +32,11 @@ public:
     // which extraction needs for format-specific conventions (grace slash).
     bool LoadScoreFile(const std::string &path);
 
+    // Loads score data from memory using the requested Verovio input format.
+    // JSONL validation mode uses HUMDRUM/kern by default and does not repair
+    // malformed or headerless inputs.
+    bool LoadScoreData(const std::string &data, vrv::FileFormat format = vrv::HUMDRUM);
+
     // Input format of the most recent LoadScoreFile (UNKNOWN before any load;
     // ZIP is resolved to MUSICXML — .mxl payloads are MusicXML).
     vrv::FileFormat last_input_format() const { return m_lastInputFormat; }

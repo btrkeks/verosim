@@ -24,6 +24,12 @@ void PrintUsage(std::ostream &os)
           "                                      (JSONL, one record per pair, always exits 0)\n"
           "       verosim --batch <tsv> [--base-dir <dir>] [--jobs N] [--ops]\n"
           "                                      parallel JSONL batch compare, one Toolkit per worker\n"
+          "       verosim --batch-jsonl <jsonl> [--pred-field prediction] [--gt-field target]\n"
+          "                                      [--id-field sample_id] [--group-field val_set]\n"
+          "                                      [--dedupe-key fields] [--format kern]\n"
+          "                                      [--failure-score N]\n"
+          "                                      [--summary-json path] [--jobs N] [--ops]\n"
+          "                                      compare in-memory kern strings from JSONL records\n"
           "       verosim --dump-tree <file>     print the parsed Verovio object tree\n"
           "       verosim --check <file>         load one file, report warnings/errors (JSONL)\n"
           "       verosim --check --files-from <list> [--base-dir <dir>]\n"
@@ -89,6 +95,17 @@ int CompareBatchMain(
     }
     verosim::CompareBatchToJson(pairs, baseDir, jobs, options, std::cout);
     return 0; // failures are data, as with --pairs
+}
+
+int CompareJsonlBatchMain(
+    const verosim::BatchJsonlArgs &args, const verosim::CompareCliOptions &options)
+{
+    std::string error;
+    if (!verosim::CompareJsonlBatchToJson(args, options, std::cout, error)) {
+        std::cerr << "verosim: " << error << '\n';
+        return 2;
+    }
+    return 0; // failures are data, as with --batch
 }
 
 int CheckOneMain(const std::string &path)
@@ -167,6 +184,9 @@ int main(int argc, char **argv)
         }
         if (auto batch = verosim::ParseBatchArgs(args)) {
             return CompareBatchMain(batch->list_path, batch->base_dir, batch->jobs, compareOptions);
+        }
+        if (auto batchJsonl = verosim::ParseBatchJsonlArgs(args)) {
+            return CompareJsonlBatchMain(*batchJsonl, compareOptions);
         }
         if (args.size() == 2 && args[0] == "--dump-tree") {
             return DumpTreeMain(args[1]);

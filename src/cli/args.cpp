@@ -1,5 +1,6 @@
 #include "verosim/cli/args.h"
 
+#include <cmath>
 #include <cstddef>
 #include <exception>
 
@@ -76,6 +77,74 @@ std::optional<BatchArgs> ParseBatchArgs(const std::vector<std::string> &args)
         else {
             return std::nullopt;
         }
+    }
+    return parsed;
+}
+
+std::optional<BatchJsonlArgs> ParseBatchJsonlArgs(const std::vector<std::string> &args)
+{
+    if (args.empty() || args[0] != "--batch-jsonl") return std::nullopt;
+    if (args.size() < 2 || args[1].empty() || args[1][0] == '-') return std::nullopt;
+
+    BatchJsonlArgs parsed{ .jsonl_path = args[1] };
+    for (std::size_t i = 2; i < args.size();) {
+        if (i + 1 >= args.size()) return std::nullopt;
+        const std::string &flag = args[i];
+        const std::string &value = args[i + 1];
+        if (flag == "--pred-field") {
+            if (value.empty()) return std::nullopt;
+            parsed.pred_field = value;
+        }
+        else if (flag == "--gt-field") {
+            if (value.empty()) return std::nullopt;
+            parsed.gt_field = value;
+        }
+        else if (flag == "--id-field") {
+            if (value.empty()) return std::nullopt;
+            parsed.id_field = value;
+        }
+        else if (flag == "--group-field") {
+            if (value.empty()) return std::nullopt;
+            parsed.group_field = value;
+        }
+        else if (flag == "--dedupe-key") {
+            if (value.empty()) return std::nullopt;
+            parsed.dedupe_key = value;
+        }
+        else if (flag == "--summary-json") {
+            if (value.empty()) return std::nullopt;
+            parsed.summary_json = value;
+        }
+        else if (flag == "--format") {
+            if (value != "kern" && value != "humdrum") return std::nullopt;
+            parsed.format = value;
+        }
+        else if (flag == "--failure-score") {
+            try {
+                std::size_t consumed = 0;
+                parsed.failure_score = std::stod(value, &consumed);
+                if (consumed != value.size() || !std::isfinite(parsed.failure_score)) {
+                    return std::nullopt;
+                }
+            }
+            catch (const std::exception &) {
+                return std::nullopt;
+            }
+        }
+        else if (flag == "--jobs") {
+            try {
+                std::size_t consumed = 0;
+                parsed.jobs = std::stoi(value, &consumed);
+                if (consumed != value.size()) return std::nullopt;
+            }
+            catch (const std::exception &) {
+                return std::nullopt;
+            }
+        }
+        else {
+            return std::nullopt;
+        }
+        i += 2;
     }
     return parsed;
 }

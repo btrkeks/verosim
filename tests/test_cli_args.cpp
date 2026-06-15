@@ -5,6 +5,7 @@
 #include <sstream>
 
 #include <catch2/catch_test_macros.hpp>
+#include <jsonxx.h>
 
 #include "verosim/cli/args.h"
 #include "verosim/cli/batch.h"
@@ -81,6 +82,41 @@ TEST_CASE("ParseBatchArgs accepts base-dir and jobs", "[cli]")
     CHECK_FALSE(ParseBatchArgs({ "--batch", "pairs.tsv", "--unknown", "x" }).has_value());
 }
 
+TEST_CASE("ParseBatchJsonlArgs accepts validation JSONL options", "[cli]")
+{
+    const auto defaults = ParseBatchJsonlArgs({ "--batch-jsonl", "validation.jsonl" });
+    REQUIRE(defaults.has_value());
+    CHECK(defaults->jsonl_path == "validation.jsonl");
+    CHECK(defaults->pred_field == "prediction");
+    CHECK(defaults->gt_field == "target");
+    CHECK(defaults->id_field == "sample_id");
+    CHECK(defaults->group_field == "val_set");
+    CHECK(defaults->failure_score == 100.0);
+    CHECK(defaults->jobs == 0);
+
+    const auto parsed = ParseBatchJsonlArgs({ "--batch-jsonl", "validation.jsonl",
+        "--pred-field", "pred", "--gt-field", "gold", "--id-field", "id", "--group-field",
+        "split", "--dedupe-key", "split,id", "--summary-json", "summary.json",
+        "--failure-score", "42.5", "--jobs", "3", "--format", "kern" });
+    REQUIRE(parsed.has_value());
+    CHECK(parsed->pred_field == "pred");
+    CHECK(parsed->gt_field == "gold");
+    CHECK(parsed->id_field == "id");
+    CHECK(parsed->group_field == "split");
+    CHECK(parsed->dedupe_key == "split,id");
+    CHECK(parsed->summary_json == "summary.json");
+    CHECK(parsed->failure_score == 42.5);
+    CHECK(parsed->jobs == 3);
+
+    CHECK_FALSE(ParseBatchJsonlArgs({ "--batch-jsonl", "validation.jsonl", "--jobs" }).has_value());
+    CHECK_FALSE(
+        ParseBatchJsonlArgs({ "--batch-jsonl", "validation.jsonl", "--failure-score", "nan" })
+            .has_value());
+    CHECK_FALSE(
+        ParseBatchJsonlArgs({ "--batch-jsonl", "validation.jsonl", "--format", "musicxml" })
+            .has_value());
+}
+
 TEST_CASE("List readers skip comments and preserve relative rows", "[cli]")
 {
     const std::filesystem::path dir = std::filesystem::temp_directory_path()
@@ -132,4 +168,106 @@ TEST_CASE("Batch runner accepts jobs zero and preserves output order", "[cli]")
     REQUIRE(first != std::string::npos);
     REQUIRE(second != std::string::npos);
     CHECK(first < second);
+}
+
+TEST_CASE("JSONL batch scores in-memory kern records and writes summary", "[cli]")
+{
+    const std::filesystem::path input = std::filesystem::temp_directory_path()
+        / std::filesystem::path("verosim-validation-jsonl-test.jsonl");
+    const std::filesystem::path summary = std::filesystem::temp_directory_path()
+        / std::filesystem::path("verosim-validation-jsonl-summary.json");
+    const std::string kern = "**kern\\n*clefG2\\n*M4/4\\n=1\\n4c\\n*-\\n";
+    {
+        std::ofstream out(input);
+        out << "{\"val_set\":\"polish\",\"sample_id\":1,\"source\":\"example\",\"cer\":9,"
+               "\"prediction\":\""
+            << kern << "\",\"target\":\"" << kern << "\"}\n";
+        out << "{\"val_set\":\"polish\",\"sample_id\":1,\"source\":\"duplicate\","
+               "\"prediction\":\""
+            << kern << "\",\"target\":\"**kern\\n4d\\n*-\\n\"}\n";
+        out << "{\"val_set\":\"polish\",\"sample_id\":2,\"prediction\":\"" << kern << "\"}\n";
+    }
+
+    BatchJsonlArgs args;
+    args.jsonl_path = input.string();
+    args.summary_json = summary.string();
+    args.dedupe_key = "val_set,sample_id";
+    args.jobs = 1;
+
+    std::ostringstream output;
+    std::string error;
+    REQUIRE(CompareJsonlBatchToJson(args, CompareCliOptions{}, output, error));
+    CHECK(error.empty());
+
+    std::istringstream lines(output.str());
+    std::string line1, line2, line3;
+    REQUIRE(std::getline(lines, line1));
+    REQUIRE(std::getline(lines, line2));
+    CHECK_FALSE(std::getline(lines, line3));
+
+    jsonxx::Object first;
+    REQUIRE(first.parse(line1));
+    REQUIRE(first.has<jsonxx::Boolean>("ok"));
+    CHECK(first.get<jsonxx::Boolean>("ok"));
+    CHECK(first.get<jsonxx::Number>("id") == 1.0);
+    CHECK(first.get<jsonxx::String>("group") == "polish");
+    CHECK(first.get<jsonxx::String>("source") == "example");
+    CHECK_FALSE(first.has<jsonxx::Number>("cer"));
+
+    jsonxx::Object second;
+    REQUIRE(second.parse(line2));
+    REQUIRE(second.has<jsonxx::Boolean>("ok"));
+    CHECK_FALSE(second.get<jsonxx::Boolean>("ok"));
+    CHECK(second.get<jsonxx::String>("error").find("target") != std::string::npos);
+
+    std::ifstream summary_in(summary);
+    REQUIRE(summary_in);
+    std::stringstream summary_text;
+    summary_text << summary_in.rdbuf();
+    jsonxx::Object summary_obj;
+    REQUIRE(summary_obj.parse(summary_text.str()));
+    const jsonxx::Object &overall = summary_obj.get<jsonxx::Object>("overall");
+    CHECK(overall.get<jsonxx::Number>("count") == 2.0);
+    CHECK(overall.get<jsonxx::Number>("scored") == 1.0);
+    CHECK(overall.get<jsonxx::Number>("failures") == 1.0);
+    CHECK(overall.get<jsonxx::Number>("omr_ned") == 50.0);
+
+    std::filesystem::remove(input);
+    std::filesystem::remove(summary);
+}
+
+TEST_CASE("JSONL batch reports malformed input records as data failures", "[cli]")
+{
+    const std::filesystem::path input = std::filesystem::temp_directory_path()
+        / std::filesystem::path("verosim-validation-jsonl-failures.jsonl");
+    {
+        std::ofstream out(input);
+        out << "{\"sample_id\":1,\"prediction\":\"**kern\\n4c\\n*-\\n\",\"target\":\"**kern\\n4c\\n*-\\n\"}\n";
+        out << "{not json}\n";
+    }
+
+    BatchJsonlArgs args;
+    args.jsonl_path = input.string();
+    args.jobs = 1;
+
+    std::ostringstream output;
+    std::string error;
+    REQUIRE(CompareJsonlBatchToJson(args, CompareCliOptions{}, output, error));
+
+    CHECK(output.str().find("invalid JSON on line 2") != std::string::npos);
+    std::istringstream lines(output.str());
+    std::string line1, line2;
+    REQUIRE(std::getline(lines, line1));
+    REQUIRE(std::getline(lines, line2));
+    jsonxx::Object malformed;
+    REQUIRE(malformed.parse(line2));
+    CHECK_FALSE(malformed.get<jsonxx::Boolean>("ok"));
+
+    args.jsonl_path = (std::filesystem::temp_directory_path() / "missing-verosim-jsonl.jsonl").string();
+    output.str("");
+    output.clear();
+    CHECK_FALSE(CompareJsonlBatchToJson(args, CompareCliOptions{}, output, error));
+    CHECK(error.find("cannot read") != std::string::npos);
+
+    std::filesystem::remove(input);
 }

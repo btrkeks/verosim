@@ -23,4 +23,11 @@ struct CompareCliOptions {
 bool ComparePairToJson(VrvBridge &bridge, const std::string &pred_path,
     const std::string &gt_path, const CompareCliOptions &options, std::ostream &out);
 
+// Same comparison path as ComparePairToJson, but both sides are loaded from
+// in-memory score data. `json_prefix` must contain the opening object and any
+// provenance fields already written, e.g. {"id":123,"group":"x"}.
+bool CompareScoreDataToJson(VrvBridge &bridge, const std::string &pred_data,
+    const std::string &gt_data, const CompareCliOptions &options, const std::string &json_prefix,
+    std::ostream &out);
+
 } // namespace verosim

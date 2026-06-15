@@ -24,6 +24,7 @@ bool VrvBridge::LoadScoreFile(const std::string &path)
     // IdentifyInputFrom only looks at the head of the data (regex search over
     // the first 2000 bytes), so a prefix read is enough.
     m_lastInputFormat = vrv::UNKNOWN;
+    this->SetInputFrom("auto");
     std::ifstream in(path, std::ios::binary);
     if (in) {
         std::string head(2100, '\0');
@@ -39,6 +40,22 @@ bool VrvBridge::LoadScoreFile(const std::string &path)
         }
     }
     return this->LoadFile(path);
+}
+
+bool VrvBridge::LoadScoreData(const std::string &data, vrv::FileFormat format)
+{
+    m_lastInputFormat = format;
+    switch (format) {
+        case vrv::HUMDRUM: this->SetInputFrom("humdrum"); break;
+        case vrv::MUSICXML: this->SetInputFrom("musicxml"); break;
+        case vrv::MUSICXMLHUM: this->SetInputFrom("musicxml-hum"); break;
+        case vrv::MEI: this->SetInputFrom("mei"); break;
+        default:
+            this->SetInputFrom("auto");
+            m_lastInputFormat = this->IdentifyInputFrom(data);
+            break;
+    }
+    return this->LoadData(data);
 }
 
 } // namespace verosim
