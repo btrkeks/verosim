@@ -61,19 +61,13 @@ void Extractor::ResolvePendingSpans()
         }
         Fraction duration = loc->second.abs_offset + loc->second.dur_ql - pending->start_abs;
         if (duration < Fraction(0)) duration = Fraction(0);
-        bool resolved = false;
-        for (SymPart &part : result_.score.parts) {
-            for (SymMeasure &measure : part.bar_list) {
-                for (SymExtra &extra : measure.extras) {
-                    if (extra.vrv_id == pending->extra_id) {
-                        extra.duration = duration;
-                        resolved = true;
-                        break;
-                    }
-                }
-                if (resolved) break;
-            }
-            if (resolved) break;
+        const auto extraLoc = emitted_extra_locations_.find(pending->extra_id);
+        if (extraLoc != emitted_extra_locations_.end()) {
+            const EmittedExtraLocation &extra = extraLoc->second;
+            result_.score.parts[extra.part_idx]
+                .bar_list[extra.measure_idx]
+                .extras[extra.extra_idx]
+                .duration = duration;
         }
         pending = pending_spans_.erase(pending);
     }

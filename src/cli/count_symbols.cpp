@@ -3,25 +3,14 @@
 #include <cassert>
 #include <exception>
 
-#include "toolkitdef.h"
-
 #include "verosim/cli/json_util.h"
 #include "verosim/extraction/extract.h"
+#include "verosim/extraction/source_format_util.h"
 #include "verosim/extraction/vrv_bridge.h"
 
 namespace verosim {
 
 namespace {
-
-SourceFormat SourceFormatFromBridge(const VrvBridge &bridge)
-{
-    switch (bridge.last_input_format()) {
-        case vrv::HUMDRUM: return SourceFormat::kKern;
-        case vrv::MUSICXML:
-        case vrv::MUSICXMLHUM: return SourceFormat::kMusicXml;
-        default: return SourceFormat::kOther;
-    }
-}
 
 void WriteCategories(const SymbolCounts &c, std::ostream &os)
 {

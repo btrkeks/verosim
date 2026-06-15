@@ -41,4 +41,11 @@ inline void WriteJsonStringArray(const std::vector<std::string> &items, std::ost
     os << ']';
 }
 
+inline void WriteDouble(double value, std::ostream &out)
+{
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%.12g", value);
+    out << buf;
+}
+
 } // namespace verosim

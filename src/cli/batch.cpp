@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <cstdio>
 #include <fstream>
 #include <future>
 #include <map>
@@ -36,13 +35,6 @@ struct SummaryBucket {
     long failures = 0;
     double total = 0.0;
 };
-
-void WriteDouble(double value, std::ostream &out)
-{
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%.12g", value);
-    out << buf;
-}
 
 void WriteJsonValue(const jsonxx::Value &value, std::ostream &out)
 {

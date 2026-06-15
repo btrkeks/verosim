@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <map>
 #include <memory>
 #include <optional>
@@ -84,6 +85,12 @@ struct PendingSpan {
     Fraction start_abs;
 };
 
+struct EmittedExtraLocation {
+    int part_idx = -1;
+    std::size_t measure_idx = 0;
+    std::size_t extra_idx = 0;
+};
+
 namespace extract_detail {
 
 char StepFromPname(vrv::data_PITCHNAME pname);
@@ -122,10 +129,18 @@ private:
     void ApplyScoreDefChange(const vrv::ScoreDef *scoreDef);
     void ApplyStaffDef(const vrv::StaffDef *staffDef, const vrv::ScoreDef *parentScoreDef);
     void HandleMeasure(const vrv::Measure *measure);
+    StaffState &EnsureStaffPart(const std::string &staffN, bool warnIfImplicit);
+    void StartStaffMeasure(StaffState &state);
+    void ApplyPendingSignatures(StaffState &state, std::vector<SymExtra> &extras);
+    void CollectStaffLayerEvents(const vrv::Staff *staff, std::vector<Event> &events,
+        std::vector<SymExtra> &extras, StaffState &state);
+    Fraction MeasureSpan(const StaffState &state, const std::vector<Event> &events) const;
+    void FinishStaffMeasure(StaffState &state, const Fraction &measureSpan);
     void CollectControlExtras(const vrv::Measure *measure, const std::string &staffN,
         const std::vector<Event> &events, std::vector<SymExtra> &extras);
     void RegisterEventLocations(const std::string &staffN, const std::vector<Event> &events);
     void ResolvePendingSpans();
+    void RegisterEmittedExtras(int partIdx, std::size_t measureIdx);
     Fraction TstampToOffset(double tstamp, const std::string &staffN) const;
     Fraction Tstamp2ToOffset(
         const vrv::data_MEASUREBEAT &tstamp2, const std::string &staffN) const;
@@ -141,6 +156,10 @@ private:
         const std::vector<const vrv::Tuplet *> &tupletStack, const vrv::Object *beam);
     void EmitMeasure(const vrv::Measure *measure, const std::string &staffN,
         std::vector<Event> events, std::vector<SymExtra> extras, StaffState &state);
+    std::vector<SymNote> BuildSymNotes(const std::vector<Event> &events,
+        const std::vector<std::vector<BeamValue>> &beamings,
+        const std::vector<std::vector<TupletValue>> &tuplets,
+        const std::vector<std::vector<std::string>> &tupletInfo, StaffState &state);
     SymNote MakeSymNote(const Event &ev, const vrv::Note *note, const vrv::Object *carrier,
         int idxInChord, StaffState &state);
 
@@ -168,6 +187,7 @@ private:
     std::set<std::string> tie_start_ids_;
     std::map<std::string, EventLocation> event_locations_;
     std::vector<PendingSpan> pending_spans_;
+    std::map<std::string, EmittedExtraLocation> emitted_extra_locations_;
 };
 
 } // namespace verosim

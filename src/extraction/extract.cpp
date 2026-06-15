@@ -92,14 +92,7 @@ void Extractor::ApplyScoreDefChange(const vrv::ScoreDef *scoreDef)
 void Extractor::ApplyStaffDef(const vrv::StaffDef *staffDef, const vrv::ScoreDef *parentScoreDef)
 {
     const std::string n = std::to_string(staffDef->GetN());
-    if (!staves_.count(n)) {
-        staves_[n]; // default-construct
-        staff_order_.push_back(n);
-        result_.score.parts.emplace_back();
-        result_.score.parts.back().staff_n = n;
-        staves_[n].part_idx = static_cast<int>(result_.score.parts.size()) - 1;
-    }
-    StaffState &state = staves_[n];
+    StaffState &state = EnsureStaffPart(n, false);
 
     const auto component = [&](auto hasInfo, auto getCopy) {
         using Ptr = decltype((staffDef->*getCopy)());
@@ -118,6 +111,77 @@ void Extractor::ApplyStaffDef(const vrv::StaffDef *staffDef, const vrv::ScoreDef
     if (clef) state.pending.clef = std::shared_ptr<const vrv::Clef>(std::move(clef));
     if (keysig) state.pending.keysig = std::shared_ptr<const vrv::KeySig>(std::move(keysig));
     if (metersig) state.pending.metersig = std::shared_ptr<const vrv::MeterSig>(std::move(metersig));
+}
+
+StaffState &Extractor::EnsureStaffPart(const std::string &staffN, bool warnIfImplicit)
+{
+    auto found = staves_.find(staffN);
+    if (found != staves_.end()) return found->second;
+
+    if (warnIfImplicit) {
+        Warn("staff n=" + staffN + " has no staffDef; creating an implicit part");
+    }
+    StaffState &state = staves_[staffN]; // default-construct
+    staff_order_.push_back(staffN);
+    result_.score.parts.emplace_back();
+    result_.score.parts.back().staff_n = staffN;
+    state.part_idx = static_cast<int>(result_.score.parts.size()) - 1;
+    return state;
+}
+
+void Extractor::StartStaffMeasure(StaffState &state)
+{
+    state.accids.StartMeasure();
+    if (state.pending.keysig) {
+        state.accids.SetKeySig([&] {
+            const int count = state.pending.keysig->GetAccidCount();
+            return state.pending.keysig->GetAccidType() == vrv::ACCIDENTAL_WRITTEN_f ? -count
+                                                                                     : count;
+        }());
+    }
+}
+
+void Extractor::ApplyPendingSignatures(StaffState &state, std::vector<SymExtra> &extras)
+{
+    if (state.pending.clef) extras.push_back(MakeClefExtra(*state.pending.clef, Fraction(0)));
+    if (state.pending.keysig) {
+        extras.push_back(MakeKeySigExtra(*state.pending.keysig, Fraction(0)));
+    }
+    if (state.pending.metersig) {
+        extras.push_back(MakeMeterSigExtra(*state.pending.metersig, Fraction(0)));
+        if (MeterQLFromMeterSig(*state.pending.metersig, state.meter_ql)) {
+            state.has_meter = true;
+        }
+        state.beat_ql = BeatQLFromMeterSig(*state.pending.metersig);
+    }
+    state.pending = PendingSig();
+}
+
+void Extractor::CollectStaffLayerEvents(const vrv::Staff *staff, std::vector<Event> &events,
+    std::vector<SymExtra> &extras, StaffState &state)
+{
+    for (const vrv::Object *staffChild : staff->GetChildren()) {
+        if (!staffChild->Is(vrv::LAYER)) continue;
+        Fraction cursor(0);
+        std::vector<const vrv::Tuplet *> tupletStack;
+        CollectLayerEvents(staffChild, events, extras, cursor, state, tupletStack, nullptr);
+    }
+}
+
+Fraction Extractor::MeasureSpan(const StaffState &state, const std::vector<Event> &events) const
+{
+    Fraction measureSpan = state.meter_ql;
+    for (const Event &ev : events) {
+        const Fraction relEnd = ev.offset + ev.dur_ql;
+        if (relEnd > measureSpan) measureSpan = relEnd;
+    }
+    return measureSpan;
+}
+
+void Extractor::FinishStaffMeasure(StaffState &state, const Fraction &measureSpan)
+{
+    state.score_offset = state.score_offset + measureSpan;
+    ResolvePendingSpans();
 }
 
 void Extractor::HandleMeasure(const vrv::Measure *measure)
@@ -141,57 +205,17 @@ void Extractor::HandleMeasure(const vrv::Measure *measure)
         if (!child->Is(vrv::STAFF)) continue;
         const vrv::Staff *staff = vrv_cast<const vrv::Staff *>(child);
         const std::string n = std::to_string(staff->GetN());
-        if (!staves_.count(n)) {
-            Warn("staff n=" + n + " has no staffDef; creating an implicit part");
-            staves_[n];
-            staff_order_.push_back(n);
-            result_.score.parts.emplace_back();
-            result_.score.parts.back().staff_n = n;
-            staves_[n].part_idx = static_cast<int>(result_.score.parts.size()) - 1;
-        }
-        StaffState &state = staves_[n];
-        state.accids.StartMeasure();
-        if (state.pending.keysig) {
-            state.accids.SetKeySig([&] {
-                const int count = state.pending.keysig->GetAccidCount();
-                return state.pending.keysig->GetAccidType() == vrv::ACCIDENTAL_WRITTEN_f ? -count
-                                                                                         : count;
-            }());
-        }
-
+        StaffState &state = EnsureStaffPart(n, true);
+        StartStaffMeasure(state);
         std::vector<Event> events;
         std::vector<SymExtra> extras;
-
-        // pending signature changes surface at offset 0 of this measure
-        if (state.pending.clef) extras.push_back(MakeClefExtra(*state.pending.clef, Fraction(0)));
-        if (state.pending.keysig) {
-            extras.push_back(MakeKeySigExtra(*state.pending.keysig, Fraction(0)));
-        }
-        if (state.pending.metersig) {
-            extras.push_back(MakeMeterSigExtra(*state.pending.metersig, Fraction(0)));
-            if (MeterQLFromMeterSig(*state.pending.metersig, state.meter_ql)) {
-                state.has_meter = true;
-            }
-            state.beat_ql = BeatQLFromMeterSig(*state.pending.metersig);
-        }
-        state.pending = PendingSig();
-
-        for (const vrv::Object *staffChild : staff->GetChildren()) {
-            if (!staffChild->Is(vrv::LAYER)) continue;
-            Fraction cursor(0);
-            std::vector<const vrv::Tuplet *> tupletStack;
-            CollectLayerEvents(staffChild, events, extras, cursor, state, tupletStack, nullptr);
-        }
+        ApplyPendingSignatures(state, extras);
+        CollectStaffLayerEvents(staff, events, extras, state);
         RegisterEventLocations(n, events);
         CollectControlExtras(measure, n, events, extras);
-        Fraction measure_span = state.meter_ql;
-        for (const Event &ev : events) {
-            const Fraction rel_end = ev.offset + ev.dur_ql;
-            if (rel_end > measure_span) measure_span = rel_end;
-        }
+        const Fraction measureSpan = MeasureSpan(state, events);
         EmitMeasure(measure, n, std::move(events), std::move(extras), state);
-        state.score_offset = state.score_offset + measure_span;
-        ResolvePendingSpans();
+        FinishStaffMeasure(state, measureSpan);
     }
 }
 

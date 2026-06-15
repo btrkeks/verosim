@@ -62,6 +62,141 @@ void AppendArticulations(const vrv::Object *obj, std::vector<std::string> &out)
 
 } // namespace extract_detail
 
+namespace {
+
+std::vector<SymExtra> NormalizeMeasureExtras(std::vector<SymExtra> extras)
+{
+    // m21utils.py:877-904: sort by offset, drop consecutive equivalent clefs,
+    // then apply the final kind/offset ordering used by the oracle.
+    std::stable_sort(extras.begin(), extras.end(),
+        [](const SymExtra &a, const SymExtra &b) { return a.offset < b.offset; });
+    std::vector<SymExtra> dedupedExtras;
+    std::optional<std::string> mostRecentClef; // by value: vector growth cannot invalidate it
+    for (SymExtra &extra : extras) {
+        if (extra.kind == ExtraKind::kClef) {
+            if (mostRecentClef.has_value() && extra.symbolic == mostRecentClef) {
+                continue;
+            }
+            mostRecentClef = extra.symbolic;
+        }
+        dedupedExtras.push_back(std::move(extra));
+    }
+    std::stable_sort(dedupedExtras.begin(), dedupedExtras.end(),
+        [](const SymExtra &a, const SymExtra &b) {
+            if (a.kind != b.kind) return a.kind < b.kind;
+            return a.offset < b.offset;
+        });
+    return dedupedExtras;
+}
+
+std::vector<std::vector<BeamValue>> BuildRawBeamLists(const std::vector<Event> &events)
+{
+    std::map<const vrv::Object *, std::vector<std::size_t>> beamMembers;
+    for (std::size_t i = 0; i < events.size(); ++i) {
+        if (events[i].beam) beamMembers[events[i].beam].push_back(i);
+    }
+
+    std::vector<std::vector<BeamValue>> rawBeams(events.size());
+    for (const auto &[beamObj, members] : beamMembers) {
+        (void)beamObj;
+        std::vector<BeamMember> bm;
+        bm.reserve(members.size());
+        for (const std::size_t idx : members) {
+            BeamMember m;
+            m.is_rest = events[idx].is_rest;
+            if (!m.is_rest) {
+                Fraction t = events[idx].type_num;
+                while (t > Fraction(4)) {
+                    t = t / Fraction(2);
+                    ++m.n_beams;
+                }
+            }
+            if (const vrv::DurationInterface *di = events[idx].obj->GetDurationInterface()) {
+                // @breaksec lives on AttBeamSecondary, a DurationInterface base
+                if (di->HasBreaksec()) m.breaksec = di->GetBreaksec();
+            }
+            bm.push_back(m);
+        }
+        const std::vector<std::vector<BeamValue>> derived = DeriveBeamTypes(bm);
+        for (std::size_t k = 0; k < members.size(); ++k) rawBeams[members[k]] = derived[k];
+    }
+    return rawBeams;
+}
+
+std::vector<RawEvent> BuildRawEvents(
+    const std::vector<Event> &events, const std::vector<std::vector<BeamValue>> &rawBeams)
+{
+    std::map<const vrv::Tuplet *, std::pair<std::size_t, std::size_t>> tupletSpan;
+    for (std::size_t i = 0; i < events.size(); ++i) {
+        for (const vrv::Tuplet *t : events[i].tuplets) {
+            auto it = tupletSpan.find(t);
+            if (it == tupletSpan.end()) {
+                tupletSpan[t] = { i, i };
+            }
+            else {
+                it->second.second = i;
+            }
+        }
+    }
+
+    std::vector<RawEvent> raw(events.size());
+    for (std::size_t i = 0; i < events.size(); ++i) {
+        raw[i].is_rest = events[i].is_rest;
+        raw[i].type_num = events[i].type_num;
+        raw[i].raw_beams = rawBeams[i];
+        for (const vrv::Tuplet *t : events[i].tuplets) {
+            const auto &[first, last] = tupletSpan.at(t);
+            std::optional<TupletValue> type;
+            if (first == i && last == i) type = TupletValue::kStartStop;
+            else if (first == i) type = TupletValue::kStart;
+            else if (last == i) type = TupletValue::kStop;
+            raw[i].raw_tuplets.push_back(type);
+            raw[i].tuplet_nums.push_back(std::to_string(t->GetNum()));
+        }
+    }
+    return raw;
+}
+
+std::vector<const vrv::Note *> SortedChordMembers(const vrv::Chord *chord)
+{
+    std::vector<const vrv::Note *> members;
+    for (const vrv::Object *c : chord->GetChildren()) {
+        if (c->Is(vrv::NOTE)) members.push_back(vrv_cast<const vrv::Note *>(c));
+    }
+    std::stable_sort(members.begin(), members.end(), [](const vrv::Note *a, const vrv::Note *b) {
+        const int da = a->GetOct() * 7 + DiatonicIndex(StepFromPname(a->GetPname()));
+        const int db = b->GetOct() * 7 + DiatonicIndex(StepFromPname(b->GetPname()));
+        return da < db;
+    });
+    return members;
+}
+
+void FillSharedNoteFields(SymNote &sn, const Event &ev,
+    const std::vector<std::vector<BeamValue>> &beamings,
+    const std::vector<std::vector<TupletValue>> &tuplets,
+    const std::vector<std::vector<std::string>> &tupletInfo, std::size_t eventIdx,
+    bool includeCarrierArticulations)
+{
+    sn.note_head = NoteHeadFromTypeNum(ev.type_num);
+    sn.dots = ev.dots;
+    sn.beamings = beamings[eventIdx];
+    sn.tuplets = tuplets[eventIdx];
+    sn.tuplet_info = tupletInfo[eventIdx];
+    if (includeCarrierArticulations) {
+        sn.articulations.insert(
+            sn.articulations.end(), ev.articulations.begin(), ev.articulations.end());
+    }
+    std::sort(sn.articulations.begin(), sn.articulations.end());
+    sn.grace_type = ev.grace_type;
+    sn.grace_slash = ev.grace_slash;
+    sn.note_offset = ev.offset;
+    sn.note_dur_type = ev.dur_type;
+    sn.note_dur_dots = ev.dots;
+    sn.note_is_grace = !ev.grace_type.empty();
+}
+
+} // namespace
+
 void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &events,
     std::vector<SymExtra> &extras, Fraction &cursor, StaffState &state,
     std::vector<const vrv::Tuplet *> &tupletStack, const vrv::Object *beam)
@@ -218,159 +353,73 @@ Event Extractor::MakeCarrierEvent(const vrv::Object *obj, const Fraction &cursor
 void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staffN,
     std::vector<Event> events, std::vector<SymExtra> extras, StaffState &state)
 {
-    // --- extras: offset-sort, consecutive-equivalent clef dedup (within the
-    // measure, m21utils.py:877-904), then (kind, offset) sort ---
-    std::stable_sort(extras.begin(), extras.end(),
-        [](const SymExtra &a, const SymExtra &b) { return a.offset < b.offset; });
-    std::vector<SymExtra> dedupedExtras;
-    std::optional<std::string> mostRecentClef; // by value: push_back reallocation
-                                               // would invalidate a pointer in
-    for (SymExtra &extra : extras) {
-        if (extra.kind == ExtraKind::kClef) {
-            if (mostRecentClef.has_value() && extra.symbolic == mostRecentClef) {
-                continue;
-            }
-            mostRecentClef = extra.symbolic;
-            dedupedExtras.push_back(std::move(extra));
-        }
-        else {
-            dedupedExtras.push_back(std::move(extra));
-        }
-    }
-    std::stable_sort(dedupedExtras.begin(), dedupedExtras.end(),
-        [](const SymExtra &a, const SymExtra &b) {
-            if (a.kind != b.kind) return a.kind < b.kind;
-            return a.offset < b.offset;
-        });
-
-    // --- notes: build RawEvents over the flat cross-layer list ---
-    // raw beam types per Beam container
-    std::map<const vrv::Object *, std::vector<std::size_t>> beamMembers;
-    for (std::size_t i = 0; i < events.size(); ++i) {
-        if (events[i].beam) beamMembers[events[i].beam].push_back(i);
-    }
-    std::vector<std::vector<BeamValue>> rawBeams(events.size());
-    for (const auto &[beamObj, members] : beamMembers) {
-        std::vector<BeamMember> bm;
-        bm.reserve(members.size());
-        for (const std::size_t idx : members) {
-            BeamMember m;
-            m.is_rest = events[idx].is_rest;
-            if (!m.is_rest) {
-                Fraction t = events[idx].type_num;
-                while (t > Fraction(4)) {
-                    t = t / Fraction(2);
-                    ++m.n_beams;
-                }
-            }
-            if (const vrv::DurationInterface *di = events[idx].obj->GetDurationInterface()) {
-                // @breaksec lives on AttBeamSecondary, a DurationInterface base
-                if (di->HasBreaksec()) m.breaksec = di->GetBreaksec();
-            }
-            bm.push_back(m);
-        }
-        const std::vector<std::vector<BeamValue>> derived = DeriveBeamTypes(bm);
-        for (std::size_t k = 0; k < members.size(); ++k) rawBeams[members[k]] = derived[k];
-    }
-
-    // raw tuplet types: first/last visible event per tuplet
-    std::map<const vrv::Tuplet *, std::pair<std::size_t, std::size_t>> tupletSpan;
-    for (std::size_t i = 0; i < events.size(); ++i) {
-        for (const vrv::Tuplet *t : events[i].tuplets) {
-            auto it = tupletSpan.find(t);
-            if (it == tupletSpan.end()) {
-                tupletSpan[t] = { i, i };
-            }
-            else {
-                it->second.second = i;
-            }
-        }
-    }
-
-    std::vector<RawEvent> raw(events.size());
-    for (std::size_t i = 0; i < events.size(); ++i) {
-        raw[i].is_rest = events[i].is_rest;
-        raw[i].type_num = events[i].type_num;
-        raw[i].raw_beams = rawBeams[i];
-        for (const vrv::Tuplet *t : events[i].tuplets) {
-            const auto &[first, last] = tupletSpan.at(t);
-            std::optional<TupletValue> type;
-            if (first == i && last == i) type = TupletValue::kStartStop;
-            else if (first == i) type = TupletValue::kStart;
-            else if (last == i) type = TupletValue::kStop;
-            raw[i].raw_tuplets.push_back(type);
-            raw[i].tuplet_nums.push_back(std::to_string(t->GetNum()));
-        }
-    }
-
+    const std::vector<std::vector<BeamValue>> rawBeams = BuildRawBeamLists(events);
+    const std::vector<RawEvent> raw = BuildRawEvents(events, rawBeams);
     const std::vector<std::vector<BeamValue>> beamings = EnhanceBeamings(raw);
     const std::vector<std::vector<TupletValue>> tuplets = CorrectTuplets(raw);
     const std::vector<std::vector<std::string>> tupletInfo = TupletInfo(raw);
 
-    // --- emit SymNotes (chords split into members, diatonic ascending) ---
     SymMeasure symMeasure;
     symMeasure.vrv_id = measure->GetID();
     symMeasure.measure_n = measure->GetN();
-    symMeasure.extras = std::move(dedupedExtras);
+    symMeasure.extras = NormalizeMeasureExtras(std::move(extras));
+    symMeasure.notes = BuildSymNotes(events, beamings, tuplets, tupletInfo, state);
 
+    if (symMeasure.n_of_elements() > 0) {
+        const int partIdx = staves_[staffN].part_idx;
+        SymPart &part = result_.score.parts[static_cast<std::size_t>(partIdx)];
+        const std::size_t measureIdx = part.bar_list.size();
+        part.bar_list.push_back(std::move(symMeasure));
+        RegisterEmittedExtras(partIdx, measureIdx);
+    }
+}
+
+std::vector<SymNote> Extractor::BuildSymNotes(const std::vector<Event> &events,
+    const std::vector<std::vector<BeamValue>> &beamings,
+    const std::vector<std::vector<TupletValue>> &tuplets,
+    const std::vector<std::vector<std::string>> &tupletInfo, StaffState &state)
+{
+    std::vector<SymNote> notes;
+    notes.reserve(events.size());
     for (std::size_t i = 0; i < events.size(); ++i) {
         const Event &ev = events[i];
-        const auto fillShared = [&](SymNote &sn, bool includeCarrierArticulations) {
-            sn.note_head = NoteHeadFromTypeNum(ev.type_num);
-            sn.dots = ev.dots;
-            sn.beamings = beamings[i];
-            sn.tuplets = tuplets[i];
-            sn.tuplet_info = tupletInfo[i];
-            if (includeCarrierArticulations) {
-                sn.articulations.insert(
-                    sn.articulations.end(), ev.articulations.begin(), ev.articulations.end());
-            }
-            std::sort(sn.articulations.begin(), sn.articulations.end());
-            sn.grace_type = ev.grace_type;
-            sn.grace_slash = ev.grace_slash;
-            sn.note_offset = ev.offset;
-            sn.note_dur_type = ev.dur_type;
-            sn.note_dur_dots = ev.dots;
-            sn.note_is_grace = !ev.grace_type.empty();
-        };
-
         if (ev.obj->Is(vrv::CHORD)) {
             const vrv::Chord *chord = vrv_cast<const vrv::Chord *>(ev.obj);
-            std::vector<const vrv::Note *> members;
-            for (const vrv::Object *c : chord->GetChildren()) {
-                if (c->Is(vrv::NOTE)) members.push_back(vrv_cast<const vrv::Note *>(c));
-            }
-            std::stable_sort(members.begin(), members.end(),
-                [](const vrv::Note *a, const vrv::Note *b) {
-                    const int da = a->GetOct() * 7 + DiatonicIndex(StepFromPname(a->GetPname()));
-                    const int db = b->GetOct() * 7 + DiatonicIndex(StepFromPname(b->GetPname()));
-                    return da < db;
-                });
+            const std::vector<const vrv::Note *> members = SortedChordMembers(chord);
             int idx = 0;
             for (const vrv::Note *member : members) {
                 SymNote sn = MakeSymNote(ev, member, chord, idx, state);
-                fillShared(sn, idx == 0);
+                FillSharedNoteFields(sn, ev, beamings, tuplets, tupletInfo, i, idx == 0);
                 ++idx;
-                symMeasure.notes.push_back(std::move(sn));
+                notes.push_back(std::move(sn));
             }
         }
         else if (ev.is_rest) {
             SymNote sn;
             sn.vrv_id = ev.obj->GetID();
             sn.pitches.push_back(SymPitch{ "R", "None", false, 0 });
-            fillShared(sn, true);
-            symMeasure.notes.push_back(std::move(sn));
+            FillSharedNoteFields(sn, ev, beamings, tuplets, tupletInfo, i, true);
+            notes.push_back(std::move(sn));
         }
         else {
             const vrv::Note *note = vrv_cast<const vrv::Note *>(ev.obj);
             SymNote sn = MakeSymNote(ev, note, note, -1, state);
-            fillShared(sn, true);
-            symMeasure.notes.push_back(std::move(sn));
+            FillSharedNoteFields(sn, ev, beamings, tuplets, tupletInfo, i, true);
+            notes.push_back(std::move(sn));
         }
     }
+    return notes;
+}
 
-    if (symMeasure.n_of_elements() > 0) {
-        result_.score.parts[staves_[staffN].part_idx].bar_list.push_back(std::move(symMeasure));
+void Extractor::RegisterEmittedExtras(int partIdx, std::size_t measureIdx)
+{
+    const SymMeasure &measure
+        = result_.score.parts[static_cast<std::size_t>(partIdx)].bar_list[measureIdx];
+    for (std::size_t extraIdx = 0; extraIdx < measure.extras.size(); ++extraIdx) {
+        const std::string &id = measure.extras[extraIdx].vrv_id;
+        if (!id.empty()) {
+            emitted_extra_locations_.emplace(id, EmittedExtraLocation{ partIdx, measureIdx, extraIdx });
+        }
     }
 }
 

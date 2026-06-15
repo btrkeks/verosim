@@ -1,25 +1,18 @@
 #include "verosim/cli/compare_cli.h"
 
 #include <chrono>
-#include <cstdio>
 #include <ostream>
 #include <vector>
 
 #include "verosim/cli/json_util.h"
 #include "verosim/engine/compare.h"
 #include "verosim/extraction/extract.h"
+#include "verosim/extraction/source_format_util.h"
 #include "verosim/extraction/vrv_bridge.h"
 
 namespace verosim {
 
 namespace {
-
-void WriteDouble(double value, std::ostream &out)
-{
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%.12g", value);
-    out << buf;
-}
 
 // Mirrors oracle.py:_serialize_op_side {type, repr, ...}: enough identity for
 // op-level triage diffs against the stored oracle edit_ops. The note repr is
@@ -86,16 +79,6 @@ struct LoadedScore {
     std::string error;
     bool ok = false;
 };
-
-SourceFormat SourceFormatFromBridge(const VrvBridge &bridge)
-{
-    switch (bridge.last_input_format()) {
-        case vrv::HUMDRUM: return SourceFormat::kKern;
-        case vrv::MUSICXML:
-        case vrv::MUSICXMLHUM: return SourceFormat::kMusicXml;
-        default: return SourceFormat::kOther;
-    }
-}
 
 LoadedScore LoadAndExtract(
     VrvBridge &bridge, const std::string &path, const ExtractOptions &options)
