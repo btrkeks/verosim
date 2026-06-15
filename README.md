@@ -17,11 +17,14 @@ runs the C++ Catch2 suite plus the Python harness tests.
 
 ## CLI Usage
 
-Compare two scores:
+Compare two score files. File inputs are loaded through Verovio autodetection,
+so the same commands work with MusicXML (`.xml`, `.musicxml`, `.mxl`), MEI
+(`.mei`), Humdrum/kern (`.krn`), and other formats supported by the bundled
+Verovio parser:
 
 ```sh
-build/verosim pred.krn gt.krn
-build/verosim pred.krn gt.krn --ops --detail tierAB
+build/verosim pred.xml gt.krn
+build/verosim pred.mxl gt.mei --ops --detail tierAB
 ```
 
 Batch compare a TSV of `pred<TAB>gt` rows:
@@ -33,20 +36,23 @@ build/verosim --batch corpora/dev200.tsv --base-dir /path/to/data --jobs 4
 Check parser robustness over one file or a file list:
 
 ```sh
-build/verosim --check score.krn
+build/verosim --check score.musicxml
 build/verosim --check --files-from corpora/perf10k.txt --base-dir /path/to/data
 ```
 
 Count extracted Tier-A symbols:
 
 ```sh
-build/verosim --count-symbols score.krn
+build/verosim --count-symbols score.mei
 build/verosim --count-symbols --per-measure score.krn
 ```
 
 Detail tiers are `tierA`, `tierAB`, and `tierAB_dir`. The v1 acceptance gate uses
 `tierAB`; `tierAB_dir` is a diagnostic run for the broader musicdiff Directions
 bit.
+
+The exception is `--batch-jsonl`, which compares in-memory score strings from
+JSONL records and currently expects Humdrum/kern text (`--format kern`).
 
 ## Harness Targets
 
