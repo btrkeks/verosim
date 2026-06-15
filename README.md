@@ -46,6 +46,20 @@ build/verosim pred.xml gt.krn
 build/verosim pred.mxl gt.mei --ops --detail tierAB
 ```
 
+Write a visual OMR-NED report for a single pair:
+
+```sh
+build/verosim --visualize pred.xml gt.krn --out report.html
+```
+
+The report compares the pair with the same OMR-NED engine, renders the
+prediction and ground truth through Verovio, and writes a side-by-side HTML file
+with annotated SVG pages. Inserted, deleted, and changed notation elements are
+highlighted in the score, with the overall OMR-NED, raw edit distance, symbol
+counts, edit-distance categories, and any parser or unresolved-mark warnings at
+the top of the page. `--detail tierA|tierAB|tierAB_dir` can be added to match
+the comparison tier used for the report.
+
 Batch compare a TSV of `pred<TAB>gt` rows:
 
 ```sh
