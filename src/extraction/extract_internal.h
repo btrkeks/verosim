@@ -11,6 +11,7 @@
 #include "accid.h"
 #include "artic.h"
 #include "beam.h"
+#include "beamspan.h"
 #include "chord.h"
 #include "clef.h"
 #include "doc.h"
@@ -19,6 +20,7 @@
 #include "hairpin.h"
 #include "keysig.h"
 #include "layer.h"
+#include "layerelement.h"
 #include "measure.h"
 #include "metersig.h"
 #include "note.h"
@@ -51,7 +53,7 @@ struct Event {
     bool is_rest = false;
     std::string grace_type;
     bool grace_slash = false;
-    const vrv::Object *beam = nullptr; // innermost enclosing Beam
+    const vrv::Object *beam = nullptr; // innermost enclosing Beam; beamSpan is resolved later
     std::vector<const vrv::Tuplet *> tuplets; // outermost first
     std::vector<std::string> articulations;
 };

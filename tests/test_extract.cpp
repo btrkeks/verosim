@@ -270,6 +270,47 @@ TEST_CASE("inline_meter.mei: layer meterSig governs a following mRest", "[extrac
     CHECK(mrest.dots == 1);
 }
 
+TEST_CASE("repair_space_beamspan.mei: repair spaces and beamSpan controls", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("repair_space_beamspan.mei", SourceFormat::kOther);
+    CHECK(result.warnings.empty());
+    const SymMeasure &m1 = result.score.parts[0].bar_list[0];
+    REQUIRE(m1.notes.size() == 5);
+
+    // Verovio uses typed spaces such as type=straddle/type=filler to repair
+    // malformed rhythm for layout. They are hidden and must not move note
+    // offsets, unlike normal hidden space durations.
+    CHECK(m1.notes[0].note_offset == Fraction(0));
+    CHECK(m1.notes[1].note_offset == Fraction(1, 4));
+    CHECK(m1.notes[2].note_offset == Fraction(1, 2));
+    CHECK(m1.notes[3].note_offset == Fraction(3, 4));
+    CHECK(m1.notes[4].note_offset == Fraction(2));
+
+    CHECK(m1.notes[0].beamings == std::vector<BeamValue>{ BeamValue::kStart, BeamValue::kStart });
+    CHECK(m1.notes[1].beamings == std::vector<BeamValue>{ BeamValue::kContinue, BeamValue::kContinue });
+    CHECK(m1.notes[2].beamings == std::vector<BeamValue>{ BeamValue::kContinue, BeamValue::kContinue });
+    CHECK(m1.notes[3].beamings == std::vector<BeamValue>{ BeamValue::kStop, BeamValue::kStop });
+    CHECK(m1.notes[4].beamings.empty());
+}
+
+TEST_CASE("cross_measure_beamspan.mei: beamSpan continues across barlines", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("cross_measure_beamspan.mei", SourceFormat::kOther);
+    CHECK(result.warnings.empty());
+    const SymPart &part = result.score.parts[0];
+    REQUIRE(part.bar_list.size() == 2);
+    REQUIRE(part.bar_list[0].notes.size() == 2);
+    REQUIRE(part.bar_list[1].notes.size() == 2);
+
+    CHECK(part.bar_list[0].notes[0].beamings == std::vector<BeamValue>{ BeamValue::kStart });
+    CHECK(part.bar_list[0].notes[1].beamings == std::vector<BeamValue>{ BeamValue::kContinue });
+    // The raw span is resolved across both measures; the musicdiff-style
+    // per-measure enhancement then rewrites the first local continuation to a
+    // local start rather than dropping the beam entirely.
+    CHECK(part.bar_list[1].notes[0].beamings == std::vector<BeamValue>{ BeamValue::kStart });
+    CHECK(part.bar_list[1].notes[1].beamings == std::vector<BeamValue>{ BeamValue::kStop });
+}
+
 TEST_CASE("single_number.xml: single-number timesig counts one symbol", "[extract]")
 {
     // <time symbol="single-number"> -> @form="num" -> numerator-only

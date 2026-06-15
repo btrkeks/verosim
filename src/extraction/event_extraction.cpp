@@ -89,36 +89,107 @@ std::vector<SymExtra> NormalizeMeasureExtras(std::vector<SymExtra> extras)
     return dedupedExtras;
 }
 
-std::vector<std::vector<BeamValue>> BuildRawBeamLists(const std::vector<Event> &events)
+bool IsHiddenCarrier(const vrv::Object *obj)
 {
+    return obj->Is(vrv::SPACE) || obj->Is(vrv::MSPACE);
+}
+
+bool IsRhythmRepairSpace(const vrv::Object *obj)
+{
+    if (!IsHiddenCarrier(obj)) return false;
+    const auto *element = vrv_cast<const vrv::LayerElement *>(obj);
+    if (!element || !element->HasType()) return false;
+    const std::string type = element->GetType();
+    return type == "straddle" || type == "filler";
+}
+
+const vrv::Object *DurationCarrierForBeamMember(const vrv::Object *obj)
+{
+    if (const vrv::DurationInterface *di = obj->GetDurationInterface()) {
+        if (!TypeNameFromDur(di->GetDur()).empty()) return obj;
+    }
+    if (const vrv::Object *chord = obj->GetFirstAncestor(vrv::CHORD)) return chord;
+    return obj;
+}
+
+BeamMember BeamMemberFromObject(const vrv::Object *obj)
+{
+    BeamMember m;
+    m.is_rest = obj->Is(vrv::REST) || obj->Is(vrv::MREST) || obj->Is(vrv::MULTIREST)
+        || obj->Is(vrv::SPACE) || obj->Is(vrv::MSPACE);
+    const vrv::Object *carrier = DurationCarrierForBeamMember(obj);
+    if (!m.is_rest) {
+        Fraction t;
+        if (const vrv::DurationInterface *di = carrier->GetDurationInterface()) {
+            t = TypeNumFromName(TypeNameFromDur(di->GetDur()));
+        }
+        while (t > Fraction(4)) {
+            t = t / Fraction(2);
+            ++m.n_beams;
+        }
+    }
+    if (const vrv::DurationInterface *di = carrier->GetDurationInterface()) {
+        // @breaksec lives on AttBeamSecondary, a DurationInterface base.
+        if (di->HasBreaksec()) m.breaksec = di->GetBreaksec();
+    }
+    return m;
+}
+
+std::map<const vrv::Object *, std::size_t> CurrentEventObjects(const std::vector<Event> &events)
+{
+    std::map<const vrv::Object *, std::size_t> eventByObject;
+    for (std::size_t i = 0; i < events.size(); ++i) {
+        eventByObject.emplace(events[i].obj, i);
+        for (const vrv::Object *child : events[i].obj->GetChildren()) {
+            eventByObject.emplace(child, i);
+        }
+    }
+    return eventByObject;
+}
+
+std::vector<std::vector<BeamValue>> BuildRawBeamLists(
+    const vrv::Object *beamSpanRoot, const std::vector<Event> &events)
+{
+    std::vector<std::vector<BeamValue>> rawBeams(events.size());
+
     std::map<const vrv::Object *, std::vector<std::size_t>> beamMembers;
     for (std::size_t i = 0; i < events.size(); ++i) {
         if (events[i].beam) beamMembers[events[i].beam].push_back(i);
     }
 
-    std::vector<std::vector<BeamValue>> rawBeams(events.size());
     for (const auto &[beamObj, members] : beamMembers) {
         (void)beamObj;
         std::vector<BeamMember> bm;
         bm.reserve(members.size());
         for (const std::size_t idx : members) {
-            BeamMember m;
-            m.is_rest = events[idx].is_rest;
-            if (!m.is_rest) {
-                Fraction t = events[idx].type_num;
-                while (t > Fraction(4)) {
-                    t = t / Fraction(2);
-                    ++m.n_beams;
-                }
-            }
-            if (const vrv::DurationInterface *di = events[idx].obj->GetDurationInterface()) {
-                // @breaksec lives on AttBeamSecondary, a DurationInterface base
-                if (di->HasBreaksec()) m.breaksec = di->GetBreaksec();
-            }
-            bm.push_back(m);
+            bm.push_back(BeamMemberFromObject(events[idx].obj));
         }
         const std::vector<std::vector<BeamValue>> derived = DeriveBeamTypes(bm);
         for (std::size_t k = 0; k < members.size(); ++k) rawBeams[members[k]] = derived[k];
+    }
+
+    const std::map<const vrv::Object *, std::size_t> eventByObject = CurrentEventObjects(events);
+    const vrv::ListOfConstObjects beamSpans = beamSpanRoot->FindAllDescendantsByType(vrv::BEAMSPAN);
+    for (const vrv::Object *obj : beamSpans) {
+        const auto *beamSpan = vrv_cast<const vrv::BeamSpan *>(obj);
+        const vrv::ArrayOfObjects &spanMembers = beamSpan->GetBeamedElements();
+        std::vector<BeamMember> bm;
+        std::vector<std::optional<std::size_t>> localIndexes;
+        bm.reserve(spanMembers.size());
+        localIndexes.reserve(spanMembers.size());
+        for (const vrv::Object *member : spanMembers) {
+            bm.push_back(BeamMemberFromObject(member));
+            const auto it = eventByObject.find(member);
+            localIndexes.push_back(it == eventByObject.end() ? std::nullopt
+                                                             : std::optional<std::size_t>(it->second));
+        }
+        const std::vector<std::vector<BeamValue>> derived = DeriveBeamTypes(bm);
+        for (std::size_t k = 0; k < localIndexes.size(); ++k) {
+            if (!localIndexes[k].has_value()) continue;
+            const std::size_t idx = *localIndexes[k];
+            if (events[idx].beam) continue;
+            rawBeams[idx] = derived[k];
+        }
     }
     return rawBeams;
 }
@@ -221,9 +292,9 @@ void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &e
             || child->Is(vrv::MREST) || child->Is(vrv::MULTIREST) || child->Is(vrv::SPACE)
             || child->Is(vrv::MSPACE)) {
             Event ev = MakeCarrierEvent(child, cursor, state, tupletStack, beam);
-            const bool hidden = child->Is(vrv::SPACE) || child->Is(vrv::MSPACE);
+            const bool hidden = IsHiddenCarrier(child);
             if (!hidden) events.push_back(ev);
-            if (ev.grace_type.empty()) cursor += ev.dur_ql;
+            if (ev.grace_type.empty() && !IsRhythmRepairSpace(child)) cursor += ev.dur_ql;
         }
         else if (child->Is(vrv::CLEF)) {
             extras.push_back(MakeClefExtra(*vrv_cast<const vrv::Clef *>(child), cursor));
@@ -353,7 +424,7 @@ Event Extractor::MakeCarrierEvent(const vrv::Object *obj, const Fraction &cursor
 void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staffN,
     std::vector<Event> events, std::vector<SymExtra> extras, StaffState &state)
 {
-    const std::vector<std::vector<BeamValue>> rawBeams = BuildRawBeamLists(events);
+    const std::vector<std::vector<BeamValue>> rawBeams = BuildRawBeamLists(&doc_, events);
     const std::vector<RawEvent> raw = BuildRawEvents(events, rawBeams);
     const std::vector<std::vector<BeamValue>> beamings = EnhanceBeamings(raw);
     const std::vector<std::vector<TupletValue>> tuplets = CorrectTuplets(raw);

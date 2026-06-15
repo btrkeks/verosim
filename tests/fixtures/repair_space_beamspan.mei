@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="4" meter.unit="4"/>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1">
+              <staff n="1">
+                <layer n="1">
+                  <space xml:id="repair" dur="4" type="straddle"/>
+                  <note xml:id="n1" dur="16" oct="4" pname="c"/>
+                  <note xml:id="n2" dur="16" oct="4" pname="d"/>
+                  <note xml:id="n3" dur="16" oct="4" pname="e"/>
+                  <note xml:id="n4" dur="16" oct="4" pname="f"/>
+                  <space xml:id="hidden" dur="4"/>
+                  <note xml:id="n5" dur="4" oct="4" pname="g"/>
+                </layer>
+              </staff>
+              <beamSpan xml:id="bs1" staff="1" startid="#n1" endid="#n4"/>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>
