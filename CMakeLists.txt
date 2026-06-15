@@ -8,8 +8,14 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# ---- vendored Verovio (Layer 1 parser), built as shared library ----
+# ---- vendored Verovio (Layer 1 parser) ----
+option(VEROSIM_STATIC_VEROVIO "Build vendored Verovio as a static library" ON)
 set(BUILD_AS_LIBRARY ON CACHE BOOL "" FORCE)
+if(VEROSIM_STATIC_VEROVIO)
+    set(VEROVIO_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+else()
+    set(VEROVIO_BUILD_SHARED ON CACHE BOOL "" FORCE)
+endif()
 add_subdirectory(verovio/cmake verovio-build)
 
 # Verovio's include_directories() are directory-scoped and do not propagate;

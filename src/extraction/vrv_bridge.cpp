@@ -1,20 +1,82 @@
 #include "verosim/extraction/vrv_bridge.h"
 
+#include <cstdlib>
+#include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
+#include <string>
+#include <vector>
+
+#if defined(__linux__)
+#include <unistd.h>
+#endif
 
 #include "toolkitdef.h"
 #include "vrv.h"
 
 namespace verosim {
+namespace {
+
+std::string ExecutableDir()
+{
+#if defined(__linux__)
+    std::vector<char> buffer(4096);
+    const ssize_t length = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
+    if (length <= 0) return {};
+    buffer[static_cast<std::size_t>(length)] = '\0';
+    return std::filesystem::path(buffer.data()).parent_path().string();
+#else
+    return {};
+#endif
+}
+
+std::vector<std::string> ResourcePathCandidates()
+{
+    std::vector<std::string> candidates;
+    if (const char *envPath = std::getenv("VEROSIM_VRV_DATA_DIR"); envPath && envPath[0] != '\0') {
+        candidates.emplace_back(envPath);
+    }
+
+    const std::filesystem::path exeDir = ExecutableDir();
+    if (!exeDir.empty()) {
+        candidates.push_back((exeDir / "verovio" / "data").string());
+        candidates.push_back((exeDir.parent_path() / "verovio" / "data").string());
+        candidates.push_back((exeDir.parent_path() / "share" / "verovio").string());
+    }
+
+    candidates.emplace_back(VEROSIM_VRV_DATA_DIR);
+    return candidates;
+}
+
+std::string JoinTriedPaths(const std::vector<std::string> &paths)
+{
+    std::ostringstream out;
+    for (std::size_t i = 0; i < paths.size(); ++i) {
+        if (i != 0) out << ", ";
+        out << paths[i];
+    }
+    return out.str();
+}
+
+} // namespace
 
 VrvBridge::VrvBridge(const VrvBridgeConfig &config) : vrv::Toolkit(false)
 {
     vrv::EnableLog(config.log_level);
     vrv::EnableLogToBuffer(config.capture_log);
-    if (!this->SetResourcePath(VEROSIM_VRV_DATA_DIR)) {
+    const std::vector<std::string> resourcePaths = ResourcePathCandidates();
+    bool loadedResources = false;
+    for (const std::string &resourcePath : resourcePaths) {
+        if (this->SetResourcePath(resourcePath)) {
+            loadedResources = true;
+            break;
+        }
+    }
+    if (!loadedResources) {
         throw std::runtime_error(
-            "VrvBridge: cannot load Verovio resources from " VEROSIM_VRV_DATA_DIR);
+            "VrvBridge: cannot load Verovio resources; tried: " + JoinTriedPaths(resourcePaths)
+            + ". Set VEROSIM_VRV_DATA_DIR to the Verovio data directory.");
     }
     this->SetOptions(R"({"breaks":"none","header":"none","footer":"none"})");
 }
