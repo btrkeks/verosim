@@ -26,4 +26,10 @@ DiffResult PitchesDiff(
 // Comparison._annotated_note_diff (comparison.py:872-1005), v1-tier fields.
 DiffResult AnnotatedNoteDiff(const SymNote &n1, const SymNote &n2);
 
+// Cost-only variant: returns the edit cost without building the op list.
+// Used during the DP fill phase of BlockDiffLin where only the scalar cost
+// is needed to populate the cost table; the full op list is built later
+// during backtracking for the cells on the optimal path only.
+long AnnotatedNoteDiffCost(const SymNote &n1, const SymNote &n2);
+
 } // namespace verosim

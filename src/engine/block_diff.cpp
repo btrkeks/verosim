@@ -26,6 +26,16 @@ DiffResult InsideBarDiff(const SymMeasure &orig, const SymMeasure &comp,
     return result;
 }
 
+// Cost-only inside-bar diff: same pairing and edit-distance logic as
+// InsideBarDiff but skips all EditOp construction.
+long InsideBarCost(const SymMeasure &orig, const SymMeasure &comp,
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep,
+    const CompareOptions &options)
+{
+    return NotesSetDistanceCost(orig, comp, orig_prep, comp_prep, options)
+        + ExtrasSetDistanceCost(orig, comp, orig_prep, comp_prep);
+}
+
 } // namespace
 
 DiffResult BlockDiffLin(const SymPart &orig_part, const PreparedPart &orig_prep,
@@ -35,10 +45,11 @@ DiffResult BlockDiffLin(const SymPart &orig_part, const PreparedPart &orig_prep,
     // Bottom-up suffix DP replacing the memoized recursion; the Python memo
     // keys (reprs with unique measure ids) are a bijection of (i, j) within
     // one block, so this is exactly equivalent — see compare.cpp for the
-    // memoization rationale. Cells store costs only (Python keeps a full op
-    // list per memo entry, which is its pathological-memory mode); the op
-    // lists of edit steps are recomputed along the chosen path, which is safe
-    // because the set distances are deterministic.
+    // memoization rationale.
+    //
+    // The DP fill uses cost-only variants of the inside-bar diff (no EditOp
+    // vectors allocated). The full op lists are built only during backtracking
+    // along the optimal path.
     const std::vector<int> &orig_idx = block.original;
     const std::vector<int> &comp_idx = block.compare_to;
     const int m = static_cast<int>(orig_idx.size());
@@ -57,8 +68,9 @@ DiffResult BlockDiffLin(const SymPart &orig_part, const PreparedPart &orig_prep,
         return comp_prep.measures[comp_idx[j]];
     };
 
-    std::vector<long> cost(static_cast<std::size_t>(m + 1) * (n + 1), 0);
-    std::vector<Choice> choice(static_cast<std::size_t>(m + 1) * (n + 1), Choice::kEditBar);
+    const std::size_t table_size = static_cast<std::size_t>(m + 1) * (n + 1);
+    std::vector<long> cost(table_size, 0);
+    std::vector<Choice> choice(table_size, Choice::kEditBar);
     const auto cost_at = [&](int i, int j) -> long & {
         return cost[static_cast<std::size_t>(i) * (n + 1) + j];
     };
@@ -87,13 +99,9 @@ DiffResult BlockDiffLin(const SymPart &orig_part, const PreparedPart &orig_prep,
                 pick = Choice::kInsBar;
             }
             long inside = 0;
-            if (orig_pm(i).content_id != comp_pm(j).content_id) { // AnnMeasure.__eq__
-                // TODO(consolidate): this builds and discards the op list (only
-                // the cost is needed during fill); an op-free set-distance
-                // variant or a content-keyed inside-COST cache (never op
-                // lists — see compare.cpp) is the performance lever for pathological
-                // pairs.
-                inside = InsideBarDiff(orig_measure(i), comp_measure(j), orig_pm(i), comp_pm(j), options).cost;
+            if (orig_pm(i).content_id != comp_pm(j).content_id) {
+                inside = InsideBarCost(
+                    orig_measure(i), comp_measure(j), orig_pm(i), comp_pm(j), options);
             }
             const long edit = cost_at(i + 1, j + 1) + inside;
             if (edit < best) {
@@ -108,6 +116,7 @@ DiffResult BlockDiffLin(const SymPart &orig_part, const PreparedPart &orig_prep,
     // Backtrack: collect one op group per step walking forward, emit groups
     // reversed (the recursion appends each step's op after the recursive
     // result, so the Python list runs back-to-front over the alignment).
+    // Only edit-bar cells on the chosen path need the full InsideBarDiff.
     std::vector<std::vector<EditOp>> groups;
     int i = 0, j = 0;
     while (i < m || j < n) {

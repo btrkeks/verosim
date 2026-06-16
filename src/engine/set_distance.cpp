@@ -150,6 +150,24 @@ EditOp NoteInsOp(const SymNote &n)
         .ids0 = n.note_idx_in_chord };
 }
 
+long InfodictDiffCost(const std::vector<std::pair<std::string, std::string>> &a,
+    const std::vector<std::pair<std::string, std::string>> &b)
+{
+    long cost = 0;
+    for (const auto &[k, v] : a) {
+        const auto it = std::find_if(
+            b.begin(), b.end(), [&k](const auto &kv) { return kv.first == k; });
+        if (it == b.end()) cost += 1;
+        else if (it->second != v) cost += 2;
+    }
+    for (const auto &[k, v] : b) {
+        const bool in_a = std::any_of(
+            a.begin(), a.end(), [&k](const auto &kv) { return kv.first == k; });
+        if (!in_a) cost += 1;
+    }
+    return cost;
+}
+
 bool SameVisualPitchAndGrace(const SymNote &orig, const SymNote &comp)
 {
     // visual pitch position only (accidental ignored, so an accidental
@@ -162,7 +180,7 @@ long NotePairCost(const SymMeasure &orig, const SymMeasure &comp,
     const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep, int o, int c)
 {
     if (orig_prep.note_str_ids[o] == comp_prep.note_str_ids[c]) return 0;
-    return AnnotatedNoteDiff(orig.notes[o], comp.notes[c]).cost;
+    return AnnotatedNoteDiffCost(orig.notes[o], comp.notes[c]);
 }
 
 void AppendNotePairOps(DiffResult &result, const SymMeasure &orig, const SymMeasure &comp,
@@ -375,18 +393,7 @@ DiffResult AnnotatedExtraDiff(const SymExtra &e1, const SymExtra &e2)
     }
     // infodict
     if (!InfodictsEqual(e1.infodict, e2.infodict)) {
-        long info_cost = 0;
-        for (const auto &[k, v] : e1.infodict) {
-            const auto it = std::find_if(e2.infodict.begin(), e2.infodict.end(),
-                [&k](const auto &kv) { return kv.first == k; });
-            if (it == e2.infodict.end()) info_cost += 1; // delete a symbol
-            else if (it->second != v) info_cost += 2; // delete + add
-        }
-        for (const auto &[k, v] : e2.infodict) {
-            const bool in_e1 = std::any_of(e1.infodict.begin(), e1.infodict.end(),
-                [&k](const auto &kv) { return kv.first == k; });
-            if (!in_e1) info_cost += 1; // add a symbol
-        }
+        const long info_cost = InfodictDiffCost(e1.infodict, e2.infodict);
         result.cost += info_cost;
         result.ops.push_back(extra_op(OpName::kExtraInfoEdit, info_cost));
     }
@@ -402,6 +409,139 @@ DiffResult AnnotatedExtraDiff(const SymExtra &e1, const SymExtra &e2)
     }
     // styledict: never set at v1 tiers (extrastyleedit unreachable).
     return result;
+}
+
+// ── Cost-only variants ───────────────────────────────────────────────────────
+//
+// These mirror the full DiffResult functions above but return only the scalar
+// cost, skipping all EditOp vector construction. Used in BlockDiffLin's DP
+// fill phase where only the cost is needed to populate the cost table.
+
+namespace {
+
+long NotesSetDistanceCostMusical(const SymMeasure &orig, const SymMeasure &comp,
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep)
+{
+    const auto required = [&](int o, int c) {
+        const SymNote &on = orig.notes[o];
+        const SymNote &cn = comp.notes[c];
+        if (!SameVisualPitchAndGrace(on, cn)) return false;
+        return !AreDifferentEnough(on.note_offset, cn.note_offset);
+    };
+    const auto preferred = [&](int o, int c) {
+        const SymNote &on = orig.notes[o];
+        const SymNote &cn = comp.notes[c];
+        return on.note_dur_type == cn.note_dur_type && on.note_dur_dots == cn.note_dur_dots;
+    };
+    const Pairing pairing(static_cast<int>(orig.notes.size()), static_cast<int>(comp.notes.size()),
+        required, preferred);
+
+    long cost = 0;
+    for (const int o : pairing.unpaired_orig)
+        cost += orig.notes[o].notation_size();
+    for (const int c : pairing.unpaired_comp)
+        cost += comp.notes[c].notation_size();
+    for (const auto &[o, c] : pairing.paired)
+        cost += NotePairCost(orig, comp, orig_prep, comp_prep, o, c);
+    return cost;
+}
+
+long NotesSetDistanceCostVisual(const SymMeasure &orig, const SymMeasure &comp,
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep)
+{
+    const int m = static_cast<int>(orig.notes.size());
+    const int n = static_cast<int>(comp.notes.size());
+    std::vector<long> cost(static_cast<std::size_t>(m + 1) * (n + 1), 0);
+    const auto cost_at = [&](int i, int j) -> long & {
+        return cost[static_cast<std::size_t>(i) * (n + 1) + j];
+    };
+
+    for (int i = m - 1; i >= 0; --i)
+        cost_at(i, n) = cost_at(i + 1, n) + orig.notes[i].notation_size();
+    for (int j = n - 1; j >= 0; --j)
+        cost_at(m, j) = cost_at(m, j + 1) + comp.notes[j].notation_size();
+    for (int i = m - 1; i >= 0; --i) {
+        for (int j = n - 1; j >= 0; --j) {
+            long best = cost_at(i + 1, j) + orig.notes[i].notation_size();
+            const long ins = cost_at(i, j + 1) + comp.notes[j].notation_size();
+            if (ins < best) best = ins;
+            if (SameVisualPitchAndGrace(orig.notes[i], comp.notes[j])) {
+                const long edit = cost_at(i + 1, j + 1)
+                    + NotePairCost(orig, comp, orig_prep, comp_prep, i, j);
+                if (edit < best) best = edit;
+            }
+            cost_at(i, j) = best;
+        }
+    }
+    return cost_at(0, 0);
+}
+
+} // namespace
+
+long NotesSetDistanceCost(const SymMeasure &orig, const SymMeasure &comp,
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep,
+    const CompareOptions &options)
+{
+    switch (options.note_position_policy) {
+        case NotePositionPolicy::kMusicalOnset:
+            return NotesSetDistanceCostMusical(orig, comp, orig_prep, comp_prep);
+        case NotePositionPolicy::kVisualEventOrder:
+            return NotesSetDistanceCostVisual(orig, comp, orig_prep, comp_prep);
+    }
+    return NotesSetDistanceCostVisual(orig, comp, orig_prep, comp_prep);
+}
+
+long AnnotatedExtraDiffCost(const SymExtra &e1, const SymExtra &e2)
+{
+    long cost = 0;
+    if (e1.content != e2.content)
+        cost += StringsNdiffDistance(e1.content.value_or(""), e2.content.value_or(""));
+    if (e1.symbolic != e2.symbolic) cost += 2;
+    if (!InfodictsEqual(e1.infodict, e2.infodict))
+        cost += InfodictDiffCost(e1.infodict, e2.infodict);
+    if (AreDifferentEnough(e1.offset, e2.offset)) cost += 1;
+    if (AreDifferentEnough(e1.duration, e2.duration)) cost += 1;
+    return cost;
+}
+
+long ExtrasSetDistanceCost(const SymMeasure &orig, const SymMeasure &comp,
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep)
+{
+    const auto required = [&](int o, int c) {
+        const SymExtra &oe = orig.extras[o];
+        const SymExtra &ce = comp.extras[c];
+        if (oe.kind != ce.kind) return false;
+        return !AreDifferentEnough(oe.offset, ce.offset);
+    };
+    const auto preferred = [&](int o, int c) {
+        const SymExtra &oe = orig.extras[o];
+        const SymExtra &ce = comp.extras[c];
+        if (AreDifferentEnough(oe.duration, ce.duration)) return false;
+        switch (oe.kind) {
+            case ExtraKind::kClef: return oe.symbolic == ce.symbolic;
+            case ExtraKind::kCrescendo:
+            case ExtraKind::kDiminuendo:
+            case ExtraKind::kDynamic:
+            case ExtraKind::kSlur:
+                return true;
+            case ExtraKind::kKeySig:
+            case ExtraKind::kTimeSig: return InfodictsEqual(oe.infodict, ce.infodict);
+        }
+        return true;
+    };
+    const Pairing pairing(static_cast<int>(orig.extras.size()),
+        static_cast<int>(comp.extras.size()), required, preferred);
+
+    long cost = 0;
+    for (const int o : pairing.unpaired_orig)
+        cost += orig.extras[o].notation_size();
+    for (const int c : pairing.unpaired_comp)
+        cost += comp.extras[c].notation_size();
+    for (const auto &[o, c] : pairing.paired) {
+        if (orig_prep.extra_str_ids[o] == comp_prep.extra_str_ids[c]) continue;
+        cost += AnnotatedExtraDiffCost(orig.extras[o], comp.extras[c]);
+    }
+    return cost;
 }
 
 } // namespace verosim
