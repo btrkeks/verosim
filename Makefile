@@ -1,10 +1,11 @@
 BUILD_DIR := build
+STATIC_BUILD_DIR := build-static
 PY := harness/.venv/bin/python
 DATA_ROOT ?=
 JOBS := 2
 export PYTHONPATH := harness:$(PYTHONPATH)
 
-.PHONY: build test bench clean corpora oracle-dev200 oracle-holdout mutgen mutcheck sweep harness-test count-audit identity-gate corr-audit directions-audit holdout-acceptance holdout-engine-gate robustness-gate acceptance require-data-root require-submodules
+.PHONY: build static-build test bench clean clean-static corpora oracle-dev200 oracle-holdout mutgen mutcheck sweep harness-test count-audit identity-gate corr-audit directions-audit holdout-acceptance holdout-engine-gate robustness-gate acceptance require-data-root require-submodules
 
 require-submodules:
 	@test -f verovio/cmake/CMakeLists.txt || { echo "Verovio submodule missing; run git submodule update --init --recursive"; exit 1; }
@@ -18,6 +19,10 @@ build: require-submodules
 	cmake -S . -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release
 	cmake --build $(BUILD_DIR)
 
+static-build: require-submodules
+	cmake -S . -B $(STATIC_BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DVEROSIM_STATIC_VEROVIO=ON
+	cmake --build $(STATIC_BUILD_DIR)
+
 # The full test gate (working practice: rungs run on every change) = C++ tests
 # + Python harness tests. Use the individual targets to run one side only.
 test: build harness-test
@@ -30,6 +35,9 @@ bench: require-data-root build
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+clean-static:
+	rm -rf $(STATIC_BUILD_DIR)
 
 # ---- Corpus lists and oracle harness ----
 
