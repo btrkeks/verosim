@@ -124,11 +124,44 @@ TEST_CASE("ParseVisualizeArgs accepts the pair report form only", "[cli]")
     CHECK(parsed->pred_path == "pred.krn");
     CHECK(parsed->gt_path == "gt.krn");
     CHECK(parsed->out_path == "report.html");
+    CHECK(parsed->output_kind == VisualizeArgs::OutputKind::kHtml);
 
     CHECK_FALSE(ParseVisualizeArgs({ "--visualize", "pred.krn", "gt.krn" }).has_value());
     CHECK_FALSE(ParseVisualizeArgs({ "--visualize", "pred.krn", "gt.krn", "--html", "report.html" })
                     .has_value());
     CHECK_FALSE(ParseVisualizeArgs({ "--visualize", "--bad", "gt.krn", "--out", "report.html" })
+                    .has_value());
+}
+
+TEST_CASE("ParseVisualizeArgs accepts SVG bundle output only with explicit format", "[cli]")
+{
+    const auto parsed = ParseVisualizeArgs(
+        { "--visualize", "pred.krn", "gt.krn", "--out-dir", "bundle", "--output-format", "svg" });
+    REQUIRE(parsed.has_value());
+    CHECK(parsed->pred_path == "pred.krn");
+    CHECK(parsed->gt_path == "gt.krn");
+    CHECK(parsed->out_dir == "bundle");
+    CHECK(parsed->output_format == "svg");
+    CHECK(parsed->output_kind == VisualizeArgs::OutputKind::kSvgBundle);
+
+    const auto reversed = ParseVisualizeArgs(
+        { "--visualize", "pred.krn", "gt.krn", "--output-format", "svg", "--out-dir", "bundle" });
+    REQUIRE(reversed.has_value());
+    CHECK(reversed->output_kind == VisualizeArgs::OutputKind::kSvgBundle);
+
+    CHECK_FALSE(ParseVisualizeArgs({ "--visualize", "pred.krn", "gt.krn", "--out-dir", "bundle" })
+                    .has_value());
+    CHECK_FALSE(ParseVisualizeArgs(
+                    { "--visualize", "pred.krn", "gt.krn", "--out-dir", "bundle", "--output-format",
+                        "html" })
+                    .has_value());
+    CHECK_FALSE(ParseVisualizeArgs(
+                    { "--visualize", "pred.krn", "gt.krn", "--out", "report.html", "--out-dir",
+                        "bundle" })
+                    .has_value());
+    CHECK_FALSE(ParseVisualizeArgs(
+                    { "--visualize", "pred.krn", "gt.krn", "--out", "report.html", "--output-format",
+                        "svg" })
                     .has_value());
 }
 

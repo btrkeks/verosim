@@ -33,9 +33,17 @@ struct BatchJsonlArgs {
 };
 
 struct VisualizeArgs {
+    enum class OutputKind {
+        kHtml,
+        kSvgBundle,
+    };
+
     std::string pred_path;
     std::string gt_path;
     std::string out_path;
+    std::string out_dir;
+    std::string output_format;
+    OutputKind output_kind = OutputKind::kHtml;
 };
 
 bool StripCompareOptions(

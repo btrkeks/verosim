@@ -97,9 +97,11 @@ void PrefixWarnings(
 
 } // namespace
 
-bool VisualizePairToHtml(const std::string &pred_path, const std::string &gt_path,
-    const std::string &out_path, const CompareCliOptions &options, std::string &error)
+bool BuildVisualComparison(const std::string &pred_path, const std::string &gt_path,
+    const CompareCliOptions &options, VisualReport &report, std::string &error)
 {
+    report = VisualReport{};
+
     VrvBridge pred_bridge;
     VrvBridge gt_bridge;
     const ExtractOptions extract_options{ .detail = options.detail };
@@ -139,7 +141,6 @@ bool VisualizePairToHtml(const std::string &pred_path, const std::string &gt_pat
     const AnnotatedPages pred_pages = AnnotatePages(pred_rendered, MarksForSide(plan.marks, VisualSide::kPred));
     const AnnotatedPages gt_pages = AnnotatePages(gt_rendered, MarksForSide(plan.marks, VisualSide::kGt));
 
-    VisualReport report;
     report.pred_path = pred_path;
     report.gt_path = gt_path;
     report.pred = VisualizedScore{ .title = "Prediction", .pages = pred_pages.pages };
@@ -159,6 +160,14 @@ bool VisualizePairToHtml(const std::string &pred_path, const std::string &gt_pat
     PrefixWarnings(report.warnings, "", pred_pages.warnings);
     PrefixWarnings(report.warnings, "", gt_pages.warnings);
 
+    return true;
+}
+
+bool VisualizePairToHtml(const std::string &pred_path, const std::string &gt_path,
+    const std::string &out_path, const CompareCliOptions &options, std::string &error)
+{
+    VisualReport report;
+    if (!BuildVisualComparison(pred_path, gt_path, options, report, error)) return false;
     return WriteHtmlReport(report, out_path, error);
 }
 

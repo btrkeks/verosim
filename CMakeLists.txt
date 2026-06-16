@@ -71,6 +71,7 @@ add_library(verosim_core STATIC
     src/visual/html_report.cpp
     src/visual/score_renderer.cpp
     src/visual/svg_annotator.cpp
+    src/visual/svg_bundle.cpp
     src/visual/svg_overlap.cpp
     src/visual/visual_mark.cpp
     src/visual/visual_plan.cpp

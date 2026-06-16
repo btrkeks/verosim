@@ -9,6 +9,7 @@
 #include "engine_fixtures.h"
 #include "verosim/engine/edit_op.h"
 #include "verosim/visual/svg_annotator.h"
+#include "verosim/visual/svg_bundle.h"
 #include "verosim/visual/svg_overlap.h"
 #include "verosim/visual/visual_plan.h"
 #include "verosim/visual/visualize.h"
@@ -228,4 +229,48 @@ TEST_CASE("VisualizePairToHtml writes a mutation report", "[visual]")
     CHECK(html.find("verosim-role-changed") != std::string::npos);
 
     std::filesystem::remove(out);
+}
+
+TEST_CASE("WriteSvgAssetBundle writes annotated SVG pages and manifest", "[visual]")
+{
+    const std::filesystem::path out = std::filesystem::temp_directory_path()
+        / "verosim-svg-bundle-test";
+    const std::filesystem::path pred = std::filesystem::path(VEROSIM_MUTATIONS_DIR) / "base" / "mono.krn";
+    const std::filesystem::path gt
+        = std::filesystem::path(VEROSIM_MUTATIONS_DIR) / "cases" / "mono_accidental_sharp.krn";
+    std::filesystem::remove_all(out);
+
+    std::string error;
+    VisualReport report;
+    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareCliOptions{}, report, error));
+    CHECK(error.empty());
+
+    SvgAssetBundle bundle;
+    REQUIRE(WriteSvgAssetBundle(report, out.string(), bundle, error));
+    CHECK(error.empty());
+    REQUIRE(bundle.prediction.pages.size() == 1);
+    REQUIRE(bundle.ground_truth.pages.size() == 1);
+    CHECK(bundle.prediction.pages[0].page == 1);
+    CHECK(bundle.prediction.pages[0].path == "prediction/page-1.svg");
+    CHECK(bundle.ground_truth.pages[0].path == "ground_truth/page-1.svg");
+
+    const std::filesystem::path manifest_path = out / "visualization.json";
+    const std::filesystem::path pred_svg_path = out / "prediction" / "page-1.svg";
+    const std::filesystem::path gt_svg_path = out / "ground_truth" / "page-1.svg";
+    REQUIRE(std::filesystem::is_regular_file(manifest_path));
+    REQUIRE(std::filesystem::is_regular_file(pred_svg_path));
+    REQUIRE(std::filesystem::is_regular_file(gt_svg_path));
+
+    const std::string manifest = ReadFile(manifest_path);
+    CHECK(manifest.find("\"schema_version\":1") != std::string::npos);
+    CHECK(manifest.find("\"path\":\"prediction/page-1.svg\"") != std::string::npos);
+    CHECK(manifest.find("\"path\":\"ground_truth/page-1.svg\"") != std::string::npos);
+
+    const std::string pred_svg = ReadFile(pred_svg_path);
+    const std::string gt_svg = ReadFile(gt_svg_path);
+    CHECK(pred_svg.find("verosim-role-changed") != std::string::npos);
+    CHECK(gt_svg.find("verosim-role-changed") != std::string::npos);
+    CHECK(gt_svg.find("note-L6F1") != std::string::npos);
+
+    std::filesystem::remove_all(out);
 }

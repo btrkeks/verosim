@@ -152,12 +152,49 @@ std::optional<BatchJsonlArgs> ParseBatchJsonlArgs(const std::vector<std::string>
 std::optional<VisualizeArgs> ParseVisualizeArgs(const std::vector<std::string> &args)
 {
     if (args.empty() || args[0] != "--visualize") return std::nullopt;
-    if (args.size() != 5) return std::nullopt;
+    if (args.size() != 5 && args.size() != 7) return std::nullopt;
     if (args[1].empty() || args[1][0] == '-') return std::nullopt;
     if (args[2].empty() || args[2][0] == '-') return std::nullopt;
-    if (args[3] != "--out") return std::nullopt;
-    if (args[4].empty() || args[4][0] == '-') return std::nullopt;
-    return VisualizeArgs{ .pred_path = args[1], .gt_path = args[2], .out_path = args[4] };
+
+    VisualizeArgs parsed{ .pred_path = args[1], .gt_path = args[2] };
+    bool saw_out = false;
+    bool saw_out_dir = false;
+    bool saw_output_format = false;
+    for (std::size_t i = 3; i < args.size(); i += 2) {
+        if (i + 1 >= args.size()) return std::nullopt;
+        const std::string &flag = args[i];
+        const std::string &value = args[i + 1];
+        if (value.empty() || value[0] == '-') return std::nullopt;
+        if (flag == "--out") {
+            if (saw_out) return std::nullopt;
+            saw_out = true;
+            parsed.out_path = value;
+        }
+        else if (flag == "--out-dir") {
+            if (saw_out_dir) return std::nullopt;
+            saw_out_dir = true;
+            parsed.out_dir = value;
+        }
+        else if (flag == "--output-format") {
+            if (saw_output_format) return std::nullopt;
+            saw_output_format = true;
+            parsed.output_format = value;
+        }
+        else {
+            return std::nullopt;
+        }
+    }
+
+    if (saw_out) {
+        if (saw_out_dir || saw_output_format) return std::nullopt;
+        parsed.output_kind = VisualizeArgs::OutputKind::kHtml;
+        return parsed;
+    }
+    if (saw_out_dir && saw_output_format && parsed.output_format == "svg") {
+        parsed.output_kind = VisualizeArgs::OutputKind::kSvgBundle;
+        return parsed;
+    }
+    return std::nullopt;
 }
 
 } // namespace verosim

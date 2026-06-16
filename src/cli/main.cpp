@@ -11,6 +11,7 @@
 #include "verosim/cli/dump_tree.h"
 #include "verosim/cli/list_io.h"
 #include "verosim/extraction/vrv_bridge.h"
+#include "verosim/visual/svg_bundle.h"
 #include "verosim/visual/visualize.h"
 
 namespace {
@@ -22,6 +23,8 @@ void PrintUsage(std::ostream &os)
           "                                      (--ops includes the per-edit operation list)\n"
           "       verosim --visualize <pred> <gt> --out <html> [--detail tierA|tierAB|tierAB_dir]\n"
           "                                      compare and write a side-by-side SVG HTML report\n"
+          "       verosim --visualize <pred> <gt> --out-dir <dir> --output-format svg\n"
+          "                                      compare and write raw annotated SVG pages\n"
           "       verosim --pairs <tsv> [--base-dir <dir>] [--ops]\n"
           "                                      compare every pred<TAB>gt pair in <tsv>\n"
           "                                      (JSONL, one record per pair, always exits 0)\n"
@@ -115,7 +118,18 @@ int VisualizeMain(
     const verosim::VisualizeArgs &args, const verosim::CompareCliOptions &options)
 {
     std::string error;
-    if (!verosim::VisualizePairToHtml(args.pred_path, args.gt_path, args.out_path, options, error)) {
+    if (args.output_kind == verosim::VisualizeArgs::OutputKind::kHtml) {
+        if (!verosim::VisualizePairToHtml(args.pred_path, args.gt_path, args.out_path, options, error)) {
+            std::cerr << "verosim: " << error << '\n';
+            return 1;
+        }
+        return 0;
+    }
+
+    verosim::VisualReport report;
+    verosim::SvgAssetBundle bundle;
+    if (!verosim::BuildVisualComparison(args.pred_path, args.gt_path, options, report, error)
+        || !verosim::WriteSvgAssetBundle(report, args.out_dir, bundle, error)) {
         std::cerr << "verosim: " << error << '\n';
         return 1;
     }
