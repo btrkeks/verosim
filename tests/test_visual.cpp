@@ -44,6 +44,26 @@ std::size_t CountOccurrences(const std::string &text, const std::string &needle)
 TEST_CASE("VisualPlanBuilder maps paired note edits to changed marks on both sides", "[visual]")
 {
     const SymNote pred = MakeNote("C4", Fraction(0), { .id = "pred-note" });
+    const SymNote gt = MakeNote("C4", Fraction(0), { .id = "gt-note" });
+    const EditOp op{ .name = OpName::kHeadEdit,
+        .a = OpSide::Note(&pred),
+        .b = OpSide::Note(&gt),
+        .cost = 2 };
+
+    const VisualPlan plan = BuildVisualPlan({ op });
+    REQUIRE(plan.marks.size() == 2);
+    CHECK(plan.marks[0].side == VisualSide::kPred);
+    CHECK(plan.marks[0].role == VisualRole::kChanged);
+    CHECK(plan.marks[0].target_id == "pred-note");
+    CHECK(plan.marks[0].category == "wrong note head OMR-ED");
+    CHECK(plan.marks[1].side == VisualSide::kGt);
+    CHECK(plan.marks[1].role == VisualRole::kChanged);
+    CHECK(plan.marks[1].target_id == "gt-note");
+}
+
+TEST_CASE("VisualPlanBuilder maps accidental insertion to visible accidental glyph only", "[visual]")
+{
+    const SymNote pred = MakeNote("C4", Fraction(0), { .id = "pred-note" });
     const SymNote gt = MakeNote("C4", Fraction(0), { .accid = "sharp", .id = "gt-note" });
     const EditOp op{ .name = OpName::kAccidentIns,
         .a = OpSide::Note(&pred),
@@ -54,14 +74,74 @@ TEST_CASE("VisualPlanBuilder maps paired note edits to changed marks on both sid
         .ids1 = 0 };
 
     const VisualPlan plan = BuildVisualPlan({ op });
-    REQUIRE(plan.marks.size() == 2);
-    CHECK(plan.marks[0].side == VisualSide::kPred);
+    REQUIRE(plan.marks.size() == 1);
+    CHECK(plan.marks[0].side == VisualSide::kGt);
     CHECK(plan.marks[0].role == VisualRole::kChanged);
-    CHECK(plan.marks[0].target_id == "pred-note");
+    CHECK(plan.marks[0].target_kind == VisualTargetKind::kAccidental);
+    CHECK(plan.marks[0].target_id == "accid-gt-note");
+    CHECK(plan.marks[0].fallback_id == "accid-gt-note");
     CHECK(plan.marks[0].category == "wrong accidental OMR-ED");
-    CHECK(plan.marks[1].side == VisualSide::kGt);
-    CHECK(plan.marks[1].role == VisualRole::kChanged);
-    CHECK(plan.marks[1].target_id == "gt-note");
+}
+
+TEST_CASE("VisualPlanBuilder maps accidental deletion and edit to accidental glyphs", "[visual]")
+{
+    const SymNote pred_sharp = MakeNote("C4", Fraction(0), { .accid = "sharp", .id = "pred-note" });
+    const SymNote gt_plain = MakeNote("C4", Fraction(0), { .id = "gt-note" });
+    const EditOp del{ .name = OpName::kAccidentDel,
+        .a = OpSide::Note(&pred_sharp),
+        .b = OpSide::Note(&gt_plain),
+        .cost = 1,
+        .ids_kind = EditOp::IdsKind::kPitchPair,
+        .ids0 = 0,
+        .ids1 = 0 };
+
+    const VisualPlan del_plan = BuildVisualPlan({ del });
+    REQUIRE(del_plan.marks.size() == 1);
+    CHECK(del_plan.marks[0].side == VisualSide::kPred);
+    CHECK(del_plan.marks[0].target_kind == VisualTargetKind::kAccidental);
+    CHECK(del_plan.marks[0].target_id == "accid-pred-note");
+    CHECK(del_plan.marks[0].label == "changed accidentdel | wrong accidental OMR-ED | cost 1");
+
+    const SymNote gt_flat = MakeNote("C4", Fraction(0), { .accid = "flat", .id = "gt-note" });
+    const EditOp edit{ .name = OpName::kAccidentEdit,
+        .a = OpSide::Note(&pred_sharp),
+        .b = OpSide::Note(&gt_flat),
+        .cost = 2,
+        .ids_kind = EditOp::IdsKind::kPitchPair,
+        .ids0 = 0,
+        .ids1 = 0 };
+
+    const VisualPlan edit_plan = BuildVisualPlan({ edit });
+    REQUIRE(edit_plan.marks.size() == 2);
+    CHECK(edit_plan.marks[0].side == VisualSide::kPred);
+    CHECK(edit_plan.marks[0].target_id == "accid-pred-note");
+    CHECK(edit_plan.marks[1].side == VisualSide::kGt);
+    CHECK(edit_plan.marks[1].target_id == "accid-gt-note");
+    CHECK(edit_plan.marks[1].label == "changed accidentedit | wrong accidental OMR-ED | cost 2");
+}
+
+TEST_CASE("VisualPlanBuilder targets chord member accidental IDs", "[visual]")
+{
+    SymNote pred = MakeNote("E4", Fraction(0), { .id = "chord-L13F1" });
+    pred.is_in_chord = true;
+    pred.note_idx_in_chord = 1;
+    pred.visual_id = "note-L13F1S2";
+    SymNote gt = pred;
+    gt.pitches[0].accid = "sharp";
+    const EditOp op{ .name = OpName::kAccidentIns,
+        .a = OpSide::Note(&pred),
+        .b = OpSide::Note(&gt),
+        .cost = 1,
+        .ids_kind = EditOp::IdsKind::kPitchPair,
+        .ids0 = 0,
+        .ids1 = 0 };
+
+    const VisualPlan plan = BuildVisualPlan({ op });
+    REQUIRE(plan.marks.size() == 1);
+    CHECK(plan.marks[0].side == VisualSide::kGt);
+    CHECK(plan.marks[0].target_kind == VisualTargetKind::kAccidental);
+    CHECK(plan.marks[0].target_id == "accid-L13F1S2");
+    CHECK(plan.marks[0].fallback_id == "accid-L13F1S2");
 }
 
 TEST_CASE("VisualPlanBuilder maps single-sided note and part ops", "[visual]")
@@ -325,8 +405,9 @@ TEST_CASE("VisualizePairToHtml writes a mutation report", "[visual]")
     const std::string html = ReadFile(out);
     CHECK(html.find("VeroSim OMR-NED Visualization") != std::string::npos);
     CHECK(html.find("wrong accidental OMR-ED") != std::string::npos);
-    CHECK(html.find("note-L6F1") != std::string::npos);
-    CHECK(html.find("verosim-role-changed") != std::string::npos);
+    CHECK(html.find("id=\"accid-L6F1\" class=\"accid verosim-mark") != std::string::npos);
+    CHECK(html.find("id=\"note-L6F1\" class=\"note verosim-mark") == std::string::npos);
+    CHECK(html.find("verosim-kind-accidental") != std::string::npos);
 
     std::filesystem::remove(out);
 }
@@ -390,8 +471,11 @@ TEST_CASE("WriteSvgAssetBundle writes annotated SVG pages and manifest", "[visua
     const std::string gt_svg = ReadFile(gt_svg_path);
     CHECK(pred_svg.find("verosim-mark.verosim-role-changed") != std::string::npos);
     CHECK(pred_svg.find("fill: #b97900 !important") != std::string::npos);
-    CHECK(pred_svg.find("verosim-role-changed") != std::string::npos);
-    CHECK(gt_svg.find("verosim-role-changed") != std::string::npos);
+    CHECK(pred_svg.find("id=\"accid-L6F1\" class=\"accid verosim-mark") == std::string::npos);
+    CHECK(pred_svg.find("id=\"note-L6F1\" class=\"note verosim-mark") == std::string::npos);
+    CHECK(gt_svg.find("id=\"accid-L6F1\" class=\"accid verosim-mark") != std::string::npos);
+    CHECK(gt_svg.find("id=\"note-L6F1\" class=\"note verosim-mark") == std::string::npos);
+    CHECK(gt_svg.find("verosim-kind-accidental") != std::string::npos);
     CHECK(gt_svg.find("note-L6F1") != std::string::npos);
 
     std::filesystem::remove_all(out);

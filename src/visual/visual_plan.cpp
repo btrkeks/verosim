@@ -1,6 +1,7 @@
 #include "verosim/visual/visual_plan.h"
 
 #include <string>
+#include <string_view>
 
 #include "verosim/engine/compare.h"
 #include "verosim/model/sym_score.h"
@@ -13,6 +14,46 @@ struct ElementRef {
     std::string id;
     std::string fallback_id;
 };
+
+bool IsAccidentalOp(OpName name)
+{
+    return name == OpName::kAccidentIns || name == OpName::kAccidentDel
+        || name == OpName::kAccidentEdit;
+}
+
+bool HasVisibleAccidental(const SymNote *note)
+{
+    if (note == nullptr) return false;
+    for (const SymPitch &pitch : note->pitches) {
+        if (pitch.accid != "None") return true;
+    }
+    return false;
+}
+
+std::string AccidentalIdFromNoteId(const std::string &note_id)
+{
+    constexpr std::string_view note_prefix = "note-";
+    if (note_id.rfind(note_prefix, 0) == 0) {
+        return "accid-" + note_id.substr(note_prefix.size());
+    }
+    return "accid-" + note_id;
+}
+
+bool AccidentalRefFromSide(const OpSide &side, ElementRef &ref)
+{
+    if (side.kind != OpSide::Kind::kNote || side.note == nullptr || side.note->vrv_id.empty()) {
+        return false;
+    }
+    if (!HasVisibleAccidental(side.note)) return false;
+
+    const std::string note_id
+        = side.note->visual_id.empty() ? side.note->vrv_id : side.note->visual_id;
+    const std::string accid_id = AccidentalIdFromNoteId(note_id);
+    ref = { .kind = VisualTargetKind::kAccidental,
+        .id = accid_id,
+        .fallback_id = accid_id };
+    return true;
+}
 
 bool RefFromSide(const OpSide &side, ElementRef &ref)
 {
@@ -104,6 +145,20 @@ VisualPlan BuildVisualPlan(const std::vector<EditOp> &ops)
         }
 
         ElementRef ref;
+        if (IsAccidentalOp(op.name)) {
+            if ((op.name == OpName::kAccidentDel || op.name == OpName::kAccidentEdit)
+                && AccidentalRefFromSide(op.a, ref)) {
+                AddMark(plan, VisualSide::kPred, VisualRole::kChanged, ref, op_name, category,
+                    op.cost);
+            }
+            if ((op.name == OpName::kAccidentIns || op.name == OpName::kAccidentEdit)
+                && AccidentalRefFromSide(op.b, ref)) {
+                AddMark(plan, VisualSide::kGt, VisualRole::kChanged, ref, op_name, category,
+                    op.cost);
+            }
+            continue;
+        }
+
         if (op.a.kind == OpSide::Kind::kNone) {
             if (RefFromSide(op.b, ref)) {
                 AddMark(plan, VisualSide::kGt, VisualRole::kInserted, ref, op_name, category, op.cost);

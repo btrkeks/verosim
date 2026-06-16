@@ -8,7 +8,7 @@ namespace verosim {
 
 enum class VisualSide { kPred, kGt };
 enum class VisualRole { kInserted, kDeleted, kChanged };
-enum class VisualTargetKind { kNote, kExtra, kMeasure };
+enum class VisualTargetKind { kNote, kExtra, kMeasure, kAccidental };
 
 struct VisualMark {
     VisualSide side = VisualSide::kPred;
