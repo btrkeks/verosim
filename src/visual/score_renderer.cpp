@@ -10,12 +10,18 @@
 namespace verosim {
 namespace {
 
-const char *RenderOptionsJson(bool include_bounding_boxes)
+std::string RenderOptionsJson(bool include_bounding_boxes, const std::string &breaks)
 {
+    std::ostringstream out;
+    out << R"({"breaks":")" << breaks
+        << R"(","header":"none","footer":"none","adjustPageHeight":true,"adjustPageWidth":true,"svgViewBox":true,"pageWidth":2400,"noJustification":true)";
     if (include_bounding_boxes) {
-        return R"({"breaks":"auto","header":"none","footer":"none","adjustPageHeight":true,"adjustPageWidth":true,"svgViewBox":true,"pageWidth":2400,"noJustification":true,"svgBoundingBoxes":true,"svgContentBoundingBoxes":true})";
+        out << R"(,"svgBoundingBoxes":true,"svgContentBoundingBoxes":true})";
     }
-    return R"({"breaks":"auto","header":"none","footer":"none","adjustPageHeight":true,"adjustPageWidth":true,"svgViewBox":true,"pageWidth":2400,"noJustification":true,"svgBoundingBoxes":false,"svgContentBoundingBoxes":false})";
+    else {
+        out << R"(,"svgBoundingBoxes":false,"svgContentBoundingBoxes":false})";
+    }
+    return out.str();
 }
 
 bool HasClassToken(const std::string &classes, const std::string &token)
@@ -83,7 +89,7 @@ void AppendOverlapWarnings(const std::string &svg, int page_no, std::vector<std:
 bool ConfigureScoreRenderOptions(
     VrvBridge &bridge, bool include_bounding_boxes, std::string &error)
 {
-    if (!bridge.SetOptions(RenderOptionsJson(include_bounding_boxes))) {
+    if (!bridge.SetOptions(RenderOptionsJson(include_bounding_boxes, "encoded"))) {
         error = include_bounding_boxes ? "failed to configure Verovio bounding-box rendering options"
                                        : "failed to configure Verovio rendering options";
         return false;

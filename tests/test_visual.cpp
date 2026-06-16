@@ -8,6 +8,8 @@
 
 #include "engine_fixtures.h"
 #include "verosim/engine/edit_op.h"
+#include "verosim/extraction/vrv_bridge.h"
+#include "verosim/visual/score_renderer.h"
 #include "verosim/visual/svg_annotator.h"
 #include "verosim/visual/svg_bundle.h"
 #include "verosim/visual/svg_overlap.h"
@@ -25,6 +27,16 @@ std::string ReadFile(const std::filesystem::path &path)
     std::ostringstream text;
     text << in.rdbuf();
     return text.str();
+}
+
+std::size_t CountOccurrences(const std::string &text, const std::string &needle)
+{
+    std::size_t count = 0;
+    for (std::size_t pos = text.find(needle); pos != std::string::npos;
+         pos = text.find(needle, pos + needle.size())) {
+        ++count;
+    }
+    return count;
 }
 
 } // namespace
@@ -247,6 +259,55 @@ TEST_CASE("SvgOverlap ignores expected same-event notehead sharing", "[visual]")
     REQUIRE(result.parse_ok);
     CHECK(result.summary.candidate_count == 6);
     CHECK(result.summary.overlap_count == 0);
+}
+
+TEST_CASE("RenderScoreToSvgPages honors encoded Humdrum line breaks", "[visual]")
+{
+    const std::filesystem::path path = std::filesystem::temp_directory_path()
+        / "verosim-encoded-linebreak-test.krn";
+    {
+        std::ofstream out(path);
+        out << R"KERN(**kern
+*clefG2
+*k[]
+*M4/4
+=1
+4c
+4d
+4e
+4f
+=2
+4g
+4a
+4b
+4cc
+!!LO:LB:g=original
+=3
+4cc
+4b
+4a
+4g
+=4
+4f
+4e
+4d
+4c
+==
+*-
+)KERN";
+    }
+
+    VrvBridge bridge;
+    REQUIRE(bridge.LoadScoreFile(path.string()));
+
+    RenderedScore rendered;
+    std::string error;
+    REQUIRE(RenderScoreToSvgPages(bridge, rendered, error));
+    CHECK(error.empty());
+    REQUIRE(rendered.pages.size() == 1);
+    CHECK(CountOccurrences(rendered.pages[0].svg, "class=\"system\"") == 2);
+
+    std::filesystem::remove(path);
 }
 
 TEST_CASE("VisualizePairToHtml writes a mutation report", "[visual]")
