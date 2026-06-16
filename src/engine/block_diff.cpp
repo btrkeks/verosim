@@ -15,9 +15,10 @@ enum class Choice : std::uint8_t { kDelBar, kInsBar, kEditBar };
 // editbar inside diff (comparison.py:444-486): notes set distance then extras
 // set distance, ops in that order (notes first; lyrics are excluded in v1).
 DiffResult InsideBarDiff(const SymMeasure &orig, const SymMeasure &comp,
-    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep)
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep,
+    const CompareOptions &options)
 {
-    DiffResult result = NotesSetDistance(orig, comp, orig_prep, comp_prep);
+    DiffResult result = NotesSetDistance(orig, comp, orig_prep, comp_prep, options);
     DiffResult extras = ExtrasSetDistance(orig, comp, orig_prep, comp_prep);
     result.cost += extras.cost;
     result.ops.insert(result.ops.end(), std::make_move_iterator(extras.ops.begin()),
@@ -28,7 +29,8 @@ DiffResult InsideBarDiff(const SymMeasure &orig, const SymMeasure &comp,
 } // namespace
 
 DiffResult BlockDiffLin(const SymPart &orig_part, const PreparedPart &orig_prep,
-    const SymPart &comp_part, const PreparedPart &comp_prep, const NcsBlock &block)
+    const SymPart &comp_part, const PreparedPart &comp_prep, const NcsBlock &block,
+    const CompareOptions &options)
 {
     // Bottom-up suffix DP replacing the memoized recursion; the Python memo
     // keys (reprs with unique measure ids) are a bijection of (i, j) within
@@ -91,7 +93,7 @@ DiffResult BlockDiffLin(const SymPart &orig_part, const PreparedPart &orig_prep,
                 // variant or a content-keyed inside-COST cache (never op
                 // lists — see compare.cpp) is the performance lever for pathological
                 // pairs.
-                inside = InsideBarDiff(orig_measure(i), comp_measure(j), orig_pm(i), comp_pm(j)).cost;
+                inside = InsideBarDiff(orig_measure(i), comp_measure(j), orig_pm(i), comp_pm(j), options).cost;
             }
             const long edit = cost_at(i + 1, j + 1) + inside;
             if (edit < best) {
@@ -127,7 +129,7 @@ DiffResult BlockDiffLin(const SymPart &orig_part, const PreparedPart &orig_prep,
                 break;
             case Choice::kEditBar:
                 if (orig_pm(i).content_id != comp_pm(j).content_id) {
-                    group = InsideBarDiff(orig_measure(i), comp_measure(j), orig_pm(i), comp_pm(j))
+                    group = InsideBarDiff(orig_measure(i), comp_measure(j), orig_pm(i), comp_pm(j), options)
                                 .ops;
                 }
                 ++i;

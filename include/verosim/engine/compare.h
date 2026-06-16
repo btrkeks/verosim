@@ -1,13 +1,27 @@
 #pragma once
 
 #include <map>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "verosim/engine/edit_op.h"
 #include "verosim/model/sym_score.h"
 
 namespace verosim {
+
+enum class NotePositionPolicy {
+    kVisualEventOrder,
+    kMusicalOnset,
+};
+
+std::string_view NotePositionPolicyName(NotePositionPolicy policy);
+std::optional<NotePositionPolicy> ParseNotePositionPolicy(std::string_view text);
+
+struct CompareOptions {
+    NotePositionPolicy note_position_policy = NotePositionPolicy::kVisualEventOrder;
+};
 
 struct CompareResult {
     std::vector<EditOp> op_list; // ops point into pred/gt — they must outlive this
@@ -16,7 +30,8 @@ struct CompareResult {
 
 // Comparison.annotated_scores_diff (comparison.py:1578-1674) at v1 tiers:
 // pred = score1/original, gt = score2/compare_to (the oracle convention).
-CompareResult CompareScores(const SymScore &pred, const SymScore &gt);
+CompareResult CompareScores(
+    const SymScore &pred, const SymScore &gt, const CompareOptions &options = CompareOptions());
 
 // Visualization.get_edit_distances_dict (visualization.py:3182-3209): op
 // names rewritten by extra kind, bucketed under musicdiff's header names,

@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
+#include <iterator>
 #include <numeric>
 #include <utility>
+#include <vector>
 
 #include "verosim/engine/note_diff.h"
 
@@ -25,6 +28,8 @@ bool AreDifferentEnough(const std::optional<Fraction> &a, const std::optional<Fr
 }
 
 namespace {
+
+enum class SeqChoice : std::uint8_t { kDel, kIns, kEdit };
 
 // Shared greedy pairing skeleton of the two set distances: for each original
 // element scan the not-yet-paired compare_to elements in order; the first one
@@ -125,19 +130,58 @@ long StringsNdiffDistance(const std::string &a, const std::string &b)
     return distance;
 }
 
-} // namespace
+EditOp NoteDelOp(const SymNote &n)
+{
+    return EditOp{ .name = OpName::kNoteDel,
+        .a = OpSide::Note(&n),
+        .b = OpSide::None(),
+        .cost = n.notation_size(),
+        .ids_kind = EditOp::IdsKind::kChordIdx,
+        .ids0 = n.note_idx_in_chord };
+}
 
-DiffResult NotesSetDistance(const SymMeasure &orig, const SymMeasure &comp,
+EditOp NoteInsOp(const SymNote &n)
+{
+    return EditOp{ .name = OpName::kNoteIns,
+        .a = OpSide::None(),
+        .b = OpSide::Note(&n),
+        .cost = n.notation_size(),
+        .ids_kind = EditOp::IdsKind::kChordIdx,
+        .ids0 = n.note_idx_in_chord };
+}
+
+bool SameVisualPitchAndGrace(const SymNote &orig, const SymNote &comp)
+{
+    // visual pitch position only (accidental ignored, so an accidental
+    // change is a pitch edit, not a note remove/insert)
+    return orig.pitches[0].step_octave == comp.pitches[0].step_octave
+        && orig.note_is_grace == comp.note_is_grace;
+}
+
+long NotePairCost(const SymMeasure &orig, const SymMeasure &comp,
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep, int o, int c)
+{
+    if (orig_prep.note_str_ids[o] == comp_prep.note_str_ids[c]) return 0;
+    return AnnotatedNoteDiff(orig.notes[o], comp.notes[c]).cost;
+}
+
+void AppendNotePairOps(DiffResult &result, const SymMeasure &orig, const SymMeasure &comp,
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep, int o, int c)
+{
+    if (orig_prep.note_str_ids[o] == comp_prep.note_str_ids[c]) return;
+    DiffResult sub = AnnotatedNoteDiff(orig.notes[o], comp.notes[c]);
+    result.ops.insert(result.ops.end(), std::make_move_iterator(sub.ops.begin()),
+        std::make_move_iterator(sub.ops.end()));
+}
+
+DiffResult NotesSetDistanceMusical(const SymMeasure &orig, const SymMeasure &comp,
     const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep)
 {
     const auto required = [&](int o, int c) {
         const SymNote &on = orig.notes[o];
         const SymNote &cn = comp.notes[c];
-        // visual pitch position only (accidental ignored, so an accidental
-        // change is a pitch edit, not a note remove/insert)
-        if (on.pitches[0].step_octave != cn.pitches[0].step_octave) return false;
-        if (AreDifferentEnough(on.note_offset, cn.note_offset)) return false;
-        return on.note_is_grace == cn.note_is_grace;
+        if (!SameVisualPitchAndGrace(on, cn)) return false;
+        return !AreDifferentEnough(on.note_offset, cn.note_offset);
     };
     const auto preferred = [&](int o, int c) {
         const SymNote &on = orig.notes[o];
@@ -152,32 +196,104 @@ DiffResult NotesSetDistance(const SymMeasure &orig, const SymMeasure &comp,
         const SymNote &n = orig.notes[o];
         const long size = n.notation_size();
         result.cost += size;
-        result.ops.push_back(EditOp{ .name = OpName::kNoteDel,
-            .a = OpSide::Note(&n),
-            .b = OpSide::None(),
-            .cost = size,
-            .ids_kind = EditOp::IdsKind::kChordIdx,
-            .ids0 = n.note_idx_in_chord });
+        result.ops.push_back(NoteDelOp(n));
     }
     for (const int c : pairing.unpaired_comp) {
         const SymNote &n = comp.notes[c];
         const long size = n.notation_size();
         result.cost += size;
-        result.ops.push_back(EditOp{ .name = OpName::kNoteIns,
-            .a = OpSide::None(),
-            .b = OpSide::Note(&n),
-            .cost = size,
-            .ids_kind = EditOp::IdsKind::kChordIdx,
-            .ids0 = n.note_idx_in_chord });
+        result.ops.push_back(NoteInsOp(n));
     }
     for (const auto &[o, c] : pairing.paired) {
-        if (orig_prep.note_str_ids[o] == comp_prep.note_str_ids[c]) continue; // AnnNote.__eq__
-        DiffResult sub = AnnotatedNoteDiff(orig.notes[o], comp.notes[c]);
-        result.cost += sub.cost;
-        result.ops.insert(result.ops.end(), std::make_move_iterator(sub.ops.begin()),
-            std::make_move_iterator(sub.ops.end()));
+        const long cost = NotePairCost(orig, comp, orig_prep, comp_prep, o, c);
+        result.cost += cost;
+        AppendNotePairOps(result, orig, comp, orig_prep, comp_prep, o, c);
     }
     return result;
+}
+
+DiffResult NotesSetDistanceVisual(const SymMeasure &orig, const SymMeasure &comp,
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep)
+{
+    const int m = static_cast<int>(orig.notes.size());
+    const int n = static_cast<int>(comp.notes.size());
+    std::vector<long> cost(static_cast<std::size_t>(m + 1) * (n + 1), 0);
+    std::vector<SeqChoice> choice(
+        static_cast<std::size_t>(m + 1) * (n + 1), SeqChoice::kEdit);
+    const auto cost_at = [&](int i, int j) -> long & {
+        return cost[static_cast<std::size_t>(i) * (n + 1) + j];
+    };
+    const auto choice_at = [&](int i, int j) -> SeqChoice & {
+        return choice[static_cast<std::size_t>(i) * (n + 1) + j];
+    };
+
+    for (int i = m - 1; i >= 0; --i) {
+        cost_at(i, n) = cost_at(i + 1, n) + orig.notes[i].notation_size();
+        choice_at(i, n) = SeqChoice::kDel;
+    }
+    for (int j = n - 1; j >= 0; --j) {
+        cost_at(m, j) = cost_at(m, j + 1) + comp.notes[j].notation_size();
+        choice_at(m, j) = SeqChoice::kIns;
+    }
+    for (int i = m - 1; i >= 0; --i) {
+        for (int j = n - 1; j >= 0; --j) {
+            long best = cost_at(i + 1, j) + orig.notes[i].notation_size();
+            SeqChoice pick = SeqChoice::kDel;
+            const long ins = cost_at(i, j + 1) + comp.notes[j].notation_size();
+            if (ins < best) {
+                best = ins;
+                pick = SeqChoice::kIns;
+            }
+            if (SameVisualPitchAndGrace(orig.notes[i], comp.notes[j])) {
+                const long edit = cost_at(i + 1, j + 1)
+                    + NotePairCost(orig, comp, orig_prep, comp_prep, i, j);
+                if (edit < best) {
+                    best = edit;
+                    pick = SeqChoice::kEdit;
+                }
+            }
+            cost_at(i, j) = best;
+            choice_at(i, j) = pick;
+        }
+    }
+
+    DiffResult result;
+    result.cost = cost_at(0, 0);
+    int i = 0;
+    int j = 0;
+    while (i < m || j < n) {
+        switch (choice_at(i, j)) {
+            case SeqChoice::kDel:
+                result.ops.push_back(NoteDelOp(orig.notes[i]));
+                ++i;
+                break;
+            case SeqChoice::kIns:
+                result.ops.push_back(NoteInsOp(comp.notes[j]));
+                ++j;
+                break;
+            case SeqChoice::kEdit:
+                AppendNotePairOps(result, orig, comp, orig_prep, comp_prep, i, j);
+                ++i;
+                ++j;
+                break;
+        }
+    }
+    return result;
+}
+
+} // namespace
+
+DiffResult NotesSetDistance(const SymMeasure &orig, const SymMeasure &comp,
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep,
+    const CompareOptions &options)
+{
+    switch (options.note_position_policy) {
+        case NotePositionPolicy::kMusicalOnset:
+            return NotesSetDistanceMusical(orig, comp, orig_prep, comp_prep);
+        case NotePositionPolicy::kVisualEventOrder:
+            return NotesSetDistanceVisual(orig, comp, orig_prep, comp_prep);
+    }
+    return NotesSetDistanceVisual(orig, comp, orig_prep, comp_prep);
 }
 
 DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,

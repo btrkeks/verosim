@@ -30,6 +30,20 @@ bool StripCompareOptions(
             args.erase(args.begin() + static_cast<std::ptrdiff_t>(i),
                 args.begin() + static_cast<std::ptrdiff_t>(i + 2));
         }
+        else if (args[i] == "--note-position") {
+            if (i + 1 >= args.size()) {
+                error = "--note-position requires visual or musical";
+                return false;
+            }
+            const std::optional<NotePositionPolicy> policy = ParseNotePositionPolicy(args[i + 1]);
+            if (!policy.has_value()) {
+                error = "unknown note position " + args[i + 1];
+                return false;
+            }
+            options.note_position_policy = *policy;
+            args.erase(args.begin() + static_cast<std::ptrdiff_t>(i),
+                args.begin() + static_cast<std::ptrdiff_t>(i + 2));
+        }
         else {
             ++i;
         }

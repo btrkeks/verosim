@@ -14,6 +14,11 @@ namespace verosim {
 
 namespace {
 
+CompareOptions EngineCompareOptions(const CompareCliOptions &options)
+{
+    return CompareOptions{ .note_position_policy = options.note_position_policy };
+}
+
 // Mirrors oracle.py:_serialize_op_side {type, repr, ...}: enough identity for
 // op-level triage diffs against the stored oracle edit_ops. The note repr is
 // the byte-compatible SymNote::repr().
@@ -137,7 +142,7 @@ bool WriteComparisonJson(const LoadedScore &pred, const LoadedScore &gt,
         return false;
     }
 
-    const CompareResult result = CompareScores(pred.score, gt.score);
+    const CompareResult result = CompareScores(pred.score, gt.score, EngineCompareOptions(options));
     const long n_pred = pred.score.notation_size();
     const long n_gt = gt.score.notation_size();
     const std::map<std::string, long> dict = EditDistancesDict(result.op_list);

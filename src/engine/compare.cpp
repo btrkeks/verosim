@@ -1,6 +1,7 @@
 #include "verosim/engine/compare.h"
 
 #include <iterator>
+#include <vector>
 
 #include "verosim/engine/block_diff.h"
 #include "verosim/engine/interner.h"
@@ -19,6 +20,66 @@
 // measures at hand.
 
 namespace verosim {
+
+namespace {
+
+std::vector<NcsBlock> PositionalNonCommonSubsequences(
+    const std::vector<std::int32_t> &original_ids, const std::vector<std::int32_t> &compare_to_ids)
+{
+    std::vector<NcsBlock> blocks;
+    const std::size_t shared = std::min(original_ids.size(), compare_to_ids.size());
+    std::size_t i = 0;
+    bool last_block_reached_shared_end = false;
+    while (i < shared) {
+        if (original_ids[i] == compare_to_ids[i]) {
+            last_block_reached_shared_end = false;
+            ++i;
+            continue;
+        }
+        NcsBlock block;
+        while (i < shared && original_ids[i] != compare_to_ids[i]) {
+            block.original.push_back(static_cast<int>(i));
+            block.compare_to.push_back(static_cast<int>(i));
+            ++i;
+        }
+        last_block_reached_shared_end = i == shared;
+        blocks.push_back(std::move(block));
+    }
+
+    if (i < original_ids.size() || i < compare_to_ids.size()) {
+        NcsBlock tail;
+        for (std::size_t o = i; o < original_ids.size(); ++o) {
+            tail.original.push_back(static_cast<int>(o));
+        }
+        for (std::size_t c = i; c < compare_to_ids.size(); ++c) {
+            tail.compare_to.push_back(static_cast<int>(c));
+        }
+        if (last_block_reached_shared_end && !blocks.empty()) {
+            blocks.back().original.insert(
+                blocks.back().original.end(), tail.original.begin(), tail.original.end());
+            blocks.back().compare_to.insert(
+                blocks.back().compare_to.end(), tail.compare_to.begin(), tail.compare_to.end());
+        }
+        else {
+            blocks.push_back(std::move(tail));
+        }
+    }
+
+    return blocks;
+}
+
+std::vector<NcsBlock> MeasureBlocks(const std::vector<std::int32_t> &pred_ids,
+    const std::vector<std::int32_t> &gt_ids, const CompareOptions &options)
+{
+    switch (options.note_position_policy) {
+        case NotePositionPolicy::kMusicalOnset: return NonCommonSubsequences(pred_ids, gt_ids);
+        case NotePositionPolicy::kVisualEventOrder:
+            return PositionalNonCommonSubsequences(pred_ids, gt_ids);
+    }
+    return PositionalNonCommonSubsequences(pred_ids, gt_ids);
+}
+
+} // namespace
 
 std::string_view OpNameStr(OpName name)
 {
@@ -70,7 +131,23 @@ std::string_view OpNameStr(OpName name)
     return "?";
 }
 
-CompareResult CompareScores(const SymScore &pred, const SymScore &gt)
+std::string_view NotePositionPolicyName(NotePositionPolicy policy)
+{
+    switch (policy) {
+        case NotePositionPolicy::kVisualEventOrder: return "visual";
+        case NotePositionPolicy::kMusicalOnset: return "musical";
+    }
+    return "?";
+}
+
+std::optional<NotePositionPolicy> ParseNotePositionPolicy(std::string_view text)
+{
+    if (text == "visual") return NotePositionPolicy::kVisualEventOrder;
+    if (text == "musical") return NotePositionPolicy::kMusicalOnset;
+    return std::nullopt;
+}
+
+CompareResult CompareScores(const SymScore &pred, const SymScore &gt, const CompareOptions &options)
 {
     StringInterner interner; // shared: content equality across scores == id equality
     const PreparedScore pred_prep = PrepareScore(pred, interner);
@@ -107,9 +184,9 @@ CompareResult CompareScores(const SymScore &pred, const SymScore &gt)
         gt_ids.reserve(gt_part.measures.size());
         for (const PreparedMeasure &m : gt_part.measures) gt_ids.push_back(m.content_id);
 
-        for (const NcsBlock &block : NonCommonSubsequences(pred_ids, gt_ids)) {
+        for (const NcsBlock &block : MeasureBlocks(pred_ids, gt_ids, options)) {
             DiffResult block_diff
-                = BlockDiffLin(pred.parts[p], pred_part, gt.parts[p], gt_part, block);
+                = BlockDiffLin(pred.parts[p], pred_part, gt.parts[p], gt_part, block, options);
             result.cost += block_diff.cost;
             result.op_list.insert(result.op_list.end(),
                 std::make_move_iterator(block_diff.ops.begin()),

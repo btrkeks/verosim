@@ -17,6 +17,11 @@
 namespace verosim {
 namespace {
 
+CompareOptions EngineCompareOptions(const CompareCliOptions &options)
+{
+    return CompareOptions{ .note_position_policy = options.note_position_policy };
+}
+
 struct LoadedVisualScore {
     SymScore score;
     std::vector<std::string> warnings;
@@ -111,7 +116,7 @@ bool BuildVisualComparison(const std::string &pred_path, const std::string &gt_p
     if (!LoadAndExtractVisualScore(pred_bridge, pred_path, extract_options, pred, error)) return false;
     if (!LoadAndExtractVisualScore(gt_bridge, gt_path, extract_options, gt, error)) return false;
 
-    const CompareResult compare = CompareScores(pred.score, gt.score);
+    const CompareResult compare = CompareScores(pred.score, gt.score, EngineCompareOptions(options));
     const long n_pred = pred.score.notation_size();
     const long n_gt = gt.score.notation_size();
     const std::map<std::string, long> edit_distances = EditDistancesDict(compare.op_list);

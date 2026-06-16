@@ -19,9 +19,11 @@ namespace {
 void PrintUsage(std::ostream &os)
 {
     os << "usage: verosim <pred> <gt> [--ops] [--detail tierA|tierAB|tierAB_dir]\n"
+          "                                      [--note-position visual|musical]\n"
           "                                      compare two scores, OMR-NED as JSON\n"
           "                                      (--ops includes the per-edit operation list)\n"
           "       verosim --visualize <pred> <gt> --out <html> [--detail tierA|tierAB|tierAB_dir]\n"
+          "                                      [--note-position visual|musical]\n"
           "                                      compare and write a side-by-side SVG HTML report\n"
           "       verosim --visualize <pred> <gt> --out-dir <dir> --output-format svg\n"
           "                                      compare and write raw annotated SVG pages\n"
@@ -203,7 +205,7 @@ int main(int argc, char **argv)
         PrintUsage(std::cout);
         return 0;
     }
-    // --ops and --detail modify the compare modes only; strip before dispatch.
+    // Global comparison options modify the compare modes only; strip before dispatch.
     verosim::CompareCliOptions compareOptions;
     std::string parseError;
     if (!verosim::StripCompareOptions(args, compareOptions, parseError)) {

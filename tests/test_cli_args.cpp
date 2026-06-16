@@ -28,27 +28,40 @@ TEST_CASE("DetailTier helpers map the public tier names", "[cli]")
     CHECK_FALSE(DetailIncludesDirections(DetailTier::kTierAB));
     CHECK(DetailIncludesTierB(DetailTier::kTierABDir));
     CHECK(DetailIncludesDirections(DetailTier::kTierABDir));
+
+    REQUIRE(ParseNotePositionPolicy("visual") == NotePositionPolicy::kVisualEventOrder);
+    REQUIRE(ParseNotePositionPolicy("musical") == NotePositionPolicy::kMusicalOnset);
+    CHECK(NotePositionPolicyName(NotePositionPolicy::kVisualEventOrder) == "visual");
+    CHECK_FALSE(ParseNotePositionPolicy("rhythmic").has_value());
 }
 
 TEST_CASE("StripCompareOptions parses detail and ops without changing dispatch args", "[cli]")
 {
     CompareCliOptions options;
-    std::vector<std::string> args{ "pred.krn", "gt.krn", "--ops", "--detail", "tierAB_dir" };
+    std::vector<std::string> args{ "pred.krn", "gt.krn", "--ops", "--detail", "tierAB_dir",
+        "--note-position", "musical" };
     std::string error;
 
     REQUIRE(StripCompareOptions(args, options, error));
     CHECK(options.emit_ops);
     CHECK(options.detail == DetailTier::kTierABDir);
+    CHECK(options.note_position_policy == NotePositionPolicy::kMusicalOnset);
     CHECK(args == std::vector<std::string>{ "pred.krn", "gt.krn" });
 }
 
-TEST_CASE("Compare detail defaults to tierAB and rejects unknown tiers", "[cli]")
+TEST_CASE("Compare options default to tierAB visual and reject unknown values", "[cli]")
 {
     CompareCliOptions options;
     CHECK(options.detail == DetailTier::kTierAB);
+    CHECK(options.note_position_policy == NotePositionPolicy::kVisualEventOrder);
 
     std::vector<std::string> args{ "pred.krn", "gt.krn", "--detail", "bogus" };
     std::string error;
+    CHECK_FALSE(StripCompareOptions(args, options, error));
+    CHECK_FALSE(error.empty());
+
+    args = { "pred.krn", "gt.krn", "--note-position", "bogus" };
+    error.clear();
     CHECK_FALSE(StripCompareOptions(args, options, error));
     CHECK_FALSE(error.empty());
 }

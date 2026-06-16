@@ -69,7 +69,8 @@ TEST_CASE("Tier A+B mutation cases produce the analytically expected cost", "[mu
             // the two loads.
             const SymScore pred = ExtractFile(bridge, dir + "/" + c.get<jsonxx::String>("mutated"));
             const SymScore gt = ExtractFile(bridge, dir + "/" + c.get<jsonxx::String>("base"));
-            const CompareResult result = CompareScores(pred, gt);
+            const CompareResult result = CompareScores(pred, gt,
+                CompareOptions{ .note_position_policy = NotePositionPolicy::kMusicalOnset });
 
             CHECK(result.cost == static_cast<long>(c.get<jsonxx::Number>("expected_cost")));
 

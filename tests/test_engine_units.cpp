@@ -35,7 +35,13 @@ std::map<std::string, int> OpMultiset(const std::vector<EditOp> &ops)
     return counts;
 }
 
-DiffResult MeasureDiff(const SymMeasure &a, const SymMeasure &b)
+CompareOptions MusicalOptions()
+{
+    return CompareOptions{ .note_position_policy = NotePositionPolicy::kMusicalOnset };
+}
+
+DiffResult MeasureDiff(
+    const SymMeasure &a, const SymMeasure &b, const CompareOptions &options = CompareOptions())
 {
     StringInterner interner;
     const SymScore sa = MakeScore({ { a } });
@@ -43,7 +49,7 @@ DiffResult MeasureDiff(const SymMeasure &a, const SymMeasure &b)
     const PreparedScore pa = PrepareScore(sa, interner);
     const PreparedScore pb = PrepareScore(sb, interner);
     DiffResult notes = NotesSetDistance(sa.parts[0].bar_list[0], sb.parts[0].bar_list[0],
-        pa.parts[0].measures[0], pb.parts[0].measures[0]);
+        pa.parts[0].measures[0], pb.parts[0].measures[0], options);
     DiffResult extras = ExtrasSetDistance(sa.parts[0].bar_list[0], sb.parts[0].bar_list[0],
         pa.parts[0].measures[0], pb.parts[0].measures[0]);
     notes.cost += extras.cost;
@@ -193,7 +199,13 @@ TEST_CASE("notes_set_distance pairing", "[engine]")
     {
         const SymMeasure m1 = MakeMeasure({ MakeNote("C4", Fraction(0)) });
         const SymMeasure m2 = MakeMeasure({ MakeNote("C4", Fraction(1, 2)) });
-        CHECK(MeasureDiff(m1, m2).cost == 4);
+        CHECK(MeasureDiff(m1, m2, MusicalOptions()).cost == 4);
+    }
+    SECTION("visual mode pairs same notes across offset shifts")
+    {
+        const SymMeasure m1 = MakeMeasure({ MakeNote("C4", Fraction(0)) });
+        const SymMeasure m2 = MakeMeasure({ MakeNote("C4", Fraction(1, 2)) });
+        CHECK(MeasureDiff(m1, m2).cost == 0);
     }
     SECTION("graceness mismatch unpairs")
     {
@@ -216,16 +228,31 @@ TEST_CASE("notes_set_distance pairing", "[engine]")
             MakeNote("C4", Fraction(0), { .head = Fraction(2), .dur_type = "half", .id = "c0" }),
             MakeNote("C4", Fraction(0), { .dur_type = "quarter", .id = "c1" }),
         });
-        CHECK(MeasureDiff(orig, comp).cost == 0); // cross-paired exactly
+        CHECK(MeasureDiff(orig, comp, MusicalOptions()).cost == 0); // cross-paired exactly
     }
     SECTION("fallback pairing produces a duration sub-diff")
     {
         const SymMeasure orig = MakeMeasure({ MakeNote("C4", Fraction(0)) });
         const SymMeasure comp = MakeMeasure(
             { MakeNote("C4", Fraction(0), { .head = Fraction(2), .dur_type = "half" }) });
-        const DiffResult r = MeasureDiff(orig, comp);
+        const DiffResult r = MeasureDiff(orig, comp, MusicalOptions());
         CHECK(r.cost == 2); // headedit via the fallback pair, not del+ins (4)
         CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "headedit", 1 } });
+    }
+    SECTION("visual sequence alignment skips an inserted note and matches later notes")
+    {
+        const SymMeasure orig = MakeMeasure({
+            MakeNote("C4", Fraction(0)),
+            MakeNote("D4", Fraction(1)),
+        });
+        const SymMeasure comp = MakeMeasure({
+            MakeNote("E4", Fraction(0)),
+            MakeNote("C4", Fraction(1, 2)),
+            MakeNote("D4", Fraction(3, 2)),
+        });
+        const DiffResult r = MeasureDiff(orig, comp);
+        CHECK(r.cost == 2);
+        CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "noteins", 1 } });
     }
 }
 
@@ -337,6 +364,59 @@ TEST_CASE("block diff prefers editbar when strictly cheaper", "[engine]")
     CHECK(r.cost == 4);
     CHECK(OpMultiset(r.op_list) == std::map<std::string, int>{ { "notedel", 1 },
               { "noteins", 1 } });
+}
+
+TEST_CASE("visual compare keeps repeated measures positionally aligned", "[engine]")
+{
+    const auto plain = [](const std::string &pitch) {
+        return MakeMeasure({ MakeNote(pitch, Fraction(0)) });
+    };
+    const auto dotted = [](const std::string &pitch) {
+        return MakeMeasure({ MakeNote(pitch, Fraction(0), { .dots = 1 }) });
+    };
+
+    const SymScore pred = MakeScore({ {
+        dotted("C4"),
+        dotted("D4"),
+        dotted("E4"),
+        dotted("F4"),
+        plain("C4"),
+        plain("A4"),
+        plain("B4"),
+        plain("G4"),
+    } });
+    const SymScore gt = MakeScore({ {
+        plain("C4"),
+        plain("D4"),
+        plain("E4"),
+        plain("F4"),
+        dotted("C4"),
+        plain("A4"),
+        plain("B4"),
+        plain("G4"),
+    } });
+
+    const CompareResult visual = CompareScores(pred, gt);
+    CHECK(visual.cost == 5);
+    CHECK(OpMultiset(visual.op_list)
+        == std::map<std::string, int>{ { "dotdel", 4 }, { "dotins", 1 } });
+
+    const CompareResult musical = CompareScores(pred, gt, MusicalOptions());
+    CHECK(musical.cost > visual.cost);
+}
+
+TEST_CASE("visual compare keeps whole-measure insertion tails in one block", "[engine]")
+{
+    const auto plain = [](const std::string &pitch) {
+        return MakeMeasure({ MakeNote(pitch, Fraction(0)) });
+    };
+
+    const SymScore pred = MakeScore({ { plain("C4"), plain("D4"), plain("E4") } });
+    const SymScore gt = MakeScore({ { plain("C4"), plain("F4"), plain("D4"), plain("E4") } });
+
+    const CompareResult visual = CompareScores(pred, gt);
+    CHECK(visual.cost == 2);
+    CHECK(OpMultiset(visual.op_list) == std::map<std::string, int>{ { "insbar", 1 } });
 }
 
 TEST_CASE("compare_scores part handling", "[engine]")

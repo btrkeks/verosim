@@ -1,5 +1,6 @@
 #pragma once
 
+#include "verosim/engine/compare.h"
 #include "verosim/engine/edit_op.h"
 #include "verosim/engine/interner.h"
 #include "verosim/engine/myers.h"
@@ -11,6 +12,7 @@ namespace verosim {
 // subsequence of measures: suffix Levenshtein with measure notation sizes as
 // ins/del costs and the inside-bar set distances as the edit cost.
 DiffResult BlockDiffLin(const SymPart &orig_part, const PreparedPart &orig_prep,
-    const SymPart &comp_part, const PreparedPart &comp_prep, const NcsBlock &block);
+    const SymPart &comp_part, const PreparedPart &comp_prep, const NcsBlock &block,
+    const CompareOptions &options);
 
 } // namespace verosim

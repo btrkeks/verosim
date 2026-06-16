@@ -2,6 +2,7 @@
 
 #include <optional>
 
+#include "verosim/engine/compare.h"
 #include "verosim/engine/edit_op.h"
 #include "verosim/engine/interner.h"
 #include "verosim/model/sym_score.h"
@@ -21,7 +22,8 @@ bool AreDifferentEnough(const std::optional<Fraction> &a, const std::optional<Fr
 // exact visual-duration matches, with the first offset/pitch/grace match as
 // fallback. Prepared ids supply AnnNote.__eq__ for the paired-notes shortcut.
 DiffResult NotesSetDistance(const SymMeasure &orig, const SymMeasure &comp,
-    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep);
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep,
+    const CompareOptions &options = CompareOptions());
 
 // Comparison._extras_set_distance (comparison.py:1234-1337).
 DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,
