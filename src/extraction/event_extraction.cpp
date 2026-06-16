@@ -5,6 +5,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "verosim/extraction/notation_rules.h"
@@ -147,6 +148,60 @@ std::map<const vrv::Object *, std::size_t> CurrentEventObjects(const std::vector
     return eventByObject;
 }
 
+struct BeamSpanData {
+    std::vector<const vrv::Object *> members;
+    std::vector<BeamMember> beamMembers;
+    std::vector<std::optional<std::size_t>> localIndexes;
+    std::vector<std::vector<BeamValue>> derived;
+    int parent = -1;
+    std::size_t depthOffset = 0;
+};
+
+bool ContainsBeamSpan(const BeamSpanData &parent, const BeamSpanData &child)
+{
+    if (parent.members.size() <= child.members.size()) return false;
+    for (const vrv::Object *member : child.members) {
+        if (std::find(parent.members.begin(), parent.members.end(), member) == parent.members.end()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void EnsureBeamDepth(std::vector<BeamValue> &beamings, std::size_t depth)
+{
+    while (beamings.size() <= depth) beamings.push_back(BeamValue::kPartial);
+}
+
+bool HasBeamAtDepth(const BeamSpanData &span, std::size_t idx, std::size_t depth)
+{
+    return idx < span.derived.size() && depth < span.derived[idx].size();
+}
+
+std::vector<std::pair<std::size_t, std::size_t>> BeamRunsAtDepth(
+    const BeamSpanData &span, std::size_t depth)
+{
+    std::vector<std::pair<std::size_t, std::size_t>> runs;
+    std::size_t i = 0;
+    while (i < span.derived.size()) {
+        if (!HasBeamAtDepth(span, i, depth)) {
+            ++i;
+            continue;
+        }
+
+        const std::size_t first = i;
+        std::size_t last = i;
+        while (last + 1 < span.derived.size() && HasBeamAtDepth(span, last + 1, depth)
+            && span.derived[last][depth] != BeamValue::kStop
+            && span.derived[last][depth] != BeamValue::kPartial) {
+            ++last;
+        }
+        runs.emplace_back(first, last);
+        i = last + 1;
+    }
+    return runs;
+}
+
 std::vector<std::vector<BeamValue>> BuildRawBeamLists(
     const vrv::Object *beamSpanRoot, const std::vector<Event> &events)
 {
@@ -169,26 +224,109 @@ std::vector<std::vector<BeamValue>> BuildRawBeamLists(
     }
 
     const std::map<const vrv::Object *, std::size_t> eventByObject = CurrentEventObjects(events);
-    const vrv::ListOfConstObjects beamSpans = beamSpanRoot->FindAllDescendantsByType(vrv::BEAMSPAN);
-    for (const vrv::Object *obj : beamSpans) {
+    const vrv::ListOfConstObjects beamSpanObjects
+        = beamSpanRoot->FindAllDescendantsByType(vrv::BEAMSPAN);
+    std::vector<BeamSpanData> beamSpans;
+    beamSpans.reserve(beamSpanObjects.size());
+    for (const vrv::Object *obj : beamSpanObjects) {
+        BeamSpanData data;
         const auto *beamSpan = vrv_cast<const vrv::BeamSpan *>(obj);
         const vrv::ArrayOfObjects &spanMembers = beamSpan->GetBeamedElements();
-        std::vector<BeamMember> bm;
-        std::vector<std::optional<std::size_t>> localIndexes;
-        bm.reserve(spanMembers.size());
-        localIndexes.reserve(spanMembers.size());
+        data.members.reserve(spanMembers.size());
+        data.beamMembers.reserve(spanMembers.size());
+        data.localIndexes.reserve(spanMembers.size());
         for (const vrv::Object *member : spanMembers) {
-            bm.push_back(BeamMemberFromObject(member));
+            data.members.push_back(member);
+            data.beamMembers.push_back(BeamMemberFromObject(member));
             const auto it = eventByObject.find(member);
-            localIndexes.push_back(it == eventByObject.end() ? std::nullopt
-                                                             : std::optional<std::size_t>(it->second));
+            data.localIndexes.push_back(
+                it == eventByObject.end() ? std::nullopt : std::optional<std::size_t>(it->second));
         }
-        const std::vector<std::vector<BeamValue>> derived = DeriveBeamTypes(bm);
-        for (std::size_t k = 0; k < localIndexes.size(); ++k) {
-            if (!localIndexes[k].has_value()) continue;
-            const std::size_t idx = *localIndexes[k];
+        data.derived = DeriveBeamTypes(data.beamMembers);
+        beamSpans.push_back(std::move(data));
+    }
+    std::stable_sort(beamSpans.begin(), beamSpans.end(),
+        [](const BeamSpanData &a, const BeamSpanData &b) {
+            return a.members.size() > b.members.size();
+        });
+
+    for (std::size_t i = 0; i < beamSpans.size(); ++i) {
+        int parent = -1;
+        for (std::size_t j = 0; j < i; ++j) {
+            if (!ContainsBeamSpan(beamSpans[j], beamSpans[i])) continue;
+            if (parent < 0
+                || beamSpans[j].members.size()
+                    < beamSpans[static_cast<std::size_t>(parent)].members.size()) {
+                parent = static_cast<int>(j);
+            }
+        }
+        beamSpans[i].parent = parent;
+        beamSpans[i].depthOffset
+            = parent < 0 ? 0 : beamSpans[static_cast<std::size_t>(parent)].depthOffset + 1;
+    }
+
+    std::vector<std::tuple<int, std::size_t, std::size_t, std::size_t>> initializedNestedRuns;
+    for (const BeamSpanData &beamSpan : beamSpans) {
+        if (beamSpan.parent < 0) {
+            for (std::size_t k = 0; k < beamSpan.localIndexes.size(); ++k) {
+                if (!beamSpan.localIndexes[k].has_value()) continue;
+                const std::size_t idx = *beamSpan.localIndexes[k];
+                if (events[idx].beam) continue;
+                rawBeams[idx] = beamSpan.derived[k];
+            }
+            continue;
+        }
+
+        const std::size_t depth = beamSpan.depthOffset;
+        const BeamSpanData &parent = beamSpans[static_cast<std::size_t>(beamSpan.parent)];
+        std::size_t maxLocalDepth = 0;
+        for (const auto &derived : beamSpan.derived) maxLocalDepth = std::max(maxLocalDepth, derived.size());
+
+        for (std::size_t localDepth = 0; localDepth < maxLocalDepth; ++localDepth) {
+            const std::size_t rawDepth = depth + localDepth;
+            if (rawDepth < parent.depthOffset) continue;
+            const std::size_t parentLocalDepth = rawDepth - parent.depthOffset;
+            for (const auto &[first, last] : BeamRunsAtDepth(parent, parentLocalDepth)) {
+                const auto begin = parent.members.begin() + static_cast<std::ptrdiff_t>(first);
+                const auto end = parent.members.begin() + static_cast<std::ptrdiff_t>(last + 1);
+                bool overlapsChild = false;
+                for (std::size_t k = 0; k < beamSpan.members.size(); ++k) {
+                    if (beamSpan.beamMembers[k].n_beams <= static_cast<int>(rawDepth)) continue;
+                    if (!HasBeamAtDepth(beamSpan, k, localDepth)) continue;
+                    if (std::find(begin, end, beamSpan.members[k]) != end) {
+                        overlapsChild = true;
+                        break;
+                    }
+                }
+                if (!overlapsChild) continue;
+
+                const auto nestedRun = std::make_tuple(beamSpan.parent, rawDepth, first, last);
+                if (std::find(initializedNestedRuns.begin(), initializedNestedRuns.end(), nestedRun)
+                    != initializedNestedRuns.end()) {
+                    continue;
+                }
+                for (std::size_t k = first; k <= last; ++k) {
+                    if (parent.beamMembers[k].n_beams <= static_cast<int>(rawDepth)) continue;
+                    if (!parent.localIndexes[k].has_value()) continue;
+                    const std::size_t idx = *parent.localIndexes[k];
+                    if (events[idx].beam) continue;
+                    EnsureBeamDepth(rawBeams[idx], rawDepth);
+                    rawBeams[idx][rawDepth] = BeamValue::kPartial;
+                }
+                initializedNestedRuns.push_back(nestedRun);
+            }
+        }
+
+        for (std::size_t k = 0; k < beamSpan.localIndexes.size(); ++k) {
+            if (!beamSpan.localIndexes[k].has_value()) continue;
+            const std::size_t idx = *beamSpan.localIndexes[k];
             if (events[idx].beam) continue;
-            rawBeams[idx] = derived[k];
+            for (std::size_t localDepth = 0; localDepth < beamSpan.derived[k].size(); ++localDepth) {
+                const std::size_t rawDepth = depth + localDepth;
+                if (beamSpan.beamMembers[k].n_beams <= static_cast<int>(rawDepth)) continue;
+                EnsureBeamDepth(rawBeams[idx], rawDepth);
+                rawBeams[idx][rawDepth] = beamSpan.derived[k][localDepth];
+            }
         }
     }
     return rawBeams;

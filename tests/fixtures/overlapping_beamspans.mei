@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="2" meter.unit="4"/>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1">
+              <staff n="1">
+                <layer n="1">
+                  <note xml:id="n1" dur="8" oct="4" pname="a"/>
+                  <note xml:id="n2" dur="16" oct="4" pname="f"/>
+                  <note xml:id="n3" dur="16" oct="4" pname="d"/>
+                  <note xml:id="n4" dur="16" oct="4" pname="g"/>
+                  <note xml:id="n5" dur="16" oct="4" pname="e"/>
+                </layer>
+              </staff>
+              <beamSpan xml:id="outer" startid="#n1" endid="#n5"/>
+              <beamSpan xml:id="inner" startid="#n2" endid="#n5"/>
+            </measure>
+            <measure n="2">
+              <staff n="1">
+                <layer n="1">
+                  <note xml:id="n6" dur="16" oct="4" pname="a"/>
+                  <note xml:id="n7" dur="16" oct="4" pname="f"/>
+                  <note xml:id="n8" dur="16" oct="4" pname="d"/>
+                  <note xml:id="n9" dur="16" oct="4" pname="g"/>
+                  <note xml:id="n10" dur="16" oct="4" pname="e"/>
+                </layer>
+              </staff>
+              <beamSpan xml:id="outer-split" startid="#n6" endid="#n10"/>
+              <beamSpan xml:id="inner-split" startid="#n7" endid="#n9"/>
+            </measure>
+            <measure n="3">
+              <staff n="1">
+                <layer n="1">
+                  <note xml:id="n11" dur="16" oct="4" pname="a"/>
+                  <note xml:id="n12" dur="16" oct="4" pname="f"/>
+                  <note xml:id="n13" dur="8" oct="4" pname="d"/>
+                  <note xml:id="n14" dur="16" oct="4" pname="g"/>
+                  <note xml:id="n15" dur="16" oct="4" pname="e"/>
+                </layer>
+              </staff>
+              <beamSpan xml:id="outer-tail" startid="#n11" endid="#n15"/>
+              <beamSpan xml:id="inner-tail" startid="#n14" endid="#n15"/>
+            </measure>
+            <measure n="4">
+              <staff n="1">
+                <layer n="1">
+                  <note xml:id="n16" dur="32" oct="4" pname="a"/>
+                  <note xml:id="n17" dur="32" oct="4" pname="f"/>
+                  <note xml:id="n18" dur="32" oct="4" pname="d"/>
+                  <note xml:id="n19" dur="32" oct="4" pname="g"/>
+                  <note xml:id="n20" dur="32" oct="4" pname="e"/>
+                </layer>
+              </staff>
+              <beamSpan xml:id="outer-32" startid="#n16" endid="#n20"/>
+              <beamSpan xml:id="inner-32" startid="#n17" endid="#n19"/>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>

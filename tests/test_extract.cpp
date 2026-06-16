@@ -293,6 +293,61 @@ TEST_CASE("repair_space_beamspan.mei: repair spaces and beamSpan controls", "[ex
     CHECK(m1.notes[4].beamings.empty());
 }
 
+TEST_CASE("overlapping_beamspans.mei: nested spans preserve outer beam depth", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("overlapping_beamspans.mei", SourceFormat::kOther);
+    CHECK(result.warnings.empty());
+    const SymMeasure &m1 = result.score.parts[0].bar_list[0];
+    REQUIRE(m1.notes.size() == 5);
+
+    CHECK(m1.notes[0].beamings == std::vector<BeamValue>{ BeamValue::kStart });
+    CHECK(m1.notes[1].beamings
+        == std::vector<BeamValue>{ BeamValue::kContinue, BeamValue::kStart });
+    CHECK(m1.notes[2].beamings
+        == std::vector<BeamValue>{ BeamValue::kContinue, BeamValue::kContinue });
+    CHECK(m1.notes[3].beamings
+        == std::vector<BeamValue>{ BeamValue::kContinue, BeamValue::kContinue });
+    CHECK(m1.notes[4].beamings == std::vector<BeamValue>{ BeamValue::kStop, BeamValue::kStop });
+
+    const SymMeasure &m2 = result.score.parts[0].bar_list[1];
+    REQUIRE(m2.notes.size() == 5);
+
+    CHECK(m2.notes[0].beamings == std::vector<BeamValue>{ BeamValue::kStart, BeamValue::kPartial });
+    CHECK(m2.notes[1].beamings
+        == std::vector<BeamValue>{ BeamValue::kContinue, BeamValue::kStart });
+    CHECK(m2.notes[2].beamings
+        == std::vector<BeamValue>{ BeamValue::kContinue, BeamValue::kContinue });
+    CHECK(m2.notes[3].beamings
+        == std::vector<BeamValue>{ BeamValue::kContinue, BeamValue::kStop });
+    CHECK(m2.notes[4].beamings == std::vector<BeamValue>{ BeamValue::kStop, BeamValue::kPartial });
+
+    const SymMeasure &m3 = result.score.parts[0].bar_list[2];
+    REQUIRE(m3.notes.size() == 5);
+
+    CHECK(m3.notes[0].beamings == std::vector<BeamValue>{ BeamValue::kStart, BeamValue::kStart });
+    CHECK(m3.notes[1].beamings
+        == std::vector<BeamValue>{ BeamValue::kContinue, BeamValue::kStop });
+    CHECK(m3.notes[2].beamings == std::vector<BeamValue>{ BeamValue::kContinue });
+    CHECK(m3.notes[3].beamings
+        == std::vector<BeamValue>{ BeamValue::kContinue, BeamValue::kStart });
+    CHECK(m3.notes[4].beamings == std::vector<BeamValue>{ BeamValue::kStop, BeamValue::kStop });
+
+    const SymMeasure &m4 = result.score.parts[0].bar_list[3];
+    REQUIRE(m4.notes.size() == 5);
+
+    CHECK(m4.notes[0].beamings
+        == std::vector<BeamValue>{ BeamValue::kStart, BeamValue::kPartial, BeamValue::kPartial });
+    CHECK(m4.notes[1].beamings
+        == std::vector<BeamValue>{ BeamValue::kContinue, BeamValue::kStart, BeamValue::kStart });
+    CHECK(m4.notes[2].beamings
+        == std::vector<BeamValue>{
+               BeamValue::kContinue, BeamValue::kContinue, BeamValue::kContinue });
+    CHECK(m4.notes[3].beamings
+        == std::vector<BeamValue>{ BeamValue::kContinue, BeamValue::kStop, BeamValue::kStop });
+    CHECK(m4.notes[4].beamings
+        == std::vector<BeamValue>{ BeamValue::kStop, BeamValue::kPartial, BeamValue::kPartial });
+}
+
 TEST_CASE("VrvBridge normalizes Verovio rhythm-repair spaces after import", "[extract]")
 {
     VrvBridge bridge;
