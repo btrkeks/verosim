@@ -286,6 +286,8 @@ TEST_CASE("WriteSvgAssetBundle writes annotated SVG pages and manifest", "[visua
 
     const std::string pred_svg = ReadFile(pred_svg_path);
     const std::string gt_svg = ReadFile(gt_svg_path);
+    CHECK(pred_svg.find("verosim-mark.verosim-role-changed") != std::string::npos);
+    CHECK(pred_svg.find("fill: #b97900 !important") != std::string::npos);
     CHECK(pred_svg.find("verosim-role-changed") != std::string::npos);
     CHECK(gt_svg.find("verosim-role-changed") != std::string::npos);
     CHECK(gt_svg.find("note-L6F1") != std::string::npos);

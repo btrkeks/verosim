@@ -4,11 +4,57 @@
 #include <filesystem>
 #include <fstream>
 #include <ostream>
+#include <sstream>
 
 #include "verosim/cli/json_util.h"
 
+#include <pugixml.hpp>
+
 namespace verosim {
 namespace {
+
+constexpr const char *kStandaloneAnnotationCss = R"CSS(
+.verosim-mark.verosim-role-inserted,
+.verosim-mark.verosim-role-inserted * {
+  color: #087f8c !important;
+  fill: #087f8c !important;
+  stroke: #087f8c !important;
+}
+.verosim-mark.verosim-role-deleted,
+.verosim-mark.verosim-role-deleted * {
+  color: #d34f45 !important;
+  fill: #d34f45 !important;
+  stroke: #d34f45 !important;
+}
+.verosim-mark.verosim-role-changed,
+.verosim-mark.verosim-role-changed * {
+  color: #b97900 !important;
+  fill: #b97900 !important;
+  stroke: #b97900 !important;
+}
+.verosim-mark.verosim-kind-measure {
+  opacity: 0.78;
+  filter: drop-shadow(0 0 5px rgba(185, 121, 0, 0.42));
+}
+)CSS";
+
+std::string SvgWithStandaloneAnnotationStyle(const std::string &svg)
+{
+    pugi::xml_document doc;
+    const pugi::xml_parse_result parsed = doc.load_string(svg.c_str(), pugi::parse_default);
+    if (!parsed) return svg;
+
+    pugi::xml_node root = doc.document_element();
+    if (std::string(root.name()) != "svg") return svg;
+
+    pugi::xml_node style = root.prepend_child("style");
+    style.append_attribute("type").set_value("text/css");
+    style.text().set(kStandaloneAnnotationCss);
+
+    std::ostringstream out;
+    doc.save(out, "  ", pugi::format_default | pugi::format_no_declaration);
+    return out.str();
+}
 
 void WriteManifestSide(const SvgBundleSide &side, std::ostream &out)
 {
@@ -39,7 +85,7 @@ bool WriteSidePages(const VisualizedScore &score, const std::filesystem::path &r
             error = "cannot write " + path.string();
             return false;
         }
-        out << page.svg;
+        out << SvgWithStandaloneAnnotationStyle(page.svg);
         if (!out) {
             error = "failed to write " + path.string();
             return false;
