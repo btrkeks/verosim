@@ -66,6 +66,7 @@ SymNote Extractor::MakeSymNote(const Event &ev, const vrv::Note *note,
 {
     SymNote sn;
     sn.vrv_id = carrier->GetID();
+    sn.visual_id = note->GetID();
     sn.is_in_chord = idxInChord >= 0;
     sn.note_idx_in_chord = idxInChord;
     if (DetailIncludesTierB(options_.detail) && note != carrier) {

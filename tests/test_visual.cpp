@@ -84,6 +84,27 @@ TEST_CASE("VisualPlanBuilder maps single-sided note and part ops", "[visual]")
     CHECK(plan.marks[2].target_id == "measure-two");
 }
 
+TEST_CASE("VisualPlanBuilder targets chord member visual IDs", "[visual]")
+{
+    SymNote member = MakeNote("E4", Fraction(0), { .id = "chord-L13F1" });
+    member.is_in_chord = true;
+    member.note_idx_in_chord = 1;
+    member.visual_id = "note-L13F1S2";
+    const EditOp note_ins{ .name = OpName::kNoteIns,
+        .a = OpSide::None(),
+        .b = OpSide::Note(&member),
+        .cost = 2,
+        .ids_kind = EditOp::IdsKind::kChordIdx,
+        .ids0 = 1 };
+
+    const VisualPlan plan = BuildVisualPlan({ note_ins });
+    REQUIRE(plan.marks.size() == 1);
+    CHECK(plan.marks[0].side == VisualSide::kGt);
+    CHECK(plan.marks[0].role == VisualRole::kInserted);
+    CHECK(plan.marks[0].target_id == "note-L13F1S2");
+    CHECK(plan.marks[0].fallback_id == "chord-L13F1");
+}
+
 TEST_CASE("SvgAnnotator marks exact IDs and spanning class IDs", "[visual]")
 {
     const VisualMark note_mark{ .side = VisualSide::kGt,
@@ -245,6 +266,26 @@ TEST_CASE("VisualizePairToHtml writes a mutation report", "[visual]")
     CHECK(html.find("wrong accidental OMR-ED") != std::string::npos);
     CHECK(html.find("note-L6F1") != std::string::npos);
     CHECK(html.find("verosim-role-changed") != std::string::npos);
+
+    std::filesystem::remove(out);
+}
+
+TEST_CASE("VisualizePairToHtml marks missing chord members by notehead group", "[visual]")
+{
+    const std::filesystem::path out = std::filesystem::temp_directory_path()
+        / "verosim-visual-chord-member-test.html";
+    const std::filesystem::path pred
+        = std::filesystem::path(VEROSIM_MUTATIONS_DIR) / "cases" / "chord_member_delete.krn";
+    const std::filesystem::path gt = std::filesystem::path(VEROSIM_MUTATIONS_DIR) / "base" / "chords.krn";
+
+    std::string error;
+    REQUIRE(VisualizePairToHtml(pred.string(), gt.string(), out.string(), CompareCliOptions{}, error));
+    CHECK(error.empty());
+
+    const std::string html = ReadFile(out);
+    CHECK(html.find("id=\"note-L13F1S2\" class=\"note verosim-mark") != std::string::npos);
+    CHECK(html.find("id=\"chord-L13F1\" class=\"chord verosim-mark") == std::string::npos);
+    CHECK(html.find("inserted noteins | wrong note OMR-ED | cost 2") != std::string::npos);
 
     std::filesystem::remove(out);
 }

@@ -85,7 +85,11 @@ TEST_CASE("chords.krn: chord splitting and carrier fields", "[extract]")
         CHECK(m1.notes[i].note_idx_in_chord == i);
         CHECK(m1.notes[i].note_offset == Fraction(0));
         CHECK(m1.notes[i].vrv_id == m1.notes[0].vrv_id); // the chord's id
+        CHECK_FALSE(m1.notes[i].visual_id.empty());
+        CHECK(m1.notes[i].visual_id != m1.notes[i].vrv_id);
     }
+    CHECK(m1.notes[0].visual_id != m1.notes[1].visual_id);
+    CHECK(m1.notes[1].visual_id != m1.notes[2].visual_id);
     // 8.eL 16fJ: dotted-8th/16th beam pair
     const SymNote &e8 = m1.notes[6];
     CHECK(e8.pitches[0].step_octave == "E4");

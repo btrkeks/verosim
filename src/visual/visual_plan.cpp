@@ -11,6 +11,7 @@ namespace {
 struct ElementRef {
     VisualTargetKind kind = VisualTargetKind::kNote;
     std::string id;
+    std::string fallback_id;
 };
 
 bool RefFromSide(const OpSide &side, ElementRef &ref)
@@ -19,15 +20,21 @@ bool RefFromSide(const OpSide &side, ElementRef &ref)
         case OpSide::Kind::kNone: return false;
         case OpSide::Kind::kNote:
             if (side.note == nullptr || side.note->vrv_id.empty()) return false;
-            ref = { .kind = VisualTargetKind::kNote, .id = side.note->vrv_id };
+            ref = { .kind = VisualTargetKind::kNote,
+                .id = side.note->visual_id.empty() ? side.note->vrv_id : side.note->visual_id,
+                .fallback_id = side.note->vrv_id };
             return true;
         case OpSide::Kind::kExtra:
             if (side.extra == nullptr || side.extra->vrv_id.empty()) return false;
-            ref = { .kind = VisualTargetKind::kExtra, .id = side.extra->vrv_id };
+            ref = { .kind = VisualTargetKind::kExtra,
+                .id = side.extra->vrv_id,
+                .fallback_id = side.extra->vrv_id };
             return true;
         case OpSide::Kind::kMeasure:
             if (side.measure == nullptr || side.measure->vrv_id.empty()) return false;
-            ref = { .kind = VisualTargetKind::kMeasure, .id = side.measure->vrv_id };
+            ref = { .kind = VisualTargetKind::kMeasure,
+                .id = side.measure->vrv_id,
+                .fallback_id = side.measure->vrv_id };
             return true;
         case OpSide::Kind::kPart:
             return false; // part ops are expanded to measure marks below
@@ -56,7 +63,7 @@ void AddMark(VisualPlan &plan, VisualSide side, VisualRole role, const ElementRe
         .role = role,
         .target_kind = ref.kind,
         .target_id = ref.id,
-        .fallback_id = ref.id,
+        .fallback_id = ref.fallback_id.empty() ? ref.id : ref.fallback_id,
         .op_name = op_name,
         .category = category,
         .cost = cost,

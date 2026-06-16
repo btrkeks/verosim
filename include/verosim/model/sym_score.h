@@ -34,7 +34,12 @@ enum class BeamValue { kStart, kContinue, kStop, kPartial };
 enum class TupletValue { kStart, kContinue, kStop, kStartStop };
 
 struct SymNote {
-    std::string vrv_id; // note/rest @xml:id; the CHORD's id for chord members
+    // Carrier @xml:id used in repr/op output. For chord members this remains the
+    // CHORD id, matching the musicdiff-style GeneralNote carrier.
+    std::string vrv_id;
+    // Concrete rendered note/rest @xml:id for visual annotation. For chord
+    // members this is the child note id, with vrv_id available as fallback.
+    std::string visual_id;
     bool is_in_chord = false;
     int note_idx_in_chord = -1;
 

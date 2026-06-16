@@ -606,6 +606,7 @@ std::vector<SymNote> Extractor::BuildSymNotes(const std::vector<Event> &events,
         else if (ev.is_rest) {
             SymNote sn;
             sn.vrv_id = ev.obj->GetID();
+            sn.visual_id = sn.vrv_id;
             sn.pitches.push_back(SymPitch{ "R", "None", false, 0 });
             FillSharedNoteFields(sn, ev, beamings, tuplets, tupletInfo, i, true);
             notes.push_back(std::move(sn));
