@@ -7,3 +7,7 @@ __pycache__/
 # oracle outputs: reproducible from the content-hash cache; large (edit_ops)
 harness/cache/
 oracle/
+
+AGENTS.md
+CLAUDE.md
+/model_predictions/
