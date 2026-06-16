@@ -75,7 +75,7 @@ bool IsTargetKind(const std::string &kind, const SvgOverlapOptions &options)
         != options.target_kinds.end();
 }
 
-std::optional<SvgBBox> BBoxFromGroup(pugi::xml_node group, const SvgOverlapOptions &options)
+std::optional<SvgBBox> BBoxFromGroup(pugi::xml_node group)
 {
     const pugi::xml_attribute class_attr = group.attribute("class");
     if (!class_attr) return std::nullopt;
@@ -94,7 +94,6 @@ std::optional<SvgBBox> BBoxFromGroup(pugi::xml_node group, const SvgOverlapOptio
     const std::size_t dash = object_id.find('-');
     if (dash == std::string::npos) return std::nullopt;
     const std::string kind = object_id.substr(0, dash);
-    if (!IsTargetKind(kind, options)) return std::nullopt;
 
     double left = std::numeric_limits<double>::infinity();
     double top = std::numeric_limits<double>::infinity();
@@ -141,10 +140,10 @@ bool ShouldReplaceBox(const SvgBBox &current, const SvgBBox &candidate)
     return candidate.content && !current.content;
 }
 
-void CollectBoxes(pugi::xml_node node, const SvgOverlapOptions &options, std::map<std::string, SvgBBox> &boxes)
+void CollectBoxes(pugi::xml_node node, std::map<std::string, SvgBBox> &boxes)
 {
     if (node.type() == pugi::node_element) {
-        if (std::optional<SvgBBox> box = BBoxFromGroup(node, options)) {
+        if (std::optional<SvgBBox> box = BBoxFromGroup(node)) {
             auto it = boxes.find(box->object_id);
             if (it == boxes.end() || ShouldReplaceBox(it->second, *box)) {
                 boxes[box->object_id] = *box;
@@ -153,7 +152,7 @@ void CollectBoxes(pugi::xml_node node, const SvgOverlapOptions &options, std::ma
     }
 
     for (pugi::xml_node child = node.first_child(); child; child = child.next_sibling()) {
-        CollectBoxes(child, options, boxes);
+        CollectBoxes(child, boxes);
     }
 }
 
@@ -212,11 +211,9 @@ std::string FormatDouble(double value)
 
 } // namespace
 
-SvgOverlapResult DetectSvgBBoxOverlaps(
-    const std::string &svg, int page_no, const SvgOverlapOptions &options)
+SvgBBoxExtractionResult ExtractVerovioSvgBBoxes(const std::string &svg)
 {
-    SvgOverlapResult result;
-    result.summary.page_no = page_no;
+    SvgBBoxExtractionResult result;
 
     pugi::xml_document doc;
     const pugi::xml_parse_result parsed = doc.load_string(svg.c_str(), pugi::parse_default);
@@ -227,27 +224,40 @@ SvgOverlapResult DetectSvgBBoxOverlaps(
     }
 
     std::map<std::string, SvgBBox> box_by_id;
-    CollectBoxes(doc, options, box_by_id);
+    CollectBoxes(doc, box_by_id);
 
-    std::vector<SvgBBox> boxes;
-    boxes.reserve(box_by_id.size());
-    for (const auto &[_, box] : box_by_id) boxes.push_back(box);
-    result.summary.candidate_count = boxes.size();
+    result.boxes.reserve(box_by_id.size());
+    for (const auto &[_, box] : box_by_id) result.boxes.push_back(box);
+    return result;
+}
+
+SvgOverlapSummary DetectBBoxOverlaps(
+    const std::vector<SvgBBox> &boxes, int page_no, const SvgOverlapOptions &options)
+{
+    SvgOverlapSummary summary;
+    summary.page_no = page_no;
+
+    std::vector<SvgBBox> candidates;
+    candidates.reserve(boxes.size());
+    for (const SvgBBox &box : boxes) {
+        if (IsTargetKind(box.kind, options)) candidates.push_back(box);
+    }
+    summary.candidate_count = candidates.size();
 
     std::vector<SvgOverlapPair> overlaps;
-    for (std::size_t i = 0; i < boxes.size(); ++i) {
-        for (std::size_t j = i + 1; j < boxes.size(); ++j) {
-            if (ShouldIgnorePair(boxes[i], boxes[j], options)) continue;
-            const double overlap_area = OverlapArea(boxes[i], boxes[j]);
+    for (std::size_t i = 0; i < candidates.size(); ++i) {
+        for (std::size_t j = i + 1; j < candidates.size(); ++j) {
+            if (ShouldIgnorePair(candidates[i], candidates[j], options)) continue;
+            const double overlap_area = OverlapArea(candidates[i], candidates[j]);
             if (overlap_area <= 0.0) continue;
-            const double min_area = std::min(Area(boxes[i]), Area(boxes[j]));
+            const double min_area = std::min(Area(candidates[i]), Area(candidates[j]));
             if (min_area <= 0.0) continue;
             const double ratio = overlap_area / min_area;
             if (ratio < options.min_overlap_ratio) continue;
-            overlaps.push_back(SvgOverlapPair{ .first_id = boxes[i].object_id,
-                .second_id = boxes[j].object_id,
-                .first_kind = boxes[i].kind,
-                .second_kind = boxes[j].kind,
+            overlaps.push_back(SvgOverlapPair{ .first_id = candidates[i].object_id,
+                .second_id = candidates[j].object_id,
+                .first_kind = candidates[i].kind,
+                .second_kind = candidates[j].kind,
                 .area = overlap_area,
                 .ratio = ratio });
         }
@@ -258,9 +268,26 @@ SvgOverlapResult DetectSvgBBoxOverlaps(
         return a.area > b.area;
     });
 
-    result.summary.overlap_count = overlaps.size();
+    summary.overlap_count = overlaps.size();
     const std::size_t keep = std::min(options.max_reported_pairs, overlaps.size());
-    result.summary.worst_pairs.assign(overlaps.begin(), overlaps.begin() + static_cast<std::ptrdiff_t>(keep));
+    summary.worst_pairs.assign(overlaps.begin(), overlaps.begin() + static_cast<std::ptrdiff_t>(keep));
+    return summary;
+}
+
+SvgOverlapResult DetectSvgBBoxOverlaps(
+    const std::string &svg, int page_no, const SvgOverlapOptions &options)
+{
+    SvgOverlapResult result;
+    result.summary.page_no = page_no;
+
+    SvgBBoxExtractionResult extracted = ExtractVerovioSvgBBoxes(svg);
+    if (!extracted.parse_ok) {
+        result.parse_ok = false;
+        result.error = extracted.error;
+        return result;
+    }
+
+    result.summary = DetectBBoxOverlaps(extracted.boxes, page_no, options);
     return result;
 }
 

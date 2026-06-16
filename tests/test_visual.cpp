@@ -136,6 +136,24 @@ TEST_CASE("SvgAnnotator reports unresolved IDs without failing", "[visual]")
     CHECK(result.svg.find("verosim-mark") == std::string::npos);
 }
 
+TEST_CASE("SvgOverlap detects overlaps from normalized boxes", "[visual]")
+{
+    const std::vector<SvgBBox> boxes = {
+        SvgBBox{ .object_id = "note-a", .kind = "note", .x = 0.0, .y = 0.0, .width = 10.0, .height = 10.0 },
+        SvgBBox{ .object_id = "note-b", .kind = "note", .x = 5.0, .y = 5.0, .width = 10.0, .height = 10.0 },
+        SvgBBox{ .object_id = "clef-c", .kind = "clef", .x = 0.0, .y = 0.0, .width = 10.0, .height = 10.0 },
+    };
+
+    SvgOverlapSummary summary = DetectBBoxOverlaps(boxes, 4);
+    CHECK(summary.page_no == 4);
+    CHECK(summary.candidate_count == 2);
+    REQUIRE(summary.overlap_count == 1);
+    REQUIRE(summary.worst_pairs.size() == 1);
+    CHECK(summary.worst_pairs[0].first_id == "note-a");
+    CHECK(summary.worst_pairs[0].second_id == "note-b");
+    CHECK(summary.worst_pairs[0].ratio == 0.25);
+}
+
 TEST_CASE("SvgOverlap detects note/rest bbox collisions and ignores score furniture", "[visual]")
 {
     const std::string svg = R"SVG(

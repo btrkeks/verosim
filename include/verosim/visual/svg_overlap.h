@@ -48,6 +48,17 @@ struct SvgOverlapResult {
     SvgOverlapSummary summary;
 };
 
+struct SvgBBoxExtractionResult {
+    bool parse_ok = true;
+    std::string error;
+    std::vector<SvgBBox> boxes;
+};
+
+SvgBBoxExtractionResult ExtractVerovioSvgBBoxes(const std::string &svg);
+
+SvgOverlapSummary DetectBBoxOverlaps(
+    const std::vector<SvgBBox> &boxes, int page_no, const SvgOverlapOptions &options = {});
+
 SvgOverlapResult DetectSvgBBoxOverlaps(
     const std::string &svg, int page_no, const SvgOverlapOptions &options = {});
 
