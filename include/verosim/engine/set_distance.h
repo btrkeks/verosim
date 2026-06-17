@@ -25,12 +25,24 @@ DiffResult NotesSetDistance(const SymMeasure &orig, const SymMeasure &comp,
     const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep,
     const CompareOptions &options = CompareOptions());
 
+// Cost-only variant of NotesSetDistance: returns just the cost scalar.
+long NotesSetDistanceCost(const SymMeasure &orig, const SymMeasure &comp,
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep,
+    const CompareOptions &options = CompareOptions());
+
 // Comparison._extras_set_distance (comparison.py:1234-1337).
 DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep);
+
+// Cost-only variant of ExtrasSetDistance.
+long ExtrasSetDistanceCost(const SymMeasure &orig, const SymMeasure &comp,
     const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep);
 
 // Comparison._annotated_extra_diff (comparison.py:586-648), v1-tier fields
 // (content and styledict are never set at v1 tiers).
 DiffResult AnnotatedExtraDiff(const SymExtra &e1, const SymExtra &e2);
+
+// Cost-only variant.
+long AnnotatedExtraDiffCost(const SymExtra &e1, const SymExtra &e2);
 
 } // namespace verosim

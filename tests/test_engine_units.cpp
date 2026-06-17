@@ -448,6 +448,128 @@ TEST_CASE("compare_scores part handling", "[engine]")
     }
 }
 
+// ── Cost-only variant correctness ────────────────────────────────────────────
+// AnnotatedNoteDiffCost / NotesSetDistanceCost / ExtrasSetDistanceCost must
+// return the exact same scalar as the full DiffResult variant. The primary
+// safety net is the 45+ pinned mutation cases (test_mutation_gate.cpp) which
+// exercise CompareScores end-to-end — a wrong cost during BlockDiffLin's DP
+// fill would corrupt the backtrack path and break those pinned values.
+//
+// These tests verify the cost-only contract directly: the cost-only function
+// must return the same scalar as .cost from the full DiffResult function, on
+// non-trivial inputs that exercise multiple attribute branches and produce
+// non-zero costs.
+
+TEST_CASE("cost-only note diff agrees with full variant", "[engine][cost-only]")
+{
+    struct Case { const char *tag; NoteOpts a; NoteOpts b; bool b_is_rest; };
+    const Case cases[] = {
+        { "accid+head+dots",
+            { .accid = "sharp", .head = Fraction(4), .dots = 1 },
+            { .accid = "flat", .head = Fraction(2) }, false },
+        { "beams+tuplets+grace",
+            { .beams = { BeamValue::kStart, BeamValue::kContinue },
+              .tuplets = { TupletValue::kStart }, .tuplet_info = { "3:2" },
+              .grace_type = "acc", .is_grace = true },
+            { .beams = { BeamValue::kStop },
+              .grace_type = "unacc", .grace_slash = true, .is_grace = true }, false },
+        { "rest vs tied accidental",
+            { .accid = "sharp", .tie = true }, {}, true },
+    };
+    for (const auto &c : cases) {
+        DYNAMIC_SECTION(c.tag)
+        {
+            const SymNote na = MakeNote("C4", Fraction(0), c.a);
+            const SymNote nb = c.b_is_rest ? MakeNote("R", Fraction(0), c.b)
+                                           : MakeNote("C4", Fraction(0), c.b);
+            const long full_cost = AnnotatedNoteDiff(na, nb).cost;
+            CHECK(full_cost > 0);
+            CHECK(AnnotatedNoteDiffCost(na, nb) == full_cost);
+        }
+    }
+}
+
+TEST_CASE("cost-only set distance agrees on multi-note measures", "[engine][cost-only]")
+{
+    SECTION("visual mode with notes + extras")
+    {
+        const SymMeasure orig = MakeMeasure({
+            MakeNote("C4", Fraction(0), { .accid = "sharp", .dots = 1 }),
+            MakeNote("D4", Fraction(1), { .beams = { BeamValue::kStart } }),
+        }, { MakeClef("G2"), MakeKeySig("2") });
+        const SymMeasure comp = MakeMeasure({
+            MakeNote("E4", Fraction(0)),
+            MakeNote("C4", Fraction(1, 2), { .accid = "flat" }),
+            MakeNote("D4", Fraction(3, 2), { .beams = { BeamValue::kStop }, .dots = 2 }),
+        }, { MakeClef("F4"), MakeKeySig("3"), MakeTimeSig("6", "8") });
+        const DiffResult full = MeasureDiff(orig, comp);
+        CHECK(full.cost > 0);
+        StringInterner interner;
+        const SymScore sa = MakeScore({ { orig } });
+        const SymScore sb = MakeScore({ { comp } });
+        const PreparedScore pa = PrepareScore(sa, interner);
+        const PreparedScore pb = PrepareScore(sb, interner);
+        const long cost_only
+            = NotesSetDistanceCost(sa.parts[0].bar_list[0], sb.parts[0].bar_list[0],
+                  pa.parts[0].measures[0], pb.parts[0].measures[0])
+            + ExtrasSetDistanceCost(sa.parts[0].bar_list[0], sb.parts[0].bar_list[0],
+                  pa.parts[0].measures[0], pb.parts[0].measures[0]);
+        CHECK(cost_only == full.cost);
+    }
+    SECTION("musical mode")
+    {
+        const SymMeasure orig = MakeMeasure({
+            MakeNote("C4", Fraction(0), { .dur_type = "quarter" }),
+            MakeNote("C4", Fraction(0), { .head = Fraction(2), .dur_type = "half" }),
+        });
+        const SymMeasure comp = MakeMeasure({
+            MakeNote("C4", Fraction(0), { .head = Fraction(2), .dur_type = "half" }),
+            MakeNote("C4", Fraction(0), { .dur_type = "quarter" }),
+            MakeNote("D4", Fraction(0), { .dur_type = "quarter" }),
+        });
+        const DiffResult full = MeasureDiff(orig, comp, MusicalOptions());
+        CHECK(full.cost > 0);
+        StringInterner interner;
+        const SymScore sa = MakeScore({ { orig } });
+        const SymScore sb = MakeScore({ { comp } });
+        const PreparedScore pa = PrepareScore(sa, interner);
+        const PreparedScore pb = PrepareScore(sb, interner);
+        CHECK(NotesSetDistanceCost(sa.parts[0].bar_list[0], sb.parts[0].bar_list[0],
+                  pa.parts[0].measures[0], pb.parts[0].measures[0], MusicalOptions())
+            == full.cost);
+    }
+}
+
+TEST_CASE("cost-only path through BlockDiffLin on multi-measure NCS block", "[engine][cost-only]")
+{
+    // Build two 6-measure scores where every measure differs — this forces
+    // a 6×6 NCS block through the DP fill, exercising InsideBarCost on all
+    // 36 cells. The backtrack rebuilds ops on the ~6 chosen cells only.
+    const std::string pitches_a[] = { "C4", "D4", "E4", "F4", "G4", "A4" };
+    const std::string pitches_b[] = { "B4", "A4", "G4", "F4", "E4", "D4" };
+    std::vector<SymMeasure> bars_a, bars_b;
+    for (int i = 0; i < 6; ++i) {
+        bars_a.push_back(MakeMeasure(
+            { MakeNote(pitches_a[i], Fraction(0), { .dots = i % 2 }),
+              MakeNote("C3", Fraction(1), { .beams = { BeamValue::kStart } }) },
+            { MakeClef(i < 3 ? "G2" : "F4") }));
+        bars_b.push_back(MakeMeasure(
+            { MakeNote(pitches_b[i], Fraction(0), { .accid = "sharp" }),
+              MakeNote("D3", Fraction(1)) },
+            { MakeTimeSig("3", "4") }));
+    }
+    const SymScore sa = MakeScore({ std::move(bars_a) });
+    const SymScore sb = MakeScore({ std::move(bars_b) });
+    const CompareResult r = CompareScores(sa, sb);
+    CHECK(r.cost > 0);
+    CHECK(!r.op_list.empty());
+    // Run a second time to confirm determinism (same cost-only fill → same
+    // backtrack → same result).
+    const CompareResult r2 = CompareScores(sa, sb);
+    CHECK(r2.cost == r.cost);
+    CHECK(r2.op_list.size() == r.op_list.size());
+}
+
 TEST_CASE("edit distances dict and omr_ned", "[engine]")
 {
     SECTION("extra ops are rewritten by kind")

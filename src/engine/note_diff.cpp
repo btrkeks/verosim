@@ -18,6 +18,10 @@
 // backtrack below collects per-step op groups walking forward from (0, 0)
 // and emits the groups reversed — byte-order-identical to Python, which the
 // triage workflow (diffing op lists against stored oracle edit_ops) relies on.
+//
+// Cost-only mode: when only the scalar cost is needed (BlockDiffLin DP fill),
+// FillDpCostOnly skips the choice array and returns dp.CostAt(0,0) directly,
+// avoiding the Backtrack pass and all EditOp vector allocations.
 
 namespace verosim {
 
@@ -73,6 +77,65 @@ DpTable FillDp(int m, int n, DelSize del_size, InsSize ins_size, EditCost edit_c
         }
     }
     return dp;
+}
+
+// Cost-only DP fill: same recurrence as FillDp but stores only the cost
+// table, not the choice array. Returns the optimal alignment cost directly.
+template <typename DelSize, typename InsSize, typename EditCost>
+long FillDpCostOnly(int m, int n, DelSize del_size, InsSize ins_size, EditCost edit_cost)
+{
+    std::vector<long> cost(static_cast<std::size_t>(m + 1) * (n + 1), 0);
+    const auto cost_at = [&](int i, int j) -> long & {
+        return cost[static_cast<std::size_t>(i) * (n + 1) + j];
+    };
+
+    for (int i = m - 1; i >= 0; --i)
+        cost_at(i, n) = cost_at(i + 1, n) + del_size(i);
+    for (int j = n - 1; j >= 0; --j)
+        cost_at(m, j) = cost_at(m, j + 1) + ins_size(j);
+    for (int i = m - 1; i >= 0; --i) {
+        for (int j = n - 1; j >= 0; --j) {
+            long best = cost_at(i + 1, j) + del_size(i);
+            const long ins = cost_at(i, j + 1) + ins_size(j);
+            if (ins < best) best = ins;
+            const long edit = cost_at(i + 1, j + 1) + edit_cost(i, j);
+            if (edit < best) best = edit;
+            cost_at(i, j) = best;
+        }
+    }
+    return cost_at(0, 0);
+}
+
+long PitchesLevenshteinDiffCost(const SymNote &n1, const SymNote &n2)
+{
+    const std::vector<SymPitch> &orig = n1.pitches;
+    const std::vector<SymPitch> &comp = n2.pitches;
+    return FillDpCostOnly(
+        static_cast<int>(orig.size()), static_cast<int>(comp.size()),
+        [&](int i) { return static_cast<long>(PitchSize(orig[i])); },
+        [&](int j) { return static_cast<long>(PitchSize(comp[j])); },
+        [&](int i, int j) {
+            return PitchEq(orig[i], comp[j]) ? 0
+                                             : PitchesDiff(orig[i], comp[j], &n1, &n2, i, j).cost;
+        });
+}
+
+template <typename T>
+long BeamTupletLevenshteinDiffCost(const std::vector<T> &orig, const std::vector<T> &comp)
+{
+    return FillDpCostOnly(
+        static_cast<int>(orig.size()), static_cast<int>(comp.size()),
+        [](int) { return 1L; }, [](int) { return 1L; },
+        [&](int i, int j) { return orig[i] == comp[j] ? 0L : 1L; });
+}
+
+long GenericLevenshteinDiffCost(
+    const std::vector<std::string> &orig, const std::vector<std::string> &comp)
+{
+    return FillDpCostOnly(
+        static_cast<int>(orig.size()), static_cast<int>(comp.size()),
+        [](int) { return 1L; }, [](int) { return 1L; },
+        [&](int i, int j) { return orig[i] == comp[j] ? 0L : 1L; });
 }
 
 // Walks the DP path from (0, 0), collecting one op group per step via
@@ -322,6 +385,38 @@ DiffResult AnnotatedNoteDiff(const SymNote &n1, const SymNote &n2)
     // noteshape / noteheadFill / noteheadParenthesis / stemDirection /
     // styledict: Style-gated (Tier D), constant-equal at v1 tiers.
     return result;
+}
+
+long AnnotatedNoteDiffCost(const SymNote &n1, const SymNote &n2)
+{
+    long cost = 0;
+
+    const bool pitches_equal = n1.pitches.size() == n2.pitches.size()
+        && std::equal(n1.pitches.begin(), n1.pitches.end(), n2.pitches.begin(), PitchEq);
+    if (!pitches_equal) {
+        cost += PitchesLevenshteinDiffCost(n1, n2);
+    }
+    if (n1.note_head != n2.note_head) cost += 2;
+    if (n1.dots != n2.dots) cost += std::abs(n1.dots - n2.dots);
+    if (n1.grace_type != n2.grace_type) cost += 2;
+    if (n1.grace_slash != n2.grace_slash) cost += 1;
+    if (n1.beamings != n2.beamings) {
+        cost += BeamTupletLevenshteinDiffCost(n1.beamings, n2.beamings);
+    }
+    if (n1.tuplets != n2.tuplets) {
+        cost += BeamTupletLevenshteinDiffCost(n1.tuplets, n2.tuplets);
+    }
+    if (n1.tuplet_info != n2.tuplet_info) {
+        cost += BeamTupletLevenshteinDiffCost(n1.tuplet_info, n2.tuplet_info);
+    }
+    if (n1.articulations != n2.articulations) {
+        cost += GenericLevenshteinDiffCost(n1.articulations, n2.articulations);
+    }
+    if (n1.expressions != n2.expressions) {
+        cost += GenericLevenshteinDiffCost(n1.expressions, n2.expressions);
+    }
+    if (n1.gap_dur != n2.gap_dur) cost += 1;
+    return cost;
 }
 
 } // namespace verosim
