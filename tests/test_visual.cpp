@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -13,7 +14,9 @@
 #include "verosim/visual/svg_annotator.h"
 #include "verosim/visual/svg_bundle.h"
 #include "verosim/visual/svg_overlap.h"
+#include "verosim/visual/svg_symbol_index.h"
 #include "verosim/visual/visual_plan.h"
+#include "verosim/visual/visual_resolver.h"
 #include "verosim/visual/visualize.h"
 
 using namespace verosim;
@@ -39,12 +42,30 @@ std::size_t CountOccurrences(const std::string &text, const std::string &needle)
     return count;
 }
 
+SymbolLocator TestLocator(int occurrence = 0, int measure_idx = 0)
+{
+    return SymbolLocator{ .part_idx = 0,
+        .staff_n = "1",
+        .measure_idx = measure_idx,
+        .measure_vrv_id = "measure-L1",
+        .offset = Fraction(0),
+        .occurrence = occurrence };
+}
+
+ResolvedVisualMark ResolvedMark(
+    std::size_t source_index, const VisualMark &mark, const SvgSelector &selector)
+{
+    return ResolvedVisualMark{ .source_index = source_index, .mark = mark, .selectors = { selector } };
+}
+
 } // namespace
 
 TEST_CASE("VisualPlanBuilder maps paired note edits to changed marks on both sides", "[visual]")
 {
-    const SymNote pred = MakeNote("C4", Fraction(0), { .id = "pred-note" });
-    const SymNote gt = MakeNote("C4", Fraction(0), { .id = "gt-note" });
+    SymNote pred = MakeNote("C4", Fraction(0), { .id = "pred-note" });
+    pred.locator = TestLocator();
+    SymNote gt = MakeNote("C4", Fraction(0), { .id = "gt-note" });
+    gt.locator = TestLocator();
     const EditOp op{ .name = OpName::kHeadEdit,
         .a = OpSide::Note(&pred),
         .b = OpSide::Note(&gt),
@@ -54,17 +75,21 @@ TEST_CASE("VisualPlanBuilder maps paired note edits to changed marks on both sid
     REQUIRE(plan.marks.size() == 2);
     CHECK(plan.marks[0].side == VisualSide::kPred);
     CHECK(plan.marks[0].role == VisualRole::kChanged);
-    CHECK(plan.marks[0].target_id == "pred-note");
+    CHECK(plan.marks[0].target.kind == VisualTargetKind::kNote);
+    CHECK(plan.marks[0].target.primary_id == "pred-note");
+    CHECK(plan.marks[0].target.locator.measure_idx == 0);
     CHECK(plan.marks[0].category == "wrong note head OMR-ED");
     CHECK(plan.marks[1].side == VisualSide::kGt);
     CHECK(plan.marks[1].role == VisualRole::kChanged);
-    CHECK(plan.marks[1].target_id == "gt-note");
+    CHECK(plan.marks[1].target.primary_id == "gt-note");
 }
 
 TEST_CASE("VisualPlanBuilder maps accidental insertion to visible accidental glyph only", "[visual]")
 {
-    const SymNote pred = MakeNote("C4", Fraction(0), { .id = "pred-note" });
-    const SymNote gt = MakeNote("C4", Fraction(0), { .accid = "sharp", .id = "gt-note" });
+    SymNote pred = MakeNote("C4", Fraction(0), { .id = "pred-note" });
+    pred.locator = TestLocator();
+    SymNote gt = MakeNote("C4", Fraction(0), { .accid = "sharp", .id = "gt-note" });
+    gt.locator = TestLocator();
     const EditOp op{ .name = OpName::kAccidentIns,
         .a = OpSide::Note(&pred),
         .b = OpSide::Note(&gt),
@@ -77,16 +102,19 @@ TEST_CASE("VisualPlanBuilder maps accidental insertion to visible accidental gly
     REQUIRE(plan.marks.size() == 1);
     CHECK(plan.marks[0].side == VisualSide::kGt);
     CHECK(plan.marks[0].role == VisualRole::kChanged);
-    CHECK(plan.marks[0].target_kind == VisualTargetKind::kAccidental);
-    CHECK(plan.marks[0].target_id == "accid-gt-note");
-    CHECK(plan.marks[0].fallback_id == "accid-gt-note");
+    CHECK(plan.marks[0].target.kind == VisualTargetKind::kAccidental);
+    CHECK(plan.marks[0].target.primary_id == "accid-gt-note");
+    CHECK(plan.marks[0].target.fallback_id == "accid-gt-note");
+    CHECK(plan.marks[0].target.locator.occurrence == 0);
     CHECK(plan.marks[0].category == "wrong accidental OMR-ED");
 }
 
 TEST_CASE("VisualPlanBuilder maps accidental deletion and edit to accidental glyphs", "[visual]")
 {
-    const SymNote pred_sharp = MakeNote("C4", Fraction(0), { .accid = "sharp", .id = "pred-note" });
-    const SymNote gt_plain = MakeNote("C4", Fraction(0), { .id = "gt-note" });
+    SymNote pred_sharp = MakeNote("C4", Fraction(0), { .accid = "sharp", .id = "pred-note" });
+    pred_sharp.locator = TestLocator();
+    SymNote gt_plain = MakeNote("C4", Fraction(0), { .id = "gt-note" });
+    gt_plain.locator = TestLocator();
     const EditOp del{ .name = OpName::kAccidentDel,
         .a = OpSide::Note(&pred_sharp),
         .b = OpSide::Note(&gt_plain),
@@ -98,11 +126,12 @@ TEST_CASE("VisualPlanBuilder maps accidental deletion and edit to accidental gly
     const VisualPlan del_plan = BuildVisualPlan({ del });
     REQUIRE(del_plan.marks.size() == 1);
     CHECK(del_plan.marks[0].side == VisualSide::kPred);
-    CHECK(del_plan.marks[0].target_kind == VisualTargetKind::kAccidental);
-    CHECK(del_plan.marks[0].target_id == "accid-pred-note");
+    CHECK(del_plan.marks[0].target.kind == VisualTargetKind::kAccidental);
+    CHECK(del_plan.marks[0].target.primary_id == "accid-pred-note");
     CHECK(del_plan.marks[0].label == "changed accidentdel | wrong accidental OMR-ED | cost 1");
 
-    const SymNote gt_flat = MakeNote("C4", Fraction(0), { .accid = "flat", .id = "gt-note" });
+    SymNote gt_flat = MakeNote("C4", Fraction(0), { .accid = "flat", .id = "gt-note" });
+    gt_flat.locator = TestLocator();
     const EditOp edit{ .name = OpName::kAccidentEdit,
         .a = OpSide::Note(&pred_sharp),
         .b = OpSide::Note(&gt_flat),
@@ -114,9 +143,9 @@ TEST_CASE("VisualPlanBuilder maps accidental deletion and edit to accidental gly
     const VisualPlan edit_plan = BuildVisualPlan({ edit });
     REQUIRE(edit_plan.marks.size() == 2);
     CHECK(edit_plan.marks[0].side == VisualSide::kPred);
-    CHECK(edit_plan.marks[0].target_id == "accid-pred-note");
+    CHECK(edit_plan.marks[0].target.primary_id == "accid-pred-note");
     CHECK(edit_plan.marks[1].side == VisualSide::kGt);
-    CHECK(edit_plan.marks[1].target_id == "accid-gt-note");
+    CHECK(edit_plan.marks[1].target.primary_id == "accid-gt-note");
     CHECK(edit_plan.marks[1].label == "changed accidentedit | wrong accidental OMR-ED | cost 2");
 }
 
@@ -126,6 +155,7 @@ TEST_CASE("VisualPlanBuilder targets chord member accidental IDs", "[visual]")
     pred.is_in_chord = true;
     pred.note_idx_in_chord = 1;
     pred.visual_id = "note-L13F1S2";
+    pred.locator = TestLocator(1);
     SymNote gt = pred;
     gt.pitches[0].accid = "sharp";
     const EditOp op{ .name = OpName::kAccidentIns,
@@ -139,14 +169,16 @@ TEST_CASE("VisualPlanBuilder targets chord member accidental IDs", "[visual]")
     const VisualPlan plan = BuildVisualPlan({ op });
     REQUIRE(plan.marks.size() == 1);
     CHECK(plan.marks[0].side == VisualSide::kGt);
-    CHECK(plan.marks[0].target_kind == VisualTargetKind::kAccidental);
-    CHECK(plan.marks[0].target_id == "accid-L13F1S2");
-    CHECK(plan.marks[0].fallback_id == "accid-L13F1S2");
+    CHECK(plan.marks[0].target.kind == VisualTargetKind::kAccidental);
+    CHECK(plan.marks[0].target.primary_id == "accid-L13F1S2");
+    CHECK(plan.marks[0].target.fallback_id == "accid-L13F1S2");
+    CHECK(plan.marks[0].target.locator.occurrence == 1);
 }
 
 TEST_CASE("VisualPlanBuilder maps single-sided note and part ops", "[visual]")
 {
-    const SymNote inserted = MakeNote("D4", Fraction(0), { .id = "inserted-note" });
+    SymNote inserted = MakeNote("D4", Fraction(0), { .id = "inserted-note" });
+    inserted.locator = TestLocator();
     const EditOp note_ins{ .name = OpName::kNoteIns,
         .a = OpSide::None(),
         .b = OpSide::Note(&inserted),
@@ -154,8 +186,10 @@ TEST_CASE("VisualPlanBuilder maps single-sided note and part ops", "[visual]")
 
     SymMeasure m1 = MakeMeasure({ MakeNote("C4", Fraction(0)) });
     m1.vrv_id = "measure-one";
+    m1.locator = TestLocator(0, 0);
     SymMeasure m2 = MakeMeasure({ MakeNote("D4", Fraction(0)) });
     m2.vrv_id = "measure-two";
+    m2.locator = TestLocator(0, 1);
     SymPart deleted_part;
     deleted_part.staff_n = "1";
     deleted_part.bar_list = { m1, m2 };
@@ -168,12 +202,14 @@ TEST_CASE("VisualPlanBuilder maps single-sided note and part ops", "[visual]")
     REQUIRE(plan.marks.size() == 3);
     CHECK(plan.marks[0].side == VisualSide::kGt);
     CHECK(plan.marks[0].role == VisualRole::kInserted);
-    CHECK(plan.marks[0].target_id == "inserted-note");
+    CHECK(plan.marks[0].target.primary_id == "inserted-note");
     CHECK(plan.marks[1].side == VisualSide::kPred);
     CHECK(plan.marks[1].role == VisualRole::kDeleted);
-    CHECK(plan.marks[1].target_kind == VisualTargetKind::kMeasure);
-    CHECK(plan.marks[1].target_id == "measure-one");
-    CHECK(plan.marks[2].target_id == "measure-two");
+    CHECK(plan.marks[1].target.kind == VisualTargetKind::kMeasure);
+    CHECK(plan.marks[1].target.primary_id == "measure-one");
+    CHECK(plan.marks[1].target.locator.measure_idx == 0);
+    CHECK(plan.marks[2].target.primary_id == "measure-two");
+    CHECK(plan.marks[2].target.locator.measure_idx == 1);
 }
 
 TEST_CASE("VisualPlanBuilder targets chord member visual IDs", "[visual]")
@@ -182,6 +218,7 @@ TEST_CASE("VisualPlanBuilder targets chord member visual IDs", "[visual]")
     member.is_in_chord = true;
     member.note_idx_in_chord = 1;
     member.visual_id = "note-L13F1S2";
+    member.locator = TestLocator(1);
     const EditOp note_ins{ .name = OpName::kNoteIns,
         .a = OpSide::None(),
         .b = OpSide::Note(&member),
@@ -193,26 +230,80 @@ TEST_CASE("VisualPlanBuilder targets chord member visual IDs", "[visual]")
     REQUIRE(plan.marks.size() == 1);
     CHECK(plan.marks[0].side == VisualSide::kGt);
     CHECK(plan.marks[0].role == VisualRole::kInserted);
-    CHECK(plan.marks[0].target_id == "note-L13F1S2");
-    CHECK(plan.marks[0].fallback_id == "chord-L13F1");
+    CHECK(plan.marks[0].target.kind == VisualTargetKind::kNote);
+    CHECK(plan.marks[0].target.primary_id == "note-L13F1S2");
+    CHECK(plan.marks[0].target.fallback_id == "chord-L13F1");
+    CHECK(plan.marks[0].target.locator.occurrence == 1);
+}
+
+TEST_CASE("VisualPlanBuilder emits locator-only symbol refs", "[visual]")
+{
+    SymNote pred = MakeNote("C4", Fraction(0), { .id = "" });
+    pred.vrv_id.clear();
+    pred.visual_id.clear();
+    pred.locator = TestLocator(2);
+    SymNote gt = MakeNote("C4", Fraction(0), { .accid = "sharp", .id = "" });
+    gt.vrv_id.clear();
+    gt.visual_id.clear();
+    gt.locator = TestLocator(2);
+
+    SymExtra extra = MakeTimeSig("3", "4");
+    extra.vrv_id.clear();
+    extra.locator = TestLocator();
+
+    SymMeasure measure = MakeMeasure({});
+    measure.vrv_id.clear();
+    measure.locator = TestLocator(0, 1);
+    SymPart part;
+    part.staff_n = "1";
+    part.part_idx = 0;
+    part.bar_list = { measure };
+
+    const VisualPlan plan = BuildVisualPlan({
+        EditOp{ .name = OpName::kAccidentIns,
+            .a = OpSide::Note(&pred),
+            .b = OpSide::Note(&gt),
+            .cost = 1 },
+        EditOp{ .name = OpName::kExtraIns,
+            .a = OpSide::None(),
+            .b = OpSide::Extra(&extra),
+            .cost = 2 },
+        EditOp{ .name = OpName::kDelPart,
+            .a = OpSide::Part(&part),
+            .b = OpSide::None(),
+            .cost = 4 },
+    });
+
+    REQUIRE(plan.marks.size() == 3);
+    CHECK(plan.marks[0].target.kind == VisualTargetKind::kAccidental);
+    CHECK(plan.marks[0].target.primary_id.empty());
+    CHECK(plan.marks[0].target.locator.occurrence == 2);
+    CHECK(plan.marks[1].target.kind == VisualTargetKind::kExtra);
+    CHECK(plan.marks[1].target.primary_id.empty());
+    CHECK(plan.marks[1].target.extra_kind == ExtraKind::kTimeSig);
+    CHECK(plan.marks[1].target.has_extra_kind);
+    CHECK(plan.marks[1].target.locator.measure_idx == 0);
+    CHECK(plan.marks[2].target.kind == VisualTargetKind::kMeasure);
+    CHECK(plan.marks[2].target.primary_id.empty());
+    CHECK(plan.marks[2].target.locator.measure_idx == 1);
 }
 
 TEST_CASE("SvgAnnotator marks exact IDs and spanning class IDs", "[visual]")
 {
     const VisualMark note_mark{ .side = VisualSide::kGt,
         .role = VisualRole::kInserted,
-        .target_kind = VisualTargetKind::kNote,
-        .target_id = "note-L6F1",
-        .fallback_id = "note-L6F1",
+        .target = VisualSymbolRef{ .kind = VisualTargetKind::kNote,
+            .primary_id = "note-L6F1",
+            .fallback_id = "note-L6F1" },
         .op_name = "noteins",
         .category = "wrong note OMR-ED",
         .cost = 2,
         .label = "inserted noteins | wrong note OMR-ED | cost 2" };
     const VisualMark span_mark{ .side = VisualSide::kGt,
         .role = VisualRole::kChanged,
-        .target_kind = VisualTargetKind::kExtra,
-        .target_id = "slur-L1",
-        .fallback_id = "slur-L1",
+        .target = VisualSymbolRef{ .kind = VisualTargetKind::kExtra,
+            .primary_id = "slur-L1",
+            .fallback_id = "slur-L1" },
         .op_name = "slursymboledit",
         .category = "wrong slur OMR-ED",
         .cost = 2,
@@ -220,7 +311,12 @@ TEST_CASE("SvgAnnotator marks exact IDs and spanning class IDs", "[visual]")
 
     const std::string svg
         = "<svg><g id=\"note-L6F1\" class=\"note\"><path/></g><g class=\"slur id-slur-L1 spanning\"/></svg>";
-    const SvgAnnotationResult result = AnnotateSvg(svg, { note_mark, span_mark });
+    const std::vector<ResolvedVisualMark> marks{
+        ResolvedMark(0, note_mark, SvgSelector{ .kind = SvgSelectorKind::kId, .value = "note-L6F1" }),
+        ResolvedMark(
+            1, span_mark, SvgSelector{ .kind = SvgSelectorKind::kClassToken, .value = "id-slur-L1" }),
+    };
+    const SvgAnnotationResult result = AnnotateSvg(svg, marks, 2);
     REQUIRE(result.parse_ok);
     REQUIRE(result.resolved.size() == 2);
     CHECK(result.resolved[0]);
@@ -235,18 +331,197 @@ TEST_CASE("SvgAnnotator reports unresolved IDs without failing", "[visual]")
 {
     const VisualMark missing{ .side = VisualSide::kPred,
         .role = VisualRole::kDeleted,
-        .target_kind = VisualTargetKind::kNote,
-        .target_id = "missing",
-        .fallback_id = "missing",
+        .target = VisualSymbolRef{ .kind = VisualTargetKind::kNote,
+            .primary_id = "missing",
+            .fallback_id = "missing" },
         .op_name = "notedel",
         .category = "wrong note OMR-ED",
         .cost = 2,
         .label = "deleted notedel | wrong note OMR-ED | cost 2" };
-    const SvgAnnotationResult result = AnnotateSvg("<svg><g id=\"present\"/></svg>", { missing });
+    const SvgAnnotationResult result = AnnotateSvg("<svg><g id=\"present\"/></svg>",
+        { ResolvedMark(0, missing, SvgSelector{ .kind = SvgSelectorKind::kId, .value = "missing" }) },
+        1);
     REQUIRE(result.parse_ok);
     REQUIRE(result.resolved.size() == 1);
     CHECK_FALSE(result.resolved[0]);
     CHECK(result.svg.find("verosim-mark") == std::string::npos);
+}
+
+TEST_CASE("SvgSymbolIndex resolves structural measures notes accidentals and extras", "[visual]")
+{
+    const std::string svg = R"SVG(
+<svg>
+  <g id="measure-L1" class="measure">
+    <g id="staff-L1F1" class="staff">
+      <g id="bbox-random-note-id" class="note bounding-box"/>
+      <g id="random-note-id" class="note">
+        <g id="random-accid-id" class="accid"/>
+      </g>
+      <g id="random-meter-id" class="meterSig"/>
+    </g>
+  </g>
+</svg>
+)SVG";
+    const SvgSymbolIndex index = SvgSymbolIndex::Build(svg);
+    REQUIRE(index.parse_ok());
+    CHECK(index.measure_count() == 1);
+    const SymbolLocator loc = TestLocator();
+
+    const std::optional<SvgSelector> measure = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kMeasure, .locator = loc, .primary_id = "missing-measure" });
+    REQUIRE(measure.has_value());
+    CHECK(measure->kind == SvgSelectorKind::kId);
+    CHECK(measure->value == "measure-L1");
+
+    const std::optional<SvgSelector> note = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kNote, .locator = loc, .primary_id = "missing-note" });
+    REQUIRE(note.has_value());
+    CHECK(note->kind == SvgSelectorKind::kId);
+    CHECK(note->value == "random-note-id");
+
+    SymbolLocator later_page_loc = loc;
+    later_page_loc.measure_idx = 12;
+    const std::optional<SvgSelector> later_page_note = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kNote,
+        .locator = later_page_loc,
+        .primary_id = "missing-later-page-note" });
+    REQUIRE(later_page_note.has_value());
+    CHECK(later_page_note->value == "random-note-id");
+
+    SymbolLocator other_staff_loc = loc;
+    other_staff_loc.part_idx = 1;
+    const std::optional<SvgSelector> other_staff_note = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kNote,
+        .locator = other_staff_loc,
+        .primary_id = "missing-other-staff" });
+    CHECK_FALSE(other_staff_note.has_value());
+
+    const std::optional<SvgSelector> accid = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kAccidental, .locator = loc, .primary_id = "missing-accid" });
+    REQUIRE(accid.has_value());
+    CHECK(accid->kind == SvgSelectorKind::kId);
+    CHECK(accid->value == "random-accid-id");
+
+    const std::optional<SvgSelector> timesig = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kExtra,
+        .locator = loc,
+        .primary_id = "missing-timesig",
+        .extra_kind = ExtraKind::kTimeSig,
+        .has_extra_kind = true });
+    REQUIRE(timesig.has_value());
+    CHECK(timesig->kind == SvgSelectorKind::kId);
+    CHECK(timesig->value == "random-meter-id");
+
+    const SvgSymbolIndex later_page_index = SvgSymbolIndex::Build(svg, 12);
+    REQUIRE(later_page_index.parse_ok());
+    CHECK(later_page_index.measure_count() == 1);
+    SymbolLocator ordinal_only_loc = loc;
+    ordinal_only_loc.measure_idx = 12;
+    ordinal_only_loc.measure_vrv_id.clear();
+    const std::optional<SvgSelector> ordinal_only_note
+        = later_page_index.Resolve(VisualSymbolRef{ .kind = VisualTargetKind::kNote,
+            .locator = ordinal_only_loc,
+            .primary_id = "missing-ordinal-note" });
+    REQUIRE(ordinal_only_note.has_value());
+    CHECK(ordinal_only_note->value == "random-note-id");
+
+    ordinal_only_loc.measure_idx = 0;
+    const std::optional<SvgSelector> page_local_note
+        = later_page_index.Resolve(VisualSymbolRef{ .kind = VisualTargetKind::kNote,
+            .locator = ordinal_only_loc,
+            .primary_id = "missing-page-local-note" });
+    CHECK_FALSE(page_local_note.has_value());
+}
+
+TEST_CASE("VisualResolver keeps exact ID fast path and class-token fallback", "[visual]")
+{
+    const std::string svg = R"SVG(
+<svg>
+  <g id="measure-L1" class="measure">
+    <g id="staff-L1F1" class="staff">
+      <g id="exact-note" class="note"/>
+      <g class="slur id-slur-L1 spanning"/>
+    </g>
+  </g>
+</svg>
+)SVG";
+    const std::vector<VisualMark> marks{
+        VisualMark{ .side = VisualSide::kGt,
+            .role = VisualRole::kInserted,
+            .target = VisualSymbolRef{ .kind = VisualTargetKind::kNote,
+                .locator = TestLocator(),
+                .primary_id = "exact-note" },
+            .op_name = "noteins",
+            .category = "wrong note OMR-ED",
+            .cost = 1,
+            .label = "note" },
+        VisualMark{ .side = VisualSide::kGt,
+            .role = VisualRole::kChanged,
+            .target = VisualSymbolRef{ .kind = VisualTargetKind::kExtra,
+                .primary_id = "slur-L1",
+                .extra_kind = ExtraKind::kSlur,
+                .has_extra_kind = true },
+            .op_name = "slursymboledit",
+            .category = "wrong slur OMR-ED",
+            .cost = 1,
+            .label = "slur" },
+    };
+
+    const VisualResolveResult result = ResolveVisualMarks(svg, marks);
+    REQUIRE(result.parse_ok);
+    CHECK(result.measure_count == 1);
+    REQUIRE(result.resolved.size() == 2);
+    REQUIRE(result.marks.size() == 2);
+    CHECK(result.resolved[0]);
+    CHECK(result.marks[0].selectors[0].kind == SvgSelectorKind::kId);
+    CHECK(result.marks[0].selectors[0].value == "exact-note");
+    CHECK(result.resolved[1]);
+    CHECK(result.marks[1].selectors[0].kind == SvgSelectorKind::kClassToken);
+    CHECK(result.marks[1].selectors[0].value == "id-slur-L1");
+}
+
+TEST_CASE("SvgSymbolIndex keeps rendered staff order stable across a page", "[visual]")
+{
+    const std::string svg = R"SVG(
+<svg>
+  <g id="measure-L1" class="measure">
+    <g id="staff-L1F2" class="staff">
+      <g id="top-note" class="note"/>
+    </g>
+    <g id="staff-L1F1" class="staff">
+      <g id="bottom-note" class="note"/>
+    </g>
+  </g>
+  <g id="measure-L2" class="measure">
+    <g id="staff-L2F1N1" class="staff">
+      <g id="bottom-only-note" class="note"/>
+    </g>
+  </g>
+</svg>
+)SVG";
+
+    const SvgSymbolIndex index = SvgSymbolIndex::Build(svg);
+    REQUIRE(index.parse_ok());
+
+    const SymbolLocator bottom_staff{ .part_idx = 1,
+        .measure_idx = 1,
+        .measure_vrv_id = "measure-L2",
+        .offset = Fraction(0),
+        .occurrence = 0 };
+    const std::optional<SvgSelector> bottom_note = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kNote,
+        .locator = bottom_staff,
+        .primary_id = "missing-bottom-note" });
+    REQUIRE(bottom_note.has_value());
+    CHECK(bottom_note->value == "bottom-only-note");
+
+    SymbolLocator top_staff = bottom_staff;
+    top_staff.part_idx = 0;
+    const std::optional<SvgSelector> top_note = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kNote,
+        .locator = top_staff,
+        .primary_id = "missing-top-note" });
+    CHECK_FALSE(top_note.has_value());
 }
 
 TEST_CASE("SvgOverlap detects overlaps from normalized boxes", "[visual]")
@@ -430,6 +705,26 @@ TEST_CASE("VisualizePairToHtml marks missing chord members by notehead group", "
     CHECK(html.find("inserted noteins | wrong note OMR-ED | cost 2") != std::string::npos);
 
     std::filesystem::remove(out);
+}
+
+TEST_CASE("BuildVisualComparison marks time signature extras", "[visual]")
+{
+    const std::filesystem::path pred
+        = std::filesystem::path(VEROSIM_MUTATIONS_DIR) / "cases" / "mono_timesig_num.krn";
+    const std::filesystem::path gt = std::filesystem::path(VEROSIM_MUTATIONS_DIR) / "base" / "mono.krn";
+
+    std::string error;
+    VisualReport report;
+    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareCliOptions{}, report, error));
+    CHECK(error.empty());
+    CHECK(report.unresolved_marks.empty());
+    REQUIRE(report.pred.pages.size() == 1);
+    REQUIRE(report.gt.pages.size() == 1);
+
+    CHECK(report.pred.pages[0].svg.find("class=\"meterSig verosim-mark") != std::string::npos);
+    CHECK(report.gt.pages[0].svg.find("class=\"meterSig verosim-mark") != std::string::npos);
+    CHECK(report.pred.pages[0].svg.find("wrong timesig OMR-ED") != std::string::npos);
+    CHECK(report.gt.pages[0].svg.find("wrong timesig OMR-ED") != std::string::npos);
 }
 
 TEST_CASE("WriteSvgAssetBundle writes annotated SVG pages and manifest", "[visual]")

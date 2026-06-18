@@ -13,6 +13,7 @@
 #include "verosim/visual/score_renderer.h"
 #include "verosim/visual/svg_annotator.h"
 #include "verosim/visual/visual_plan.h"
+#include "verosim/visual/visual_resolver.h"
 
 namespace verosim {
 namespace {
@@ -48,16 +49,6 @@ bool LoadAndExtractVisualScore(VrvBridge &bridge, const std::string &path,
     }
 }
 
-bool LoadRenderBridge(VrvBridge &bridge, const std::string &path, std::string &error)
-{
-    if (!ConfigureScoreRenderOptions(bridge, true, error)) return false;
-    if (!bridge.LoadScoreFile(path)) {
-        error = "failed to load " + path;
-        return false;
-    }
-    return true;
-}
-
 std::vector<VisualMark> MarksForSide(const std::vector<VisualMark> &marks, VisualSide side)
 {
     std::vector<VisualMark> filtered;
@@ -77,8 +68,17 @@ AnnotatedPages AnnotatePages(const RenderedScore &rendered, const std::vector<Vi
 {
     AnnotatedPages annotated;
     std::vector<bool> resolved(marks.size(), false);
+    int measure_idx_offset = 0;
     for (const RenderedPage &page : rendered.pages) {
-        SvgAnnotationResult result = AnnotateSvg(page.svg, marks);
+        VisualResolveResult resolve = ResolveVisualMarks(page.svg, marks, measure_idx_offset);
+        if (!resolve.parse_ok) {
+            annotated.warnings.push_back("could not parse SVG page " + std::to_string(page.page_no)
+                + ": " + resolve.error);
+            annotated.pages.push_back(page);
+            continue;
+        }
+        measure_idx_offset += resolve.measure_count;
+        SvgAnnotationResult result = AnnotateSvg(page.svg, resolve.marks, marks.size());
         if (!result.parse_ok) {
             annotated.warnings.push_back("could not parse SVG page " + std::to_string(page.page_no)
                 + ": " + result.error);
@@ -124,21 +124,11 @@ bool BuildVisualComparison(const std::string &pred_path, const std::string &gt_p
 
     RenderedScore pred_rendered;
     RenderedScore gt_rendered;
-    VrvBridge pred_render_bridge;
-    VrvBridge gt_render_bridge;
-    if (!LoadRenderBridge(pred_render_bridge, pred_path, error)) {
+    if (!RenderScoreToSvgPages(pred_bridge, pred_rendered, error)) {
         error = "prediction render failed: " + error;
         return false;
     }
-    if (!LoadRenderBridge(gt_render_bridge, gt_path, error)) {
-        error = "ground-truth render failed: " + error;
-        return false;
-    }
-    if (!RenderScoreToSvgPages(pred_render_bridge, pred_rendered, error)) {
-        error = "prediction render failed: " + error;
-        return false;
-    }
-    if (!RenderScoreToSvgPages(gt_render_bridge, gt_rendered, error)) {
+    if (!RenderScoreToSvgPages(gt_bridge, gt_rendered, error)) {
         error = "ground-truth render failed: " + error;
         return false;
     }

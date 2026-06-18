@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -14,6 +15,7 @@ struct SvgAnnotationResult {
     std::string error;
 };
 
-SvgAnnotationResult AnnotateSvg(const std::string &svg, const std::vector<VisualMark> &marks);
+SvgAnnotationResult AnnotateSvg(
+    const std::string &svg, const std::vector<ResolvedVisualMark> &marks, std::size_t source_count);
 
 } // namespace verosim

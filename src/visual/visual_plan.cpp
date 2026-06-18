@@ -10,9 +10,7 @@ namespace verosim {
 namespace {
 
 struct ElementRef {
-    VisualTargetKind kind = VisualTargetKind::kNote;
-    std::string id;
-    std::string fallback_id;
+    VisualSymbolRef symbol;
 };
 
 bool IsAccidentalOp(OpName name)
@@ -41,16 +39,15 @@ std::string AccidentalIdFromNoteId(const std::string &note_id)
 
 bool AccidentalRefFromSide(const OpSide &side, ElementRef &ref)
 {
-    if (side.kind != OpSide::Kind::kNote || side.note == nullptr || side.note->vrv_id.empty()) {
-        return false;
-    }
+    if (side.kind != OpSide::Kind::kNote || side.note == nullptr) return false;
     if (!HasVisibleAccidental(side.note)) return false;
 
     const std::string note_id
         = side.note->visual_id.empty() ? side.note->vrv_id : side.note->visual_id;
-    const std::string accid_id = AccidentalIdFromNoteId(note_id);
-    ref = { .kind = VisualTargetKind::kAccidental,
-        .id = accid_id,
+    const std::string accid_id = note_id.empty() ? std::string() : AccidentalIdFromNoteId(note_id);
+    ref.symbol = VisualSymbolRef{ .kind = VisualTargetKind::kAccidental,
+        .locator = side.note->locator,
+        .primary_id = accid_id,
         .fallback_id = accid_id };
     return true;
 }
@@ -60,21 +57,26 @@ bool RefFromSide(const OpSide &side, ElementRef &ref)
     switch (side.kind) {
         case OpSide::Kind::kNone: return false;
         case OpSide::Kind::kNote:
-            if (side.note == nullptr || side.note->vrv_id.empty()) return false;
-            ref = { .kind = VisualTargetKind::kNote,
-                .id = side.note->visual_id.empty() ? side.note->vrv_id : side.note->visual_id,
+            if (side.note == nullptr) return false;
+            ref.symbol = VisualSymbolRef{ .kind = VisualTargetKind::kNote,
+                .locator = side.note->locator,
+                .primary_id = side.note->visual_id.empty() ? side.note->vrv_id : side.note->visual_id,
                 .fallback_id = side.note->vrv_id };
             return true;
         case OpSide::Kind::kExtra:
-            if (side.extra == nullptr || side.extra->vrv_id.empty()) return false;
-            ref = { .kind = VisualTargetKind::kExtra,
-                .id = side.extra->vrv_id,
-                .fallback_id = side.extra->vrv_id };
+            if (side.extra == nullptr) return false;
+            ref.symbol = VisualSymbolRef{ .kind = VisualTargetKind::kExtra,
+                .locator = side.extra->locator,
+                .primary_id = side.extra->vrv_id,
+                .fallback_id = side.extra->vrv_id,
+                .extra_kind = side.extra->kind,
+                .has_extra_kind = true };
             return true;
         case OpSide::Kind::kMeasure:
-            if (side.measure == nullptr || side.measure->vrv_id.empty()) return false;
-            ref = { .kind = VisualTargetKind::kMeasure,
-                .id = side.measure->vrv_id,
+            if (side.measure == nullptr) return false;
+            ref.symbol = VisualSymbolRef{ .kind = VisualTargetKind::kMeasure,
+                .locator = side.measure->locator,
+                .primary_id = side.measure->vrv_id,
                 .fallback_id = side.measure->vrv_id };
             return true;
         case OpSide::Kind::kPart:
@@ -99,12 +101,13 @@ std::string LabelFor(
 void AddMark(VisualPlan &plan, VisualSide side, VisualRole role, const ElementRef &ref,
     const std::string &op_name, const std::string &category, long cost)
 {
-    if (ref.id.empty()) return;
+    if (ref.symbol.primary_id.empty() && ref.symbol.fallback_id.empty()
+        && ref.symbol.locator.measure_idx < 0) {
+        return;
+    }
     plan.marks.push_back(VisualMark{ .side = side,
         .role = role,
-        .target_kind = ref.kind,
-        .target_id = ref.id,
-        .fallback_id = ref.fallback_id.empty() ? ref.id : ref.fallback_id,
+        .target = ref.symbol,
         .op_name = op_name,
         .category = category,
         .cost = cost,
@@ -116,9 +119,11 @@ void AddPartMarks(VisualPlan &plan, VisualSide side, VisualRole role, const SymP
 {
     if (part == nullptr) return;
     for (const SymMeasure &measure : part->bar_list) {
-        if (measure.vrv_id.empty()) continue;
         AddMark(plan, side, role,
-            ElementRef{ .kind = VisualTargetKind::kMeasure, .id = measure.vrv_id },
+            ElementRef{ .symbol = VisualSymbolRef{ .kind = VisualTargetKind::kMeasure,
+                .locator = measure.locator,
+                .primary_id = measure.vrv_id,
+                .fallback_id = measure.vrv_id } },
             op_name, category, cost);
     }
 }

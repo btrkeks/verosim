@@ -181,6 +181,7 @@ Fraction Extractor::MeasureSpan(const StaffState &state, const std::vector<Event
 void Extractor::FinishStaffMeasure(StaffState &state, const Fraction &measureSpan)
 {
     state.score_offset = state.score_offset + measureSpan;
+    ++state.measure_idx;
     ResolvePendingSpans();
 }
 

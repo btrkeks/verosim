@@ -73,8 +73,10 @@ add_library(verosim_core STATIC
     src/visual/svg_annotator.cpp
     src/visual/svg_bundle.cpp
     src/visual/svg_overlap.cpp
+    src/visual/svg_symbol_index.cpp
     src/visual/visual_mark.cpp
     src/visual/visual_plan.cpp
+    src/visual/visual_resolver.cpp
     src/visual/visualize.cpp)
 target_include_directories(verosim_core PUBLIC include ${VEROVIO_INCLUDE_DIRS})
 target_link_libraries(verosim_core PUBLIC verovio)

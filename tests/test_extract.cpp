@@ -6,6 +6,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "verosim/engine/interner.h"
 #include "verosim/extraction/extract.h"
 #include "verosim/extraction/vrv_bridge.h"
 
@@ -46,23 +47,75 @@ TEST_CASE("mono.krn: offsets, beams, dots", "[extract]")
     REQUIRE(part.bar_list.size() == 3);
 
     const SymMeasure &m1 = part.bar_list[0];
+    CHECK(m1.locator.part_idx == 0);
+    CHECK(m1.locator.staff_n == "1");
+    CHECK(m1.locator.measure_idx == 0);
+    CHECK(m1.locator.measure_vrv_id == m1.vrv_id);
     REQUIRE(m1.notes.size() == 5);
     CHECK(m1.notes[0].pitches[0].step_octave == "C4");
     CHECK(m1.notes[0].note_offset == Fraction(0));
+    CHECK(m1.notes[0].locator.part_idx == 0);
+    CHECK(m1.notes[0].locator.staff_n == "1");
+    CHECK(m1.notes[0].locator.measure_idx == 0);
+    CHECK(m1.notes[0].locator.measure_vrv_id == m1.vrv_id);
+    CHECK(m1.notes[0].locator.offset == Fraction(0));
+    CHECK(m1.notes[0].locator.occurrence == 0);
     CHECK(m1.notes[1].note_offset == Fraction(1));
     CHECK(m1.notes[2].note_offset == Fraction(2)); // first beamed eighth
     CHECK(m1.notes[2].beamings == std::vector<BeamValue>{ BeamValue::kStart });
     CHECK(m1.notes[3].beamings == std::vector<BeamValue>{ BeamValue::kStop });
     CHECK(m1.notes[3].note_offset == Fraction(5, 2));
+    CHECK(m1.notes[3].locator.offset == Fraction(5, 2));
+    CHECK(m1.notes[3].locator.occurrence == 3);
     CHECK(m1.notes[4].note_offset == Fraction(3));
     // initial signature extras, sorted clef < keysig < timesig
     REQUIRE(m1.extras.size() == 3);
     CHECK(m1.extras[0].kind == ExtraKind::kClef);
     CHECK(m1.extras[0].symbolic == "G2");
+    CHECK(m1.extras[0].locator.part_idx == 0);
+    CHECK(m1.extras[0].locator.staff_n == "1");
+    CHECK(m1.extras[0].locator.measure_idx == 0);
+    CHECK(m1.extras[0].locator.measure_vrv_id == m1.vrv_id);
+    CHECK(m1.extras[0].locator.offset == Fraction(0));
+    CHECK(m1.extras[0].locator.occurrence == 0);
     CHECK(m1.extras[1].kind == ExtraKind::kKeySig);
     CHECK(m1.extras[1].notation_size() == 1); // explicit *k[] = 1 symbol
     CHECK(m1.extras[2].kind == ExtraKind::kTimeSig);
     CHECK(m1.extras[2].notation_size() == 2);
+    CHECK(m1.extras[2].locator.part_idx == 0);
+    CHECK(m1.extras[2].locator.staff_n == "1");
+    CHECK(m1.extras[2].locator.measure_idx == 0);
+    CHECK(m1.extras[2].locator.offset == Fraction(0));
+    CHECK(m1.extras[2].locator.occurrence == 0);
+
+    SymNote relocated_note = m1.notes[0];
+    const int note_size = relocated_note.notation_size();
+    const std::string note_str = relocated_note.str();
+    const std::string note_repr = relocated_note.repr();
+    relocated_note.locator = SymbolLocator{ .part_idx = 7,
+        .staff_n = "99",
+        .measure_idx = 23,
+        .measure_vrv_id = "elsewhere",
+        .measure_n = "z",
+        .offset = Fraction(42),
+        .occurrence = 19 };
+    CHECK(relocated_note.notation_size() == note_size);
+    CHECK(relocated_note.str() == note_str);
+    CHECK(relocated_note.repr() == note_repr);
+
+    SymExtra relocated_extra = m1.extras[2];
+    const int extra_size = relocated_extra.notation_size();
+    const std::string extra_str = relocated_extra.str();
+    const std::string extra_key = ExtraComparisonKey(relocated_extra);
+    relocated_extra.locator = relocated_note.locator;
+    CHECK(relocated_extra.notation_size() == extra_size);
+    CHECK(relocated_extra.str() == extra_str);
+    CHECK(ExtraComparisonKey(relocated_extra) == extra_key);
+
+    SymMeasure relocated_measure = m1;
+    const int measure_size = relocated_measure.notation_size();
+    relocated_measure.locator = relocated_note.locator;
+    CHECK(relocated_measure.notation_size() == measure_size);
 
     const SymMeasure &m2 = part.bar_list[1];
     REQUIRE(m2.notes.size() == 2);
@@ -87,6 +140,10 @@ TEST_CASE("chords.krn: chord splitting and carrier fields", "[extract]")
         CHECK(m1.notes[i].vrv_id == m1.notes[0].vrv_id); // the chord's id
         CHECK_FALSE(m1.notes[i].visual_id.empty());
         CHECK(m1.notes[i].visual_id != m1.notes[i].vrv_id);
+        CHECK(m1.notes[i].locator.part_idx == 0);
+        CHECK(m1.notes[i].locator.staff_n == "1");
+        CHECK(m1.notes[i].locator.measure_idx == 0);
+        CHECK(m1.notes[i].locator.occurrence == i);
     }
     CHECK(m1.notes[0].visual_id != m1.notes[1].visual_id);
     CHECK(m1.notes[1].visual_id != m1.notes[2].visual_id);
@@ -156,11 +213,17 @@ TEST_CASE("changes.krn: mid-score signatures, mRest, hidden rest", "[extract]")
     CHECK(m1.notes[1].pitches[0].sounding_alter == 0); // d, not in key of 2 sharps
 
     const SymMeasure &m2 = part.bar_list[1];
+    CHECK(m2.locator.measure_idx == 1);
+    CHECK(m2.locator.measure_vrv_id == m2.vrv_id);
     // keysig change to 1 flat + meter change to 3/4 at offset 0
     REQUIRE(m2.extras.size() == 2);
     CHECK(m2.extras[0].kind == ExtraKind::kKeySig);
     CHECK(m2.extras[0].notation_size() == 1);
     CHECK(m2.extras[1].kind == ExtraKind::kTimeSig);
+    CHECK(m2.extras[1].locator.measure_idx == 1);
+    CHECK(m2.extras[1].locator.measure_vrv_id == m2.vrv_id);
+    CHECK(m2.extras[1].locator.offset == Fraction(0));
+    CHECK(m2.extras[1].locator.occurrence == 0);
     // full-measure rest in 3/4 -> dotted half
     REQUIRE(m2.notes.size() == 1);
     CHECK(m2.notes[0].pitches[0].step_octave == "R");

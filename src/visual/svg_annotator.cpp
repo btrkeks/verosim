@@ -44,12 +44,24 @@ bool NodeMatchesId(pugi::xml_node node, const std::string &id)
     return HasClassToken(class_attr.value(), "id-" + id);
 }
 
-void CollectMatchingNodes(
-    pugi::xml_node node, const std::string &id, std::vector<pugi::xml_node> &matches)
+bool NodeMatchesSelector(pugi::xml_node node, const SvgSelector &selector)
 {
-    if (NodeMatchesId(node, id)) matches.push_back(node);
+    switch (selector.kind) {
+        case SvgSelectorKind::kId: return NodeMatchesId(node, selector.value);
+        case SvgSelectorKind::kClassToken: {
+            const pugi::xml_attribute class_attr = node.attribute("class");
+            return class_attr && HasClassToken(class_attr.value(), selector.value);
+        }
+    }
+    return false;
+}
+
+void CollectMatchingNodes(
+    pugi::xml_node node, const SvgSelector &selector, std::vector<pugi::xml_node> &matches)
+{
+    if (NodeMatchesSelector(node, selector)) matches.push_back(node);
     for (pugi::xml_node child = node.first_child(); child; child = child.next_sibling()) {
-        if (child.type() == pugi::node_element) CollectMatchingNodes(child, id, matches);
+        if (child.type() == pugi::node_element) CollectMatchingNodes(child, selector, matches);
     }
 }
 
@@ -80,9 +92,9 @@ void ApplyMark(pugi::xml_node node, const VisualMark &mark)
 {
     AppendClassToken(node, "verosim-mark");
     AppendClassToken(node, "verosim-role-" + std::string(VisualRoleName(mark.role)));
-    AppendClassToken(node, "verosim-kind-" + std::string(VisualTargetKindName(mark.target_kind)));
+    AppendClassToken(node, "verosim-kind-" + std::string(VisualTargetKindName(mark.target.kind)));
     SetOrAppendAttr(node, "data-verosim-role", std::string(VisualRoleName(mark.role)));
-    SetOrAppendAttr(node, "data-verosim-kind", std::string(VisualTargetKindName(mark.target_kind)));
+    SetOrAppendAttr(node, "data-verosim-kind", std::string(VisualTargetKindName(mark.target.kind)));
     SetOrAppendAttr(node, "data-verosim-op", mark.op_name);
     SetOrAppendAttr(node, "data-verosim-category", mark.category);
     SetOrAppendAttr(node, "data-verosim-cost", std::to_string(mark.cost));
@@ -91,10 +103,11 @@ void ApplyMark(pugi::xml_node node, const VisualMark &mark)
 
 } // namespace
 
-SvgAnnotationResult AnnotateSvg(const std::string &svg, const std::vector<VisualMark> &marks)
+SvgAnnotationResult AnnotateSvg(
+    const std::string &svg, const std::vector<ResolvedVisualMark> &marks, std::size_t source_count)
 {
     SvgAnnotationResult result;
-    result.resolved.assign(marks.size(), false);
+    result.resolved.assign(source_count, false);
 
     pugi::xml_document doc;
     const pugi::xml_parse_result parsed = doc.load_string(svg.c_str(), pugi::parse_default);
@@ -107,13 +120,12 @@ SvgAnnotationResult AnnotateSvg(const std::string &svg, const std::vector<Visual
 
     for (std::size_t i = 0; i < marks.size(); ++i) {
         std::vector<pugi::xml_node> matches;
-        CollectMatchingNodes(doc, marks[i].target_id, matches);
-        if (matches.empty() && !marks[i].fallback_id.empty() && marks[i].fallback_id != marks[i].target_id) {
-            CollectMatchingNodes(doc, marks[i].fallback_id, matches);
+        for (const SvgSelector &selector : marks[i].selectors) {
+            CollectMatchingNodes(doc, selector, matches);
         }
         if (matches.empty()) continue;
-        result.resolved[i] = true;
-        for (pugi::xml_node node : matches) ApplyMark(node, marks[i]);
+        if (marks[i].source_index < result.resolved.size()) result.resolved[marks[i].source_index] = true;
+        for (pugi::xml_node node : matches) ApplyMark(node, marks[i].mark);
     }
 
     std::ostringstream out;

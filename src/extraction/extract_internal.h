@@ -71,6 +71,7 @@ struct StaffState {
     Fraction meter_ql = Fraction(4); // governing measure length
     Fraction beat_ql = Fraction(1); // QL represented by one MEI timestamp beat
     bool has_meter = false;
+    int measure_idx = 0; // source/rendered measure order, including metric-dropped empty measures
     Fraction score_offset; // absolute QL offset at the start of the current measure
     PendingSig pending; // signature extras to emit at offset 0 of the next measure
 };

@@ -33,6 +33,18 @@ struct SymPitch {
 enum class BeamValue { kStart, kContinue, kStop, kPartial };
 enum class TupletValue { kStart, kContinue, kStop, kStartStop };
 
+// Stable visual-only position for resolving rendered SVG elements. These
+// fields are metadata: metric equality, counts, and edit costs ignore them.
+struct SymbolLocator {
+    int part_idx = -1;
+    std::string staff_n;
+    int measure_idx = -1;
+    std::string measure_vrv_id;
+    std::string measure_n;
+    Fraction offset;
+    int occurrence = -1;
+};
+
 struct SymNote {
     // Carrier @xml:id used in repr/op output. For chord members this remains the
     // CHORD id, matching the musicdiff-style GeneralNote carrier.
@@ -42,6 +54,7 @@ struct SymNote {
     std::string visual_id;
     bool is_in_chord = false;
     int note_idx_in_chord = -1;
+    SymbolLocator locator;
 
     std::vector<SymPitch> pitches; // exactly 1 (chords are split)
     Fraction note_head; // min(type_num, 4); Fraction: breve head is 1/2
@@ -73,6 +86,7 @@ std::string_view ExtraKindName(ExtraKind kind);
 
 struct SymExtra {
     std::string vrv_id;
+    SymbolLocator locator;
     ExtraKind kind = ExtraKind::kClef;
     std::optional<std::string> symbolic; // clef: "G2"; dynamic: "p", "ff"; else nullopt
     std::optional<std::string> content; // directions/text; unused for core tierAB
@@ -88,6 +102,7 @@ struct SymExtra {
 struct SymMeasure {
     std::string vrv_id;
     std::string measure_n; // @n, triage only
+    SymbolLocator locator;
     std::vector<SymNote> notes; // flat; layer order, then event order
     std::vector<SymExtra> extras; // stable-sorted by (kind, offset)
 

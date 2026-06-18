@@ -568,18 +568,40 @@ void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staf
     const std::vector<std::vector<TupletValue>> tuplets = CorrectTuplets(raw);
     const std::vector<std::vector<std::string>> tupletInfo = TupletInfo(raw);
 
+    const int partIdx = staves_[staffN].part_idx;
+    SymPart &part = result_.score.parts[static_cast<std::size_t>(partIdx)];
+    const int visualMeasureIdx = state.measure_idx;
+    const std::size_t emittedMeasureIdx = part.bar_list.size();
+
     SymMeasure symMeasure;
     symMeasure.vrv_id = measure->GetID();
     symMeasure.measure_n = measure->GetN();
+    const SymbolLocator measureLocator{ .part_idx = partIdx,
+        .staff_n = staffN,
+        .measure_idx = visualMeasureIdx,
+        .measure_vrv_id = symMeasure.vrv_id,
+        .measure_n = symMeasure.measure_n,
+        .offset = Fraction(0),
+        .occurrence = 0 };
+    symMeasure.locator = measureLocator;
     symMeasure.extras = NormalizeMeasureExtras(std::move(extras));
+    std::map<ExtraKind, int> extraOccurrences;
+    for (SymExtra &extra : symMeasure.extras) {
+        extra.locator = measureLocator;
+        extra.locator.offset = extra.offset;
+        extra.locator.occurrence = extraOccurrences[extra.kind]++;
+    }
     symMeasure.notes = BuildSymNotes(events, beamings, tuplets, tupletInfo, state);
+    for (std::size_t i = 0; i < symMeasure.notes.size(); ++i) {
+        SymNote &note = symMeasure.notes[i];
+        note.locator = measureLocator;
+        note.locator.offset = note.note_offset;
+        note.locator.occurrence = static_cast<int>(i);
+    }
 
     if (symMeasure.n_of_elements() > 0) {
-        const int partIdx = staves_[staffN].part_idx;
-        SymPart &part = result_.score.parts[static_cast<std::size_t>(partIdx)];
-        const std::size_t measureIdx = part.bar_list.size();
         part.bar_list.push_back(std::move(symMeasure));
-        RegisterEmittedExtras(partIdx, measureIdx);
+        RegisterEmittedExtras(partIdx, emittedMeasureIdx);
     }
 }
 
