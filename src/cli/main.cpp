@@ -1,6 +1,8 @@
 #include <exception>
 #include <iostream>
+#include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "verosim/cli/args.h"
@@ -16,6 +18,13 @@
 
 namespace {
 
+template <class... Ts>
+struct Overloaded : Ts... {
+    using Ts::operator()...;
+};
+template <class... Ts>
+Overloaded(Ts...) -> Overloaded<Ts...>;
+
 void PrintUsage(std::ostream &os)
 {
     os << "usage: verosim <pred> <gt> [--ops] [--mode active|experimental]\n"
@@ -28,26 +37,32 @@ void PrintUsage(std::ostream &os)
           "                                      [--typed-space-handling preserve|suppress-straddle-filler]\n"
           "                                      compare and write a side-by-side SVG HTML report\n"
           "       verosim --visualize <pred> <gt> --out-dir <dir> --output-format svg\n"
+          "                                      [--mode active|experimental]\n"
           "                                      compare and write raw annotated SVG pages\n"
-          "       verosim --pairs <tsv> [--base-dir <dir>] [--ops]\n"
+          "       verosim --pairs <tsv> [--base-dir <dir>] [--ops] [--mode active|experimental]\n"
           "                                      compare every pred<TAB>gt pair in <tsv>\n"
           "                                      (JSONL, one record per pair, always exits 0)\n"
-          "       verosim --batch <tsv> [--base-dir <dir>] [--jobs N] [--ops]\n"
+          "       verosim --batch <tsv> [--base-dir <dir>] [--jobs N] [--ops] [--mode active|experimental]\n"
           "                                      parallel JSONL batch compare, one Toolkit per worker\n"
           "       verosim --batch-jsonl <jsonl> [--pred-field prediction] [--gt-field target]\n"
           "                                      [--id-field sample_id] [--group-field val_set]\n"
           "                                      [--dedupe-key fields] [--format kern]\n"
-          "                                      [--failure-score N]\n"
+          "                                      [--failure-score N] [--mode active|experimental]\n"
           "                                      [--summary-json path] [--jobs N] [--ops]\n"
           "                                      compare in-memory kern strings from JSONL records\n"
-          "       verosim --dump-tree <file>     print the parsed Verovio object tree\n"
-          "       verosim --check <file>         load one file, report warnings/errors (JSONL)\n"
+          "       verosim --dump-tree <file> [--typed-space-handling preserve|suppress-straddle-filler]\n"
+          "                                      print the parsed Verovio object tree\n"
+          "       verosim --check <file> [--typed-space-handling preserve|suppress-straddle-filler]\n"
+          "                                      load one file, report warnings/errors (JSONL)\n"
           "       verosim --check --files-from <list> [--base-dir <dir>]\n"
+          "                                      [--typed-space-handling preserve|suppress-straddle-filler]\n"
           "                                      check every file in <list> (one path per line,\n"
-          "                                      '#' comments; always exits 0 — failures are data)\n"
-          "       verosim --count-symbols [--per-measure] [--mode active|experimental] <file>\n"
+          "                                      '#' comments; always exits 0 - failures are data)\n"
+          "       verosim --count-symbols [--per-measure] [--mode active|experimental]\n"
+          "                                      [--typed-space-handling preserve|suppress-straddle-filler] <file>\n"
           "                                      symbol counts as JSON\n"
           "       verosim --count-symbols --files-from <list> [--base-dir <dir>] [--mode active|experimental]\n"
+          "                                      [--typed-space-handling preserve|suppress-straddle-filler]\n"
           "                                      counts for every file in <list>, JSONL, exits 0\n"
           "Supported inputs: MusicXML, .mxl, Humdrum/kern, MEI, ... (Verovio autodetect)\n";
 }
@@ -221,72 +236,56 @@ int main(int argc, char **argv)
         PrintUsage(std::cout);
         return 0;
     }
-    // Global comparison/extraction options modify supported load/compare modes before dispatch.
-    verosim::CompareCliOptions compareOptions;
     std::string parseError;
-    if (!verosim::StripCompareOptions(args, compareOptions, parseError)) {
+    std::optional<verosim::Command> command = verosim::ParseCommand(args, parseError);
+    if (!command.has_value()) {
         if (!parseError.empty()) std::cerr << "verosim: " << parseError << '\n';
         PrintUsage(std::cerr);
         return 2;
     }
     try {
-        if (auto pairs = verosim::ParsePairsArgs(args)) {
-            return ComparePairsMain(pairs->list_path, pairs->base_dir, compareOptions);
-        }
-        if (auto batch = verosim::ParseBatchArgs(args)) {
-            return CompareBatchMain(batch->list_path, batch->base_dir, batch->jobs, compareOptions);
-        }
-        if (auto batchJsonl = verosim::ParseBatchJsonlArgs(args)) {
-            return CompareJsonlBatchMain(*batchJsonl, compareOptions);
-        }
-        if (auto visual = verosim::ParseVisualizeArgs(args)) {
-            return VisualizeMain(*visual, compareOptions);
-        }
-        if (args.size() == 2 && args[0] == "--dump-tree") {
-            return DumpTreeMain(args[1], compareOptions.typed_space_handling);
-        }
-        if (!args.empty() && args[0] == "--check") {
-            if (args.size() == 2 && args[1][0] != '-') {
-                return CheckOneMain(args[1], compareOptions.typed_space_handling);
-            }
-            std::string listPath, baseDir;
-            for (std::size_t i = 1; i + 1 < args.size(); i += 2) {
-                if (args[i] == "--files-from") listPath = args[i + 1];
-                else if (args[i] == "--base-dir") baseDir = args[i + 1];
-                else { listPath.clear(); break; }
-            }
-            if (!listPath.empty() && (args.size() == 3 || args.size() == 5)) {
-                return CheckListMain(listPath, baseDir, compareOptions.typed_space_handling);
-            }
-        }
-        if (!args.empty() && args[0] == "--count-symbols") {
-            if (args.size() == 2 && args[1][0] != '-') {
-                return CountSymbolsOneMain(
-                    args[1], false, compareOptions.mode, compareOptions.typed_space_handling);
-            }
-            if (args.size() == 3 && args[1] == "--per-measure" && args[2][0] != '-') {
-                return CountSymbolsOneMain(
-                    args[2], true, compareOptions.mode, compareOptions.typed_space_handling);
-            }
-            std::string listPath, baseDir;
-            for (std::size_t i = 1; i + 1 < args.size(); i += 2) {
-                if (args[i] == "--files-from") listPath = args[i + 1];
-                else if (args[i] == "--base-dir") baseDir = args[i + 1];
-                else { listPath.clear(); break; }
-            }
-            if (!listPath.empty() && (args.size() == 3 || args.size() == 5)) {
-                return CountSymbolsListMain(
-                    listPath, baseDir, compareOptions.mode, compareOptions.typed_space_handling);
-            }
-        }
-        if (args.size() == 2 && args[0][0] != '-' && args[1][0] != '-') {
-            return CompareMain(args[0], args[1], compareOptions);
-        }
+        return std::visit(
+            Overloaded{
+                [](const verosim::CompareCommand &cmd) {
+                    return CompareMain(cmd.pred_path, cmd.gt_path, cmd.options);
+                },
+                [](const verosim::PairsCommand &cmd) {
+                    return ComparePairsMain(
+                        cmd.args.list_path, cmd.args.base_dir, cmd.options);
+                },
+                [](const verosim::BatchCommand &cmd) {
+                    return CompareBatchMain(
+                        cmd.args.list_path, cmd.args.base_dir, cmd.args.jobs, cmd.options);
+                },
+                [](const verosim::BatchJsonlCommand &cmd) {
+                    return CompareJsonlBatchMain(cmd.args, cmd.options);
+                },
+                [](const verosim::VisualizeCommand &cmd) {
+                    return VisualizeMain(cmd.args, cmd.options);
+                },
+                [](const verosim::DumpTreeCommand &cmd) {
+                    return DumpTreeMain(cmd.path, cmd.typed_space_handling);
+                },
+                [](const verosim::CheckCommand &cmd) {
+                    if (cmd.input_kind == verosim::CheckCommand::InputKind::kFile) {
+                        return CheckOneMain(cmd.path, cmd.typed_space_handling);
+                    }
+                    return CheckListMain(
+                        cmd.list_path, cmd.base_dir, cmd.typed_space_handling);
+                },
+                [](const verosim::CountSymbolsCommand &cmd) {
+                    if (cmd.input_kind == verosim::CountSymbolsCommand::InputKind::kFile) {
+                        return CountSymbolsOneMain(cmd.path, cmd.per_measure, cmd.mode,
+                            cmd.typed_space_handling);
+                    }
+                    return CountSymbolsListMain(
+                        cmd.list_path, cmd.base_dir, cmd.mode, cmd.typed_space_handling);
+                },
+            },
+            *command);
     }
     catch (const std::exception &e) {
         std::cerr << "verosim: " << e.what() << '\n';
         return 1;
     }
-    PrintUsage(std::cerr);
-    return 2;
 }

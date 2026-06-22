@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <variant>
 
 #include <catch2/catch_test_macros.hpp>
 #include <jsonxx.h>
@@ -37,52 +38,207 @@ TEST_CASE("MetricMode helpers map the public mode names", "[cli]")
     CHECK_FALSE(ParseTypedSpaceHandling("auto").has_value());
 }
 
-TEST_CASE("StripCompareOptions parses mode and ops without changing dispatch args", "[cli]")
+TEST_CASE("ParseCommand defaults compare and count-symbols modes to active", "[cli]")
 {
-    CompareCliOptions options;
-    std::vector<std::string> args{ "pred.krn", "gt.krn", "--ops", "--mode", "experimental",
-        "--note-position", "musical", "--typed-space-handling", "preserve" };
     std::string error;
+    const auto compare_cmd = ParseCommand({ "pred.krn", "gt.krn" }, error);
+    REQUIRE(compare_cmd.has_value());
+    const auto *compare = std::get_if<CompareCommand>(&*compare_cmd);
+    REQUIRE(compare != nullptr);
+    CHECK(compare->pred_path == "pred.krn");
+    CHECK(compare->gt_path == "gt.krn");
+    CHECK(compare->options.mode == MetricMode::kActive);
+    CHECK(compare->options.note_position_policy == NotePositionPolicy::kVisualEventOrder);
+    CHECK(compare->options.typed_space_handling == TypedSpaceHandling::kSuppressStraddleFiller);
 
-    REQUIRE(StripCompareOptions(args, options, error));
-    CHECK(options.emit_ops);
-    CHECK(options.mode == MetricMode::kExperimental);
-    CHECK(options.note_position_policy == NotePositionPolicy::kMusicalOnset);
-    CHECK(options.typed_space_handling == TypedSpaceHandling::kPreserve);
-    CHECK(args == std::vector<std::string>{ "pred.krn", "gt.krn" });
+    error.clear();
+    const auto count_cmd = ParseCommand({ "--count-symbols", "score.krn" }, error);
+    REQUIRE(count_cmd.has_value());
+    const auto *count = std::get_if<CountSymbolsCommand>(&*count_cmd);
+    REQUIRE(count != nullptr);
+    CHECK(count->input_kind == CountSymbolsCommand::InputKind::kFile);
+    CHECK(count->path == "score.krn");
+    CHECK(count->mode == MetricMode::kActive);
 }
 
-TEST_CASE("Compare options default to active mode and reject unknown values", "[cli]")
+TEST_CASE("ParseCommand keeps compare options with compare-like commands", "[cli]")
 {
-    CompareCliOptions options;
-    CHECK(options.mode == MetricMode::kActive);
-    CHECK(options.note_position_policy == NotePositionPolicy::kVisualEventOrder);
-    CHECK(options.typed_space_handling == TypedSpaceHandling::kSuppressStraddleFiller);
-
-    std::vector<std::string> args{ "pred.krn", "gt.krn", "--mode", "bogus" };
     std::string error;
-    CHECK_FALSE(StripCompareOptions(args, options, error));
-    CHECK_FALSE(error.empty());
+    auto parsed = ParseCommand({ "pred.krn", "gt.krn", "--ops", "--mode", "experimental",
+        "--note-position", "musical", "--typed-space-handling", "preserve" }, error);
+    REQUIRE(parsed.has_value());
+    const auto *compare = std::get_if<CompareCommand>(&*parsed);
+    REQUIRE(compare != nullptr);
+    CHECK(compare->options.emit_ops);
+    CHECK(compare->options.mode == MetricMode::kExperimental);
+    CHECK(compare->options.note_position_policy == NotePositionPolicy::kMusicalOnset);
+    CHECK(compare->options.typed_space_handling == TypedSpaceHandling::kPreserve);
 
-    args = { "pred.krn", "gt.krn", "--detail", "tierAB" };
     error.clear();
-    CHECK_FALSE(StripCompareOptions(args, options, error));
+    parsed = ParseCommand({ "--pairs", "pairs.tsv", "--base-dir", "data", "--ops",
+        "--mode", "experimental" }, error);
+    REQUIRE(parsed.has_value());
+    const auto *pairs = std::get_if<PairsCommand>(&*parsed);
+    REQUIRE(pairs != nullptr);
+    CHECK(pairs->args.list_path == "pairs.tsv");
+    CHECK(pairs->args.base_dir == "data");
+    CHECK(pairs->options.emit_ops);
+    CHECK(pairs->options.mode == MetricMode::kExperimental);
+
+    error.clear();
+    parsed = ParseCommand({ "--batch", "pairs.tsv", "--jobs", "4", "--base-dir", "data",
+        "--mode", "experimental" }, error);
+    REQUIRE(parsed.has_value());
+    const auto *batch = std::get_if<BatchCommand>(&*parsed);
+    REQUIRE(batch != nullptr);
+    CHECK(batch->args.list_path == "pairs.tsv");
+    CHECK(batch->args.base_dir == "data");
+    CHECK(batch->args.jobs == 4);
+    CHECK(batch->options.mode == MetricMode::kExperimental);
+
+    error.clear();
+    parsed = ParseCommand({ "--batch-jsonl", "validation.jsonl", "--pred-field", "pred",
+        "--gt-field", "gold", "--mode", "experimental" }, error);
+    REQUIRE(parsed.has_value());
+    const auto *batch_jsonl = std::get_if<BatchJsonlCommand>(&*parsed);
+    REQUIRE(batch_jsonl != nullptr);
+    CHECK(batch_jsonl->args.jsonl_path == "validation.jsonl");
+    CHECK(batch_jsonl->args.pred_field == "pred");
+    CHECK(batch_jsonl->args.gt_field == "gold");
+    CHECK(batch_jsonl->options.mode == MetricMode::kExperimental);
+
+    error.clear();
+    parsed = ParseCommand({ "--mode", "experimental", "--batch-jsonl", "validation.jsonl" }, error);
+    REQUIRE(parsed.has_value());
+    batch_jsonl = std::get_if<BatchJsonlCommand>(&*parsed);
+    REQUIRE(batch_jsonl != nullptr);
+    CHECK(batch_jsonl->args.jsonl_path == "validation.jsonl");
+    CHECK(batch_jsonl->options.mode == MetricMode::kExperimental);
+
+    error.clear();
+    parsed = ParseCommand({ "--visualize", "pred.krn", "gt.krn", "--out", "report.html",
+        "--mode", "experimental" }, error);
+    REQUIRE(parsed.has_value());
+    const auto *visual = std::get_if<VisualizeCommand>(&*parsed);
+    REQUIRE(visual != nullptr);
+    CHECK(visual->args.output_kind == VisualizeArgs::OutputKind::kHtml);
+    CHECK(visual->options.mode == MetricMode::kExperimental);
+}
+
+TEST_CASE("ParseCommand accepts count-symbols mode placements", "[cli]")
+{
+    std::string error;
+    auto parsed = ParseCommand(
+        { "--count-symbols", "--mode", "experimental", "score.mei" }, error);
+    REQUIRE(parsed.has_value());
+    const auto *count = std::get_if<CountSymbolsCommand>(&*parsed);
+    REQUIRE(count != nullptr);
+    CHECK(count->input_kind == CountSymbolsCommand::InputKind::kFile);
+    CHECK(count->path == "score.mei");
+    CHECK(count->mode == MetricMode::kExperimental);
+
+    error.clear();
+    parsed = ParseCommand(
+        { "--count-symbols", "--per-measure", "score.krn", "--mode", "experimental" },
+        error);
+    REQUIRE(parsed.has_value());
+    count = std::get_if<CountSymbolsCommand>(&*parsed);
+    REQUIRE(count != nullptr);
+    CHECK(count->per_measure);
+    CHECK(count->path == "score.krn");
+    CHECK(count->mode == MetricMode::kExperimental);
+
+    error.clear();
+    parsed = ParseCommand({ "--count-symbols", "--files-from", "files.txt", "--base-dir",
+        "data", "--mode", "active" }, error);
+    REQUIRE(parsed.has_value());
+    count = std::get_if<CountSymbolsCommand>(&*parsed);
+    REQUIRE(count != nullptr);
+    CHECK(count->input_kind == CountSymbolsCommand::InputKind::kFileList);
+    CHECK(count->list_path == "files.txt");
+    CHECK(count->base_dir == "data");
+    CHECK(count->mode == MetricMode::kActive);
+
+    error.clear();
+    parsed = ParseCommand({ "--mode", "experimental", "--count-symbols", "score.mei" }, error);
+    REQUIRE(parsed.has_value());
+    count = std::get_if<CountSymbolsCommand>(&*parsed);
+    REQUIRE(count != nullptr);
+    CHECK(count->input_kind == CountSymbolsCommand::InputKind::kFile);
+    CHECK(count->path == "score.mei");
+    CHECK(count->mode == MetricMode::kExperimental);
+}
+
+TEST_CASE("ParseCommand rejects legacy detail and command-specific invalid options", "[cli]")
+{
+    std::string error;
+    CHECK_FALSE(ParseCommand({ "pred.krn", "gt.krn", "--detail", "tierAB" }, error).has_value());
     CHECK(error.find("--detail has been removed") != std::string::npos);
 
-    args = { "pred.krn", "gt.krn", "--note-position", "bogus" };
     error.clear();
-    CHECK_FALSE(StripCompareOptions(args, options, error));
+    CHECK_FALSE(ParseCommand({ "--check", "--mode", "experimental", "score.krn" }, error)
+                    .has_value());
     CHECK_FALSE(error.empty());
 
-    args = { "pred.krn", "gt.krn", "--typed-space-handling" };
     error.clear();
-    CHECK_FALSE(StripCompareOptions(args, options, error));
+    CHECK_FALSE(ParseCommand({ "--dump-tree", "score.krn", "--mode", "experimental" }, error)
+                    .has_value());
     CHECK_FALSE(error.empty());
 
-    args = { "pred.krn", "gt.krn", "--typed-space-handling", "auto" };
     error.clear();
-    CHECK_FALSE(StripCompareOptions(args, options, error));
+    CHECK_FALSE(ParseCommand({ "--count-symbols", "--ops", "score.krn" }, error).has_value());
     CHECK_FALSE(error.empty());
+
+    error.clear();
+    CHECK_FALSE(ParseCommand({ "--visualize", "pred.krn", "gt.krn", "--out", "report.html",
+                    "--ops" }, error)
+                    .has_value());
+    CHECK_FALSE(error.empty());
+}
+
+TEST_CASE("ParseCommand preserves check and dump-tree typed-space handling", "[cli]")
+{
+    std::string error;
+    auto parsed = ParseCommand(
+        { "--check", "--typed-space-handling", "preserve", "score.krn" }, error);
+    REQUIRE(parsed.has_value());
+    const auto *check = std::get_if<CheckCommand>(&*parsed);
+    REQUIRE(check != nullptr);
+    CHECK(check->input_kind == CheckCommand::InputKind::kFile);
+    CHECK(check->path == "score.krn");
+    CHECK(check->typed_space_handling == TypedSpaceHandling::kPreserve);
+
+    error.clear();
+    parsed = ParseCommand(
+        { "--typed-space-handling", "preserve", "--check", "score.krn" }, error);
+    REQUIRE(parsed.has_value());
+    check = std::get_if<CheckCommand>(&*parsed);
+    REQUIRE(check != nullptr);
+    CHECK(check->input_kind == CheckCommand::InputKind::kFile);
+    CHECK(check->path == "score.krn");
+    CHECK(check->typed_space_handling == TypedSpaceHandling::kPreserve);
+
+    error.clear();
+    parsed = ParseCommand(
+        { "--check", "--files-from", "files.txt", "--base-dir", "data",
+            "--typed-space-handling", "preserve" },
+        error);
+    REQUIRE(parsed.has_value());
+    check = std::get_if<CheckCommand>(&*parsed);
+    REQUIRE(check != nullptr);
+    CHECK(check->input_kind == CheckCommand::InputKind::kFileList);
+    CHECK(check->list_path == "files.txt");
+    CHECK(check->base_dir == "data");
+    CHECK(check->typed_space_handling == TypedSpaceHandling::kPreserve);
+
+    error.clear();
+    parsed = ParseCommand(
+        { "--dump-tree", "score.krn", "--typed-space-handling", "preserve" }, error);
+    REQUIRE(parsed.has_value());
+    const auto *dump_tree = std::get_if<DumpTreeCommand>(&*parsed);
+    REQUIRE(dump_tree != nullptr);
+    CHECK(dump_tree->path == "score.krn");
+    CHECK(dump_tree->typed_space_handling == TypedSpaceHandling::kPreserve);
 }
 
 TEST_CASE("ParsePairsArgs accepts optional base-dir only", "[cli]")

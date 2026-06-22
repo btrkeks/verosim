@@ -88,6 +88,8 @@ build/verosim --count-symbols --mode experimental score.mei
 Metric modes are `active` and `experimental`. The default is `active`: core
 notation plus ties, slurs, and articulations. `experimental` adds broader
 directions such as dynamics and hairpins and is intended for diagnostics.
+`--mode active|experimental` is accepted by pair compare, `--pairs`, `--batch`,
+`--batch-jsonl`, `--visualize`, and `--count-symbols`.
 
 Typed Verovio spaces can be controlled with
 `--typed-space-handling preserve|suppress-straddle-filler`. The default is

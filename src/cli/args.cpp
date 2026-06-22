@@ -8,65 +8,270 @@
 
 namespace verosim {
 
-bool StripCompareOptions(
-    std::vector<std::string> &args, CompareCliOptions &options, std::string &error)
+namespace {
+
+bool IsValue(const std::string &arg)
+{
+    return !arg.empty() && arg[0] != '-';
+}
+
+bool MissingValue(const std::vector<std::string> &args, std::size_t i)
+{
+    return i + 1 >= args.size();
+}
+
+bool IsCommandFlag(const std::string &arg)
+{
+    return arg == "--pairs" || arg == "--batch" || arg == "--batch-jsonl"
+        || arg == "--visualize" || arg == "--dump-tree" || arg == "--check"
+        || arg == "--count-symbols";
+}
+
+std::optional<std::string> FirstCommandFlag(const std::vector<std::string> &args)
 {
     for (std::size_t i = 0; i < args.size();) {
+        if (IsCommandFlag(args[i])) return args[i];
         if (args[i] == "--ops") {
-            options.emit_ops = true;
-            args.erase(args.begin() + static_cast<std::ptrdiff_t>(i));
+            ++i;
         }
-        else if (args[i] == "--detail") {
+        else if (args[i] == "--mode" || args[i] == "--detail"
+            || args[i] == "--note-position" || args[i] == "--typed-space-handling") {
+            i += 2;
+        }
+        else {
+            break;
+        }
+    }
+    return std::nullopt;
+}
+
+void EraseArgs(std::vector<std::string> &args, std::size_t first, std::size_t count)
+{
+    args.erase(args.begin() + static_cast<std::ptrdiff_t>(first),
+        args.begin() + static_cast<std::ptrdiff_t>(first + count));
+}
+
+bool StripTypedSpaceOptions(
+    std::vector<std::string> &args, TypedSpaceHandling &handling, std::string &error)
+{
+    for (std::size_t i = 0; i < args.size();) {
+        if (args[i] == "--detail") {
             error = "--detail has been removed; use --mode active or --mode experimental";
             return false;
         }
-        else if (args[i] == "--mode") {
-            if (i + 1 >= args.size()) {
-                error = "--mode requires active or experimental";
+        if (args[i] != "--typed-space-handling") {
+            ++i;
+            continue;
+        }
+        if (MissingValue(args, i)) {
+            error = "--typed-space-handling requires preserve or suppress-straddle-filler";
+            return false;
+        }
+        const std::optional<TypedSpaceHandling> parsed = ParseTypedSpaceHandling(args[i + 1]);
+        if (!parsed.has_value()) {
+            error = "unknown typed space handling " + args[i + 1];
+            return false;
+        }
+        handling = *parsed;
+        EraseArgs(args, i, 2);
+    }
+    return true;
+}
+
+bool StripModeOptions(std::vector<std::string> &args, MetricMode &mode, std::string &error)
+{
+    for (std::size_t i = 0; i < args.size();) {
+        if (args[i] == "--detail") {
+            error = "--detail has been removed; use --mode active or --mode experimental";
+            return false;
+        }
+        if (args[i] != "--mode") {
+            ++i;
+            continue;
+        }
+        if (MissingValue(args, i)) {
+            error = "--mode requires active or experimental";
+            return false;
+        }
+        const std::optional<MetricMode> parsed = ParseMetricMode(args[i + 1]);
+        if (!parsed.has_value()) {
+            error = "unknown metric mode " + args[i + 1];
+            return false;
+        }
+        mode = *parsed;
+        EraseArgs(args, i, 2);
+    }
+    return true;
+}
+
+bool StripComparisonOptionsForCommand(std::vector<std::string> &args, CompareCliOptions &options,
+    bool allow_ops, std::string &error)
+{
+    for (std::size_t i = 0; i < args.size();) {
+        if (args[i] == "--ops") {
+            if (!allow_ops) {
+                error = "--ops is not valid for this command";
                 return false;
             }
-            const std::optional<MetricMode> mode = ParseMetricMode(args[i + 1]);
-            if (!mode.has_value()) {
-                error = "unknown metric mode " + args[i + 1];
-                return false;
-            }
-            options.mode = *mode;
-            args.erase(args.begin() + static_cast<std::ptrdiff_t>(i),
-                args.begin() + static_cast<std::ptrdiff_t>(i + 2));
+            options.emit_ops = true;
+            EraseArgs(args, i, 1);
         }
         else if (args[i] == "--note-position") {
-            if (i + 1 >= args.size()) {
+            if (MissingValue(args, i)) {
                 error = "--note-position requires visual or musical";
                 return false;
             }
-            const std::optional<NotePositionPolicy> policy = ParseNotePositionPolicy(args[i + 1]);
-            if (!policy.has_value()) {
+            const std::optional<NotePositionPolicy> parsed = ParseNotePositionPolicy(args[i + 1]);
+            if (!parsed.has_value()) {
                 error = "unknown note position " + args[i + 1];
                 return false;
             }
-            options.note_position_policy = *policy;
-            args.erase(args.begin() + static_cast<std::ptrdiff_t>(i),
-                args.begin() + static_cast<std::ptrdiff_t>(i + 2));
-        }
-        else if (args[i] == "--typed-space-handling") {
-            if (i + 1 >= args.size()) {
-                error = "--typed-space-handling requires preserve or suppress-straddle-filler";
-                return false;
-            }
-            const std::optional<TypedSpaceHandling> handling = ParseTypedSpaceHandling(args[i + 1]);
-            if (!handling.has_value()) {
-                error = "unknown typed space handling " + args[i + 1];
-                return false;
-            }
-            options.typed_space_handling = *handling;
-            args.erase(args.begin() + static_cast<std::ptrdiff_t>(i),
-                args.begin() + static_cast<std::ptrdiff_t>(i + 2));
+            options.note_position_policy = *parsed;
+            EraseArgs(args, i, 2);
         }
         else {
+            const std::size_t before = args.size();
+            if (!StripModeOptions(args, options.mode, error)) return false;
+            if (args.size() != before) continue;
+            if (!StripTypedSpaceOptions(args, options.typed_space_handling, error)) return false;
+            if (args.size() != before) continue;
             ++i;
         }
     }
     return true;
+}
+
+bool StripCountOptions(std::vector<std::string> &args, CountSymbolsCommand &command,
+    std::string &error)
+{
+    if (!StripModeOptions(args, command.mode, error)) return false;
+    return StripTypedSpaceOptions(args, command.typed_space_handling, error);
+}
+
+} // namespace
+
+std::optional<Command> ParseCommand(const std::vector<std::string> &args, std::string &error)
+{
+    error.clear();
+    if (args.empty()) return std::nullopt;
+
+    const std::optional<std::string> command_flag = FirstCommandFlag(args);
+    if (command_flag == "--pairs") {
+        PairsCommand command;
+        std::vector<std::string> stripped = args;
+        if (!StripComparisonOptionsForCommand(stripped, command.options, true, error)) return std::nullopt;
+        const std::optional<PairsArgs> parsed = ParsePairsArgs(stripped);
+        if (!parsed.has_value()) return std::nullopt;
+        command.args = *parsed;
+        return command;
+    }
+    if (command_flag == "--batch") {
+        BatchCommand command;
+        std::vector<std::string> stripped = args;
+        if (!StripComparisonOptionsForCommand(stripped, command.options, true, error)) return std::nullopt;
+        const std::optional<BatchArgs> parsed = ParseBatchArgs(stripped);
+        if (!parsed.has_value()) return std::nullopt;
+        command.args = *parsed;
+        return command;
+    }
+    if (command_flag == "--batch-jsonl") {
+        BatchJsonlCommand command;
+        std::vector<std::string> stripped = args;
+        if (!StripComparisonOptionsForCommand(stripped, command.options, true, error)) return std::nullopt;
+        const std::optional<BatchJsonlArgs> parsed = ParseBatchJsonlArgs(stripped);
+        if (!parsed.has_value()) return std::nullopt;
+        command.args = *parsed;
+        return command;
+    }
+    if (command_flag == "--visualize") {
+        VisualizeCommand command;
+        std::vector<std::string> stripped = args;
+        if (!StripComparisonOptionsForCommand(stripped, command.options, false, error)) return std::nullopt;
+        const std::optional<VisualizeArgs> parsed = ParseVisualizeArgs(stripped);
+        if (!parsed.has_value()) return std::nullopt;
+        command.args = *parsed;
+        return command;
+    }
+    if (command_flag == "--dump-tree") {
+        DumpTreeCommand command;
+        std::vector<std::string> stripped = args;
+        if (!StripTypedSpaceOptions(stripped, command.typed_space_handling, error)) {
+            return std::nullopt;
+        }
+        if (stripped.size() != 2 || stripped[0] != "--dump-tree" || !IsValue(stripped[1])) {
+            if (error.empty()) error = "invalid --dump-tree arguments";
+            return std::nullopt;
+        }
+        command.path = stripped[1];
+        return command;
+    }
+    if (command_flag == "--check") {
+        CheckCommand command;
+        std::vector<std::string> stripped = args;
+        if (!StripTypedSpaceOptions(stripped, command.typed_space_handling, error)) {
+            return std::nullopt;
+        }
+        if (stripped.size() == 2 && stripped[0] == "--check" && IsValue(stripped[1])) {
+            command.input_kind = CheckCommand::InputKind::kFile;
+            command.path = stripped[1];
+            return command;
+        }
+        for (std::size_t i = 1; i + 1 < stripped.size(); i += 2) {
+            if (stripped[i] == "--files-from") command.list_path = stripped[i + 1];
+            else if (stripped[i] == "--base-dir") command.base_dir = stripped[i + 1];
+            else {
+                command.list_path.clear();
+                break;
+            }
+        }
+        if (!command.list_path.empty() && (stripped.size() == 3 || stripped.size() == 5)) {
+            command.input_kind = CheckCommand::InputKind::kFileList;
+            return command;
+        }
+        if (error.empty()) error = "invalid --check arguments";
+        return std::nullopt;
+    }
+    if (command_flag == "--count-symbols") {
+        CountSymbolsCommand command;
+        std::vector<std::string> stripped = args;
+        if (!StripCountOptions(stripped, command, error)) return std::nullopt;
+        if (stripped.size() == 2 && stripped[0] == "--count-symbols" && IsValue(stripped[1])) {
+            command.input_kind = CountSymbolsCommand::InputKind::kFile;
+            command.path = stripped[1];
+            return command;
+        }
+        if (stripped.size() == 3 && stripped[1] == "--per-measure" && IsValue(stripped[2])) {
+            command.input_kind = CountSymbolsCommand::InputKind::kFile;
+            command.per_measure = true;
+            command.path = stripped[2];
+            return command;
+        }
+        for (std::size_t i = 1; i + 1 < stripped.size(); i += 2) {
+            if (stripped[i] == "--files-from") command.list_path = stripped[i + 1];
+            else if (stripped[i] == "--base-dir") command.base_dir = stripped[i + 1];
+            else {
+                command.list_path.clear();
+                break;
+            }
+        }
+        if (!command.list_path.empty() && (stripped.size() == 3 || stripped.size() == 5)) {
+            command.input_kind = CountSymbolsCommand::InputKind::kFileList;
+            return command;
+        }
+        if (error.empty()) error = "invalid --count-symbols arguments";
+        return std::nullopt;
+    }
+
+    CompareCommand command;
+    std::vector<std::string> stripped = args;
+    if (!StripComparisonOptionsForCommand(stripped, command.options, true, error)) return std::nullopt;
+    if (stripped.size() != 2 || !IsValue(stripped[0]) || !IsValue(stripped[1])) {
+        if (error.empty()) error = "invalid compare arguments";
+        return std::nullopt;
+    }
+    command.pred_path = stripped[0];
+    command.gt_path = stripped[1];
+    return command;
 }
 
 std::optional<PairsArgs> ParsePairsArgs(const std::vector<std::string> &args)

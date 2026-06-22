@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "verosim/cli/compare_cli.h"
@@ -46,8 +47,69 @@ struct VisualizeArgs {
     OutputKind output_kind = OutputKind::kHtml;
 };
 
-bool StripCompareOptions(
-    std::vector<std::string> &args, CompareCliOptions &options, std::string &error);
+struct CompareCommand {
+    std::string pred_path;
+    std::string gt_path;
+    CompareCliOptions options;
+};
+
+struct PairsCommand {
+    PairsArgs args;
+    CompareCliOptions options;
+};
+
+struct BatchCommand {
+    BatchArgs args;
+    CompareCliOptions options;
+};
+
+struct BatchJsonlCommand {
+    BatchJsonlArgs args;
+    CompareCliOptions options;
+};
+
+struct VisualizeCommand {
+    VisualizeArgs args;
+    CompareCliOptions options;
+};
+
+struct DumpTreeCommand {
+    std::string path;
+    TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
+};
+
+struct CheckCommand {
+    enum class InputKind {
+        kFile,
+        kFileList,
+    };
+
+    InputKind input_kind = InputKind::kFile;
+    std::string path;
+    std::string list_path;
+    std::string base_dir;
+    TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
+};
+
+struct CountSymbolsCommand {
+    enum class InputKind {
+        kFile,
+        kFileList,
+    };
+
+    InputKind input_kind = InputKind::kFile;
+    std::string path;
+    std::string list_path;
+    std::string base_dir;
+    bool per_measure = false;
+    MetricMode mode = MetricMode::kActive;
+    TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
+};
+
+using Command = std::variant<CompareCommand, PairsCommand, BatchCommand, BatchJsonlCommand,
+    VisualizeCommand, DumpTreeCommand, CheckCommand, CountSymbolsCommand>;
+
+std::optional<Command> ParseCommand(const std::vector<std::string> &args, std::string &error);
 std::optional<PairsArgs> ParsePairsArgs(const std::vector<std::string> &args);
 std::optional<BatchArgs> ParseBatchArgs(const std::vector<std::string> &args);
 std::optional<BatchJsonlArgs> ParseBatchJsonlArgs(const std::vector<std::string> &args);
