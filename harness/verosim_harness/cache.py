@@ -1,6 +1,6 @@
 """Content-hash cache for oracle records.
 
-Key = sha256 over (sha256(pred bytes), sha256(gt bytes), detail int, component
+Key = sha256 over (sha256(pred bytes), sha256(gt bytes), mode int, component
 versions, schema version), so a cache hit is valid only for identical inputs
 under identical pinned musicdiff/music21/converter21. Records live at
 harness/cache/<key[:2]>/<key>.json (gitignored).
@@ -26,12 +26,12 @@ def _sha256_file(path: str | Path) -> str:
     return h.hexdigest()
 
 
-def cache_key(pred_path: str | Path, gt_path: str | Path, detail_value: int) -> str:
+def cache_key(pred_path: str | Path, gt_path: str | Path, mode_value: int) -> str:
     versions = get_versions()
     parts = [
         _sha256_file(pred_path),
         _sha256_file(gt_path),
-        str(detail_value),
+        str(mode_value),
         versions["musicdiff"],
         versions["music21"],
         versions["converter21"],

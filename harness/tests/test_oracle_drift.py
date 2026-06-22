@@ -13,7 +13,7 @@ bases/cases (tiny, in-repo, fast to parse) casts a wider net.
 import unittest
 from pathlib import Path
 
-from verosim_harness import DETAIL_LEVELS
+from verosim_harness import METRIC_MODES
 
 MUTATIONS = Path(__file__).resolve().parents[2] / "corpora" / "mutations"
 
@@ -37,15 +37,16 @@ class OracleDrift(unittest.TestCase):
         ensure_converter21()
         from musicdiff import _diff_omr_ned_metrics
 
-        for detail_name in sorted(DETAIL_LEVELS):
+        for mode_name in sorted(METRIC_MODES):
             for pred, gt in PAIRS:
-                with self.subTest(detail=detail_name, pred=pred, gt=gt):
-                    record = run_pair(pred, gt, detail_name, MUTATIONS)
+                with self.subTest(mode=mode_name, pred=pred, gt=gt):
+                    record = run_pair(pred, gt, mode_name, MUTATIONS)
                     self.assertIsNone(record["error"])
+                    self.assertEqual(record["mode"]["name"], mode_name)
 
                     # the signature accepts DetailLevel | int
                     metrics = _diff_omr_ned_metrics(
-                        MUTATIONS / pred, MUTATIONS / gt, DETAIL_LEVELS[detail_name]
+                        MUTATIONS / pred, MUTATIONS / gt, METRIC_MODES[mode_name]
                     )
                     self.assertIsNotNone(metrics)
                     self.assertEqual(record["distance"], metrics.omr_edit_distance)
@@ -77,7 +78,7 @@ class OracleDrift(unittest.TestCase):
     def test_identity_pair_is_zero(self):
         from verosim_harness.oracle import run_pair
 
-        record = run_pair("base/mono.krn", "base/mono.krn", "tierA", MUTATIONS)
+        record = run_pair("base/mono.krn", "base/mono.krn", "active", MUTATIONS)
         self.assertIsNone(record["error"])
         self.assertEqual(record["distance"], 0)
         self.assertEqual(record["omr_ned"], 0.0)

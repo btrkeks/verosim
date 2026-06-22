@@ -43,7 +43,7 @@ Verovio parser:
 
 ```sh
 build/verosim pred.xml gt.krn
-build/verosim pred.mxl gt.mei --ops --detail tierAB
+build/verosim pred.mxl gt.mei --ops --mode experimental
 build/verosim pred.krn gt.krn --typed-space-handling preserve
 ```
 
@@ -59,8 +59,8 @@ prediction and ground truth through Verovio, and writes a side-by-side HTML file
 with annotated SVG pages. Inserted, deleted, and changed notation elements are
 highlighted in the score, with the overall OMR-NED, raw edit distance, symbol
 counts, edit-distance categories, and any parser or unresolved-mark warnings at
-the top of the page. `--detail tierA|tierAB|tierAB_dir` can be added to match
-the comparison tier used for the report. The SVG bundle form writes raw
+the top of the page. `--mode active|experimental` can be added to choose the
+metric surface used for the report. The SVG bundle form writes raw
 annotated pages under `prediction/` and `ground_truth/`, plus a
 `visualization.json` manifest with relative page paths.
 
@@ -77,16 +77,17 @@ build/verosim --check score.musicxml
 build/verosim --check --files-from corpora/perf10k.txt --base-dir /path/to/data
 ```
 
-Count extracted Tier-A symbols:
+Count extracted symbols:
 
 ```sh
 build/verosim --count-symbols score.mei
 build/verosim --count-symbols --per-measure score.krn
+build/verosim --count-symbols --mode experimental score.mei
 ```
 
-Detail tiers are `tierA`, `tierAB`, and `tierAB_dir`. The v1 acceptance gate uses
-`tierAB`; `tierAB_dir` is a diagnostic run for the broader musicdiff Directions
-bit.
+Metric modes are `active` and `experimental`. The default is `active`: core
+notation plus ties, slurs, and articulations. `experimental` adds broader
+directions such as dynamics and hairpins and is intended for diagnostics.
 
 Typed Verovio spaces can be controlled with
 `--typed-space-handling preserve|suppress-straddle-filler`. The default is

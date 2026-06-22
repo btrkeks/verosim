@@ -187,7 +187,7 @@ bool ComparePairToJson(VrvBridge &bridge, const std::string &pred_path,
 
     // One bridge, two loads: SymScore is self-contained, so the first
     // extraction survives the second load.
-    const ExtractOptions extract_options{ .detail = options.detail,
+    const ExtractOptions extract_options{ .mode = options.mode,
         .typed_space_handling = options.typed_space_handling };
     const LoadedScore pred = LoadAndExtract(bridge, pred_path, extract_options);
     const LoadedScore gt = pred.ok ? LoadAndExtract(bridge, gt_path, extract_options) : LoadedScore{};
@@ -206,7 +206,7 @@ bool CompareScoreDataToJson(VrvBridge &bridge, const std::string &pred_data,
     std::ostream &out)
 {
     const auto start = std::chrono::steady_clock::now();
-    const ExtractOptions extract_options{ .detail = options.detail,
+    const ExtractOptions extract_options{ .mode = options.mode,
         .typed_space_handling = options.typed_space_handling };
     const LoadedScore pred = LoadAndExtractData(bridge, pred_data, "prediction", extract_options);
     const LoadedScore gt = pred.ok ? LoadAndExtractData(bridge, gt_data, "target", extract_options)

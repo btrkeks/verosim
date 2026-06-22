@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "verosim-harness"
 version = "0.1.0"
-description = "VeroSim oracle harness: runs vendored musicdiff per pair/DetailLevel with caching"
+description = "VeroSim oracle harness: runs vendored musicdiff per pair/mode with caching"
 requires-python = ">=3.12"
 # musicdiff + music21 are installed separately with pins (see setup.sh / PINNED_VERSIONS.md)
 dependencies = []

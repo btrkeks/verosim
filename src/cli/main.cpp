@@ -18,12 +18,12 @@ namespace {
 
 void PrintUsage(std::ostream &os)
 {
-    os << "usage: verosim <pred> <gt> [--ops] [--detail tierA|tierAB|tierAB_dir]\n"
+    os << "usage: verosim <pred> <gt> [--ops] [--mode active|experimental]\n"
           "                                      [--note-position visual|musical]\n"
           "                                      [--typed-space-handling preserve|suppress-straddle-filler]\n"
           "                                      compare two scores, OMR-NED as JSON\n"
           "                                      (--ops includes the per-edit operation list)\n"
-          "       verosim --visualize <pred> <gt> --out <html> [--detail tierA|tierAB|tierAB_dir]\n"
+          "       verosim --visualize <pred> <gt> --out <html> [--mode active|experimental]\n"
           "                                      [--note-position visual|musical]\n"
           "                                      [--typed-space-handling preserve|suppress-straddle-filler]\n"
           "                                      compare and write a side-by-side SVG HTML report\n"
@@ -45,9 +45,9 @@ void PrintUsage(std::ostream &os)
           "       verosim --check --files-from <list> [--base-dir <dir>]\n"
           "                                      check every file in <list> (one path per line,\n"
           "                                      '#' comments; always exits 0 — failures are data)\n"
-          "       verosim --count-symbols [--per-measure] <file>\n"
-          "                                      Tier-A symbol counts as JSON\n"
-          "       verosim --count-symbols --files-from <list> [--base-dir <dir>]\n"
+          "       verosim --count-symbols [--per-measure] [--mode active|experimental] <file>\n"
+          "                                      symbol counts as JSON\n"
+          "       verosim --count-symbols --files-from <list> [--base-dir <dir>] [--mode active|experimental]\n"
           "                                      counts for every file in <list>, JSONL, exits 0\n"
           "Supported inputs: MusicXML, .mxl, Humdrum/kern, MEI, ... (Verovio autodetect)\n";
 }
@@ -177,18 +177,19 @@ int CheckListMain(const std::string &listPath, const std::string &baseDir,
 }
 
 int CountSymbolsOneMain(
-    const std::string &path, bool perMeasure, verosim::TypedSpaceHandling typedSpaceHandling)
+    const std::string &path, bool perMeasure, verosim::MetricMode mode,
+    verosim::TypedSpaceHandling typedSpaceHandling)
 {
     verosim::VrvBridgeConfig config;
     config.typed_space_handling = typedSpaceHandling;
     verosim::VrvBridge bridge(config);
-    const verosim::CountSymbolsOptions options{ .per_measure = perMeasure,
+    const verosim::CountSymbolsOptions options{ .per_measure = perMeasure, .mode = mode,
         .typed_space_handling = typedSpaceHandling };
     return verosim::CountSymbolsFile(bridge, path, options, std::cout) ? 0 : 1;
 }
 
 int CountSymbolsListMain(const std::string &listPath, const std::string &baseDir,
-    verosim::TypedSpaceHandling typedSpaceHandling)
+    verosim::MetricMode mode, verosim::TypedSpaceHandling typedSpaceHandling)
 {
     std::vector<std::string> files;
     try {
@@ -201,7 +202,7 @@ int CountSymbolsListMain(const std::string &listPath, const std::string &baseDir
     verosim::VrvBridgeConfig config;
     config.typed_space_handling = typedSpaceHandling;
     verosim::VrvBridge bridge(config);
-    const verosim::CountSymbolsOptions options{ .per_measure = false,
+    const verosim::CountSymbolsOptions options{ .per_measure = false, .mode = mode,
         .typed_space_handling = typedSpaceHandling };
     for (const std::string &line : files) {
         const std::string path = verosim::JoinBaseDir(baseDir, line);
@@ -260,10 +261,12 @@ int main(int argc, char **argv)
         }
         if (!args.empty() && args[0] == "--count-symbols") {
             if (args.size() == 2 && args[1][0] != '-') {
-                return CountSymbolsOneMain(args[1], false, compareOptions.typed_space_handling);
+                return CountSymbolsOneMain(
+                    args[1], false, compareOptions.mode, compareOptions.typed_space_handling);
             }
             if (args.size() == 3 && args[1] == "--per-measure" && args[2][0] != '-') {
-                return CountSymbolsOneMain(args[2], true, compareOptions.typed_space_handling);
+                return CountSymbolsOneMain(
+                    args[2], true, compareOptions.mode, compareOptions.typed_space_handling);
             }
             std::string listPath, baseDir;
             for (std::size_t i = 1; i + 1 < args.size(); i += 2) {
@@ -272,7 +275,8 @@ int main(int argc, char **argv)
                 else { listPath.clear(); break; }
             }
             if (!listPath.empty() && (args.size() == 3 || args.size() == 5)) {
-                return CountSymbolsListMain(listPath, baseDir, compareOptions.typed_space_handling);
+                return CountSymbolsListMain(
+                    listPath, baseDir, compareOptions.mode, compareOptions.typed_space_handling);
             }
         }
         if (args.size() == 2 && args[0][0] != '-' && args[1][0] != '-') {

@@ -1,5 +1,5 @@
 {
-  "detail": "tierAB_dir",
+  "mode": "experimental",
   "n_pairs": 200,
   "n_ok": 186,
   "n_error": 14,

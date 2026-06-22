@@ -1,10 +1,10 @@
-# HAND-10: hand-counted Tier-A symbol inventories
+# HAND-10: hand-counted active symbol inventories
 
-Ten very small scores with manually derived Tier-A (DetailLevel 131 =
-NotesAndRests|Beams|Signatures) symbol counts: the only fully human-verified
+Ten very small scores with manually derived active-mode (DetailLevel 243)
+symbol counts: the only fully human-verified
 ground truth in the validation suite. Authored before any C++ extraction
 existed (fixtures-before-code, D11), with the same discipline as the mutation
-corpus: counts were first derived by hand from the Tier-A counting rules
+corpus: counts were first derived by hand from the active counting rules
 (AnnNote.notation_size / AnnExtra.notation_size, see
 `docs/symbol_mapping.md`), then cross-checked against the vendored
 musicdiff via `python -m verosim_harness.count_oracle <file>`; all ten

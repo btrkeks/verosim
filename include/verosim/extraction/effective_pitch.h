@@ -15,7 +15,7 @@ namespace verosim {
 // The VISIBLE accidental that musicdiff compares is taken from @accid
 // directly (it mirrors music21 displayStatus on both importers; pinned by
 // HAND-10 and the mutation corpus). The resolver's outputs are the sounding
-// alter (recorded on SymPitch, not compared at Tier A) and a cross-check
+// alter (recorded on SymPitch, not compared by the metric) and a cross-check
 // signal used by --count-symbols --per-measure triage.
 class AccidentalState {
 public:

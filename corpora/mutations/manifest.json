@@ -1,18 +1,17 @@
 {
-  "schema": 1,
+  "schema": 2,
   "generated_by": "harness/verosim_harness/gen_mutations.py",
   "orientation": "pred=mutated, gt=base; op names are pred->gt",
-  "tier_details": {
-    "tierA": 131,
-    "tierAB": 243
+  "mode_details": {
+    "active": 243
   },
-  "n_cases": 50,
+  "n_cases": 47,
   "cases": [
     {
       "id": "mono_pitch_letter",
       "base": "base/mono.krn",
       "mutated": "cases/mono_pitch_letter.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 4,
       "expected_ops": {
         "notedel": 1,
@@ -31,7 +30,7 @@
       "id": "mono_octave_up",
       "base": "base/mono.krn",
       "mutated": "cases/mono_octave_up.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 4,
       "expected_ops": {
         "notedel": 1,
@@ -50,7 +49,7 @@
       "id": "mono_accidental_sharp",
       "base": "base/mono.krn",
       "mutated": "cases/mono_accidental_sharp.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "accidentdel": 1
@@ -68,7 +67,7 @@
       "id": "mono_accidental_flat",
       "base": "base/mono.krn",
       "mutated": "cases/mono_accidental_flat.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "accidentdel": 1
@@ -86,7 +85,7 @@
       "id": "mono_double_sharp",
       "base": "base/mono.krn",
       "mutated": "cases/mono_double_sharp.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "accidentdel": 1
@@ -104,7 +103,7 @@
       "id": "mono_dot_drop",
       "base": "base/mono.krn",
       "mutated": "cases/mono_dot_drop.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "dotins": 1
@@ -122,7 +121,7 @@
       "id": "mono_head_change",
       "base": "base/mono.krn",
       "mutated": "cases/mono_head_change.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "headedit": 1
@@ -140,7 +139,7 @@
       "id": "mono_note_delete_end",
       "base": "base/mono.krn",
       "mutated": "cases/mono_note_delete_end.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "noteins": 1
@@ -158,7 +157,7 @@
       "id": "mono_rest_for_note",
       "base": "base/mono.krn",
       "mutated": "cases/mono_rest_for_note.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 4,
       "expected_ops": {
         "notedel": 1,
@@ -177,7 +176,7 @@
       "id": "mono_flag_eighth",
       "base": "base/mono.krn",
       "mutated": "cases/mono_flag_eighth.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "delbeam": 1
@@ -195,7 +194,7 @@
       "id": "mono_clef",
       "base": "base/mono.krn",
       "mutated": "cases/mono_clef.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "extrasymboledit": 1
@@ -213,7 +212,7 @@
       "id": "mono_timesig_num",
       "base": "base/mono.krn",
       "mutated": "cases/mono_timesig_num.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "extrainfoedit": 1
@@ -231,7 +230,7 @@
       "id": "mono_timesig_denom",
       "base": "base/mono.krn",
       "mutated": "cases/mono_timesig_denom.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "extrainfoedit": 1
@@ -249,7 +248,7 @@
       "id": "mono_keysig_add",
       "base": "base/mono.krn",
       "mutated": "cases/mono_keysig_add.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 4,
       "expected_ops": {
         "extrainfoedit": 1,
@@ -268,7 +267,7 @@
       "id": "mono_barline_drop",
       "base": "base/mono.krn",
       "mutated": "cases/mono_barline_drop.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 10,
       "expected_ops": {
         "insbar": 1,
@@ -287,7 +286,7 @@
       "id": "mono_grace_end",
       "base": "base/mono.krn",
       "mutated": "cases/mono_grace_end.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 7,
       "expected_ops": {
         "notedel": 1,
@@ -306,7 +305,7 @@
       "id": "mono_artic_staccato",
       "base": "base/mono.krn",
       "mutated": "cases/mono_artic_staccato.krn",
-      "tier": "tierAB",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "delarticulation": 1
@@ -321,26 +320,10 @@
       "rationale": "Staccato added: paired note, articulation Levenshtein = 1."
     },
     {
-      "id": "mono_artic_staccato_tierA",
-      "base": "base/mono.krn",
-      "mutated": "cases/mono_artic_staccato_tierA.krn",
-      "tier": "tierA",
-      "expected_cost": 0,
-      "expected_ops": {},
-      "edits": [
-        {
-          "line": 12,
-          "find": "4g",
-          "replace": "4g'"
-        }
-      ],
-      "rationale": "Tier-scoping pin: Articulations excluded at tierA -> cost 0."
-    },
-    {
       "id": "mono_tie_hanging",
       "base": "base/mono.krn",
       "mutated": "cases/mono_tie_hanging.krn",
-      "tier": "tierAB",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "tiedel": 1
@@ -355,26 +338,10 @@
       "rationale": "Hanging tie start survives converter21 (probed): pitch tie flag True vs False on the paired note = 1."
     },
     {
-      "id": "mono_tie_hanging_tierA",
-      "base": "base/mono.krn",
-      "mutated": "cases/mono_tie_hanging_tierA.krn",
-      "tier": "tierA",
-      "expected_cost": 0,
-      "expected_ops": {},
-      "edits": [
-        {
-          "line": 12,
-          "find": "4g",
-          "replace": "[4g"
-        }
-      ],
-      "rationale": "Tier-scoping pin: Ties excluded at tierA -> cost 0."
-    },
-    {
       "id": "mono_slur",
       "base": "base/mono.krn",
       "mutated": "cases/mono_slur.krn",
-      "tier": "tierAB",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": null,
       "edits": [
@@ -392,31 +359,10 @@
       "rationale": "Slur (one logical symbol, two tokens): AnnExtra kind=slur, notation_size = 1 (duration only; no content/symbolic). Op name unpinned (extras set distance)."
     },
     {
-      "id": "mono_slur_tierA",
-      "base": "base/mono.krn",
-      "mutated": "cases/mono_slur_tierA.krn",
-      "tier": "tierA",
-      "expected_cost": 0,
-      "expected_ops": {},
-      "edits": [
-        {
-          "line": 8,
-          "find": "8eL",
-          "replace": "(8eL"
-        },
-        {
-          "line": 9,
-          "find": "8fJ",
-          "replace": "8fJ)"
-        }
-      ],
-      "rationale": "Tier-scoping pin: Slurs excluded at tierA -> cost 0."
-    },
-    {
       "id": "keysig_f_natural",
       "base": "base/keysig.krn",
       "mutated": "cases/keysig_f_natural.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "accidentdel": 1
@@ -434,7 +380,7 @@
       "id": "keysig_f_explicit_n",
       "base": "base/keysig.krn",
       "mutated": "cases/keysig_f_explicit_n.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "accidentdel": 1
@@ -452,7 +398,7 @@
       "id": "keysig_remove",
       "base": "base/keysig.krn",
       "mutated": "cases/keysig_remove.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 4,
       "expected_ops": {
         "extrainfoedit": 1,
@@ -471,7 +417,7 @@
       "id": "keysig_add_csharp",
       "base": "base/keysig.krn",
       "mutated": "cases/keysig_add_csharp.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "extrainfoedit": 1
@@ -489,7 +435,7 @@
       "id": "keysig_to_flats",
       "base": "base/keysig.krn",
       "mutated": "cases/keysig_to_flats.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 9,
       "expected_ops": {
         "extrainfoedit": 1,
@@ -508,7 +454,7 @@
       "id": "keysig_gsharp",
       "base": "base/keysig.krn",
       "mutated": "cases/keysig_gsharp.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "accidentdel": 1
@@ -526,7 +472,7 @@
       "id": "keysig_clef_bass",
       "base": "base/keysig.krn",
       "mutated": "cases/keysig_clef_bass.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "extrasymboledit": 1
@@ -544,7 +490,7 @@
       "id": "accid_carry_break",
       "base": "base/accid.krn",
       "mutated": "cases/accid_carry_break.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "accidentdel": 1
@@ -562,7 +508,7 @@
       "id": "accid_carrier_change",
       "base": "base/accid.krn",
       "mutated": "cases/accid_carrier_change.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "accidentins": 1,
@@ -581,7 +527,7 @@
       "id": "accid_natural_to_carried_flat",
       "base": "base/accid.krn",
       "mutated": "cases/accid_natural_to_carried_flat.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "accidentins": 1
@@ -599,7 +545,7 @@
       "id": "accid_flat_to_sharp",
       "base": "base/accid.krn",
       "mutated": "cases/accid_flat_to_sharp.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "accidentedit": 1
@@ -617,7 +563,7 @@
       "id": "accid_flat_drop",
       "base": "base/accid.krn",
       "mutated": "cases/accid_flat_drop.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "accidentins": 1
@@ -635,7 +581,7 @@
       "id": "accid_tie_f_sharps",
       "base": "base/accid.krn",
       "mutated": "cases/accid_tie_f_sharps.krn",
-      "tier": "tierAB",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "tiedel": 1
@@ -658,7 +604,7 @@
       "id": "accid_artic_accent",
       "base": "base/accid.krn",
       "mutated": "cases/accid_artic_accent.krn",
-      "tier": "tierAB",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "delarticulation": 1
@@ -676,7 +622,7 @@
       "id": "chord_member_delete",
       "base": "base/chords.krn",
       "mutated": "cases/chord_member_delete.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "noteins": 1
@@ -694,7 +640,7 @@
       "id": "chord_member_pitch",
       "base": "base/chords.krn",
       "mutated": "cases/chord_member_pitch.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 4,
       "expected_ops": {
         "notedel": 1,
@@ -713,7 +659,7 @@
       "id": "chord_member_add",
       "base": "base/chords.krn",
       "mutated": "cases/chord_member_add.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "notedel": 1
@@ -731,7 +677,7 @@
       "id": "chords_dot_shift",
       "base": "base/chords.krn",
       "mutated": "cases/chords_dot_shift.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 13,
       "expected_ops": {
         "dotins": 1,
@@ -751,7 +697,7 @@
       "id": "chords_halves_to_dotted_quarters",
       "base": "base/chords.krn",
       "mutated": "cases/chords_halves_to_dotted_quarters.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 6,
       "expected_ops": {
         "headedit": 2,
@@ -770,7 +716,7 @@
       "id": "chords_artic_staccato",
       "base": "base/chords.krn",
       "mutated": "cases/chords_artic_staccato.krn",
-      "tier": "tierAB",
+      "mode": "active",
       "expected_cost": 1,
       "expected_ops": {
         "delarticulation": 1
@@ -788,7 +734,7 @@
       "id": "grand_bass_pitch",
       "base": "base/grand.krn",
       "mutated": "cases/grand_bass_pitch.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 4,
       "expected_ops": {
         "notedel": 1,
@@ -807,7 +753,7 @@
       "id": "grand_bass_delete",
       "base": "base/grand.krn",
       "mutated": "cases/grand_bass_delete.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 3,
       "expected_ops": {
         "noteins": 1
@@ -820,13 +766,13 @@
         }
       ],
       "rationale": "Last bass note of m1 nulled: noteins(2). Cross-check pinned: +1 'bad kern syntax' - converter21 (acceptSyntaxErrors=True, pred side only) flags the resulting bass-spine timing gap as a fixed syntax error, and annotated_scores_diff adds the fix count to the distance (comparison.py:1665). Single-spine trailing nulls do not trigger this.",
-      "verovio_divergence": "Rhythm-broken kern (bass spine short of the treble): humlib repairs with straddle <space> filler that shifts note offsets, so the C++ side unpairs differently than converter21; the +1 syntax-fix cost is oracle-only regardless (D4 deferred). Excluded from the C++ exact gate per D6 (Tier-A validation record)."
+      "verovio_divergence": "Rhythm-broken kern (bass spine short of the treble): humlib repairs with straddle <space> filler that shifts note offsets, so the C++ side unpairs differently than converter21; the +1 syntax-fix cost is oracle-only regardless (D4 deferred). Excluded from the C++ exact gate per D6 (active validation record)."
     },
     {
       "id": "grand_whole_to_half",
       "base": "base/grand.krn",
       "mutated": "cases/grand_whole_to_half.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "headedit": 1
@@ -839,13 +785,13 @@
         }
       ],
       "rationale": "Whole -> half in treble m2: note_head 1 vs 2, headedit = 2.",
-      "verovio_divergence": "Rhythm-broken kern (treble m2 now shorter than bass): humlib inserts straddle <space> filler before both m2 notes, shifting their offsets so neither pairs; converter21 keeps the note at offset 0. Excluded from the C++ exact gate per D6 (Tier-A validation record)."
+      "verovio_divergence": "Rhythm-broken kern (treble m2 now shorter than bass): humlib inserts straddle <space> filler before both m2 notes, shifting their offsets so neither pairs; converter21 keeps the note at offset 0. Excluded from the C++ exact gate per D6 (active validation record)."
     },
     {
       "id": "grand_bass_octave",
       "base": "base/grand.krn",
       "mutated": "cases/grand_bass_octave.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 4,
       "expected_ops": {
         "insbar": 1,
@@ -864,7 +810,7 @@
       "id": "grand_treble_clef",
       "base": "base/grand.krn",
       "mutated": "cases/grand_treble_clef.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "extrasymboledit": 1
@@ -882,7 +828,7 @@
       "id": "tuplet_pitch",
       "base": "base/tuplet.krn",
       "mutated": "cases/tuplet_pitch.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 10,
       "expected_ops": {
         "notedel": 1,
@@ -901,7 +847,7 @@
       "id": "tuplet_dot_add_mid",
       "base": "base/tuplet.krn",
       "mutated": "cases/tuplet_dot_add_mid.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 5,
       "expected_ops": {
         "dotdel": 1,
@@ -921,7 +867,7 @@
       "id": "tuplet_del_last_note",
       "base": "base/tuplet.krn",
       "mutated": "cases/tuplet_del_last_note.krn",
-      "tier": "tierA",
+      "mode": "active",
       "expected_cost": 2,
       "expected_ops": {
         "noteins": 1

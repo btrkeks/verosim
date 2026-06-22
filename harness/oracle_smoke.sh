@@ -2,8 +2,8 @@
 # Oracle smoke check: exercise the riskiest assumptions on one
 # lieder pair before any architecture-dependent code.
 #   Q1: does Python musicdiff run end-to-end incl. the kern side via music21? (R2 probe)
-#   Q2: can DetailLevel express "Tier A only"? (-i notesandrests beams signatures)
-#   Q3: per-pair runtime, to size the DEV-200 x per-tier oracle precompute.
+#   Q2: can DetailLevel express active mode?
+#   Q3: per-pair runtime, to size the DEV-200 x per-mode oracle precompute.
 # Deliberately no `set -e`: a musicdiff failure is a finding to record, not a crash.
 set -uo pipefail
 
@@ -46,18 +46,18 @@ run_case() { # name, then musicdiff args...
 # positionals first: -i/-o are nargs='*' and would greedily swallow the file args
 T_FULL=$(run_case "Q1: full detail (default allobjects), omrned output — kern via music21 (R2 probe)" \
     "$XML" "$KRN" -o omrned)
-T_TIERA=$(run_case "Q2: Tier A only (-i notesandrests beams signatures)" \
-    "$XML" "$KRN" -i notesandrests beams signatures -o omrned)
+T_ACTIVE=$(run_case "Q2: active mode (-i notesandrests beams signatures ties slurs articulations)" \
+    "$XML" "$KRN" -i notesandrests beams signatures ties slurs articulations -o omrned)
 
 {
     echo "## Q3: oracle precompute sizing"
     echo
-    printf -- '- per-pair wall time: full detail %.1fs, Tier A %.1fs\n' "$T_FULL" "$T_TIERA"
-    printf -- '- DEV-200 x 3 detail levels, single-threaded upper bound (full-detail rate): %.0f min\n' \
-        "$(echo "$T_FULL * 200 * 3 / 60" | bc -l)"
+    printf -- '- per-pair wall time: full detail %.1fs, active %.1fs\n' "$T_FULL" "$T_ACTIVE"
+    printf -- '- DEV-200 x 2 metric modes, single-threaded upper bound (full-detail rate): %.0f min\n' \
+        "$(echo "$T_FULL * 200 * 2 / 60" | bc -l)"
     NPROC=$(nproc)
     printf -- '- parallel over %s cores: ~%.0f min\n' "$NPROC" \
-        "$(echo "$T_FULL * 200 * 3 / 60 / $NPROC" | bc -l)"
+        "$(echo "$T_FULL * 200 * 2 / 60 / $NPROC" | bc -l)"
 } >>"$OUT"
 
 echo "wrote $OUT"

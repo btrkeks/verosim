@@ -1,7 +1,7 @@
-"""Per-file musicdiff Tier-A symbol-count breakdown.
+"""Per-file musicdiff active/experimental symbol-count breakdown.
 
 Parses one score with the pinned music21/converter21 stack, builds
-AnnScore(score, detail) exactly like the oracle does, and emits a JSON
+AnnScore(score, mode bitmask) exactly like the oracle does, and emits a JSON
 breakdown whose categories mirror the C++ SymbolCounts struct
 (include/verosim/model/sym_score.h), so that
 
@@ -24,7 +24,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import DETAIL_LEVELS
+from . import METRIC_MODES
 from .oracle import ensure_converter21
 
 # Mirrors SymbolCounts in include/verosim/model/sym_score.h. Keep in sync.
@@ -114,23 +114,23 @@ def _count_extra(extra, counts: dict[str, int]) -> int:
     return size
 
 
-def count_file(path: Path, detail_name: str, per_note: bool = False) -> dict:
+def count_file(path: Path, mode_name: str, per_note: bool = False) -> dict:
     ensure_converter21()
     import music21 as m21
     from musicdiff.annotation import AnnScore
 
-    detail = DETAIL_LEVELS[detail_name]
+    mode_value = METRIC_MODES[mode_name]
     score = m21.converter.parse(path, forceSource=True)
     if isinstance(score, m21.stream.Opus):
         score = score.scores[0]
-    ann = AnnScore(score, detail)
+    ann = AnnScore(score, mode_value)
 
     counts = _empty_counts()
     parts_out = []
     for part in ann.part_list:
         measures_out = []
         for bar in part.bar_list:
-            assert not bar.includes_voicing, "v1 tiers never set Voicing"
+            assert not bar.includes_voicing, "active/experimental never set Voicing"
             m_size = 0
             notes_out = []
             for note in bar.annot_notes:
@@ -169,12 +169,12 @@ def count_file(path: Path, detail_name: str, per_note: bool = False) -> dict:
         })
 
     # AnnScore.notation_size also sums staff groups + metadata; both are off
-    # at every v1 tier, but use the authoritative total anyway.
+    # in the current modes, but use the authoritative total anyway.
     total = ann.notation_size()
     assert total == sum(counts.values()), (total, counts)
     return {
         "path": str(path),
-        "detail": detail_name,
+        "mode": mode_name,
         "total": total,
         "categories": counts,
         "parts": parts_out,
@@ -184,11 +184,11 @@ def count_file(path: Path, detail_name: str, per_note: bool = False) -> dict:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("file", type=Path)
-    ap.add_argument("--detail", default="tierA", choices=sorted(DETAIL_LEVELS))
+    ap.add_argument("--mode", default="active", choices=sorted(METRIC_MODES))
     ap.add_argument("--per-note", action="store_true",
                     help="include per-note offsets/reprs and per-extra details")
     args = ap.parse_args(argv)
-    result = count_file(args.file, args.detail, per_note=args.per_note)
+    result = count_file(args.file, args.mode, per_note=args.per_note)
     json.dump(result, sys.stdout, indent=2)
     sys.stdout.write("\n")
     return 0

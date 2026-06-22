@@ -1,8 +1,8 @@
 """Parallel oracle driver.
 
     python -m verosim_harness.run_oracle --corpus corpora/dev200.tsv \
-        --detail tierA --jobs 2 --out oracle/dev200_tierA.jsonl \
-        [--summary-out corpora/summaries/dev200_tierA.json] [--data-root DIR]
+        --mode active --jobs 2 --out oracle/dev200_active.jsonl \
+        [--summary-out corpora/summaries/dev200_active.json] [--data-root DIR]
 
 Reads a pair list (TSV: pred<TAB>gt, '#' comments), distributes pairs over N
 persistent worker subprocesses (verosim_harness.oracle serve mode, line
@@ -28,7 +28,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import DEFAULT_DATA_ROOT, DETAIL_LEVELS
+from . import DEFAULT_DATA_ROOT, METRIC_MODES
 from . import cache
 from .oracle import new_record
 from .versions import get_versions
@@ -46,8 +46,8 @@ def read_pairs(corpus_path: Path) -> list[tuple[str, str]]:
     return pairs
 
 
-def error_record(pred: str, gt: str, detail_name: str, message: str) -> dict:
-    record = new_record(pred, gt, detail_name)
+def error_record(pred: str, gt: str, mode_name: str, message: str) -> dict:
+    record = new_record(pred, gt, mode_name)
     record["error"] = message
     return record
 
@@ -84,19 +84,19 @@ class Worker:
                 self.proc.wait()
                 self.proc = None
 
-    def run(self, pred: str, gt: str, detail: str, data_root: str, timeout_s: float) -> dict:
+    def run(self, pred: str, gt: str, mode: str, data_root: str, timeout_s: float) -> dict:
         if self.proc is None or self.proc.poll() is not None:
             self._spawn()
         assert self.proc is not None and self.proc.stdin and self.proc.stdout
         try:
             self.proc.stdin.write(
-                json.dumps({"pred": pred, "gt": gt, "detail": detail, "data_root": data_root})
+                json.dumps({"pred": pred, "gt": gt, "mode": mode, "data_root": data_root})
                 + "\n"
             )
             self.proc.stdin.flush()
         except (BrokenPipeError, OSError):
             self.kill()
-            return error_record(pred, gt, detail, "worker died before accepting the pair")
+            return error_record(pred, gt, mode, "worker died before accepting the pair")
 
         # readline with a hang watchdog: the timer kills the subprocess, which
         # unblocks readline with EOF.
@@ -116,23 +116,23 @@ class Worker:
                 if self._timed_out
                 else "worker died (OOM kill or crash)"
             )
-            return error_record(pred, gt, detail, reason)
+            return error_record(pred, gt, mode, reason)
         try:
             return json.loads(line)
         except json.JSONDecodeError:
             self.kill()
             return error_record(
-                pred, gt, detail, f"worker emitted a non-record line: {line[:200]!r}"
+                pred, gt, mode, f"worker emitted a non-record line: {line[:200]!r}"
             )
 
 
-def summarize(records: list[dict], detail_name: str, wall_s: float) -> dict:
+def summarize(records: list[dict], mode_name: str, wall_s: float) -> dict:
     ok = [r for r in records if r["error"] is None]
     errors = [r for r in records if r["error"] is not None]
     parse_issues = [r for r in ok if r["pred_parse_error"] or r["gt_parse_error"]]
     neds = sorted(r["omr_ned"] for r in ok if r["omr_ned"] is not None)
     summary = {
-        "detail": detail_name,
+        "mode": mode_name,
         "n_pairs": len(records),
         "n_ok": len(ok),
         "n_error": len(errors),
@@ -168,7 +168,7 @@ def summarize(records: list[dict], detail_name: str, wall_s: float) -> dict:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--corpus", required=True, type=Path)
-    ap.add_argument("--detail", required=True, choices=sorted(DETAIL_LEVELS))
+    ap.add_argument("--mode", required=True, choices=sorted(METRIC_MODES))
     ap.add_argument("--jobs", type=int, default=2)
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--summary-out", type=Path)
@@ -197,13 +197,13 @@ def main(argv: list[str] | None = None) -> int:
     todo = [(p, g) for p, g in pairs if (p, g) not in done]
     records = [done[(p, g)] for p, g in pairs if (p, g) in done]
     print(
-        f"{args.corpus.name} @ {args.detail}: {len(pairs)} pairs, "
+        f"{args.corpus.name} @ {args.mode}: {len(pairs)} pairs, "
         f"{len(records)} already in {args.out}, {len(todo)} to run",
         file=sys.stderr,
     )
 
     start = time.monotonic()
-    detail_value = DETAIL_LEVELS[args.detail]
+    mode_value = METRIC_MODES[args.mode]
 
     out_lock = threading.Lock()
     work: queue.Queue[tuple[str, str]] = queue.Queue()
@@ -227,12 +227,12 @@ def main(argv: list[str] | None = None) -> int:
             if not args.no_cache:
                 try:
                     key = cache.cache_key(
-                        Path(args.data_root, pred), Path(args.data_root, gt), detail_value
+                        Path(args.data_root, pred), Path(args.data_root, gt), mode_value
                     )
                 except OSError as exc:
                     # Missing/unreadable corpus file costs exactly this pair,
                     # same contract as a worker-side failure.
-                    emit(error_record(pred, gt, args.detail, f"cache pre-pass: {exc}"))
+                    emit(error_record(pred, gt, args.mode, f"cache pre-pass: {exc}"))
                     continue
                 hit = cache.load(key)
             if hit is not None:
@@ -251,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
                         pred, gt = work.get_nowait()
                     except queue.Empty:
                         return
-                    record = worker.run(pred, gt, args.detail, args.data_root, args.timeout)
+                    record = worker.run(pred, gt, args.mode, args.data_root, args.timeout)
                     emit(record)
             finally:
                 worker.kill()
@@ -265,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
         for t in threads:
             t.join()
 
-    summary = summarize(records, args.detail, time.monotonic() - start)
+    summary = summarize(records, args.mode, time.monotonic() - start)
     print(
         f"done: {summary['n_ok']}/{summary['n_pairs']} ok, "
         f"{summary['n_error']} errors, {summary['wall_s']}s",

@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "verosim/model/detail_tier.h"
+#include "verosim/model/metric_mode.h"
 #include "verosim/model/sym_score.h"
 #include "verosim/extraction/typed_space_policy.h"
 
@@ -25,12 +25,12 @@ struct ExtractResult {
 };
 
 struct ExtractOptions {
-    DetailTier detail = DetailTier::kTierA; // count/extraction default remains Tier A
+    MetricMode mode = MetricMode::kActive;
     TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
 };
 
 // Walk the parse-only Verovio Object tree of the first <score> into the
-// Layer 2 SymScore (Tier A symbols). Tree shape and per-element mapping are
+// Layer 2 SymScore. Tree shape and per-element mapping are
 // documented in docs/symbol_mapping.md.
 ExtractResult ExtractSymScore(
     vrv::Doc &doc, SourceFormat format, const ExtractOptions &options = ExtractOptions());

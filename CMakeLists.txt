@@ -54,7 +54,7 @@ add_library(verosim_core STATIC
     src/extraction/typed_space_policy.cpp
     src/extraction/effective_pitch.cpp
     src/extraction/notation_rules.cpp
-    src/model/detail_tier.cpp
+    src/model/metric_mode.cpp
     src/model/sym_score.cpp
     src/engine/interner.cpp
     src/engine/myers.cpp

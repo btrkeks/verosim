@@ -45,17 +45,17 @@ corpora: require-data-root
 	$(PY) -m verosim_harness.sample_corpora --data-root $(DATA_ROOT)
 
 oracle-dev200: require-data-root
-	for d in tierA tierAB tierAB_dir; do \
-	  $(PY) -m verosim_harness.run_oracle --corpus corpora/dev200.tsv --detail $$d \
+	for m in active experimental; do \
+	  $(PY) -m verosim_harness.run_oracle --corpus corpora/dev200.tsv --mode $$m \
 	    --jobs $(JOBS) --data-root $(DATA_ROOT) \
-	    --out oracle/dev200_$$d.jsonl --summary-out corpora/summaries/dev200_$$d.json \
+	    --out oracle/dev200_$$m.jsonl --summary-out corpora/summaries/dev200_$$m.json \
 	    || exit 1; \
 	done
 
 oracle-holdout: require-data-root
-	$(PY) -m verosim_harness.run_oracle --corpus corpora/holdout100.tsv --detail tierAB \
+	$(PY) -m verosim_harness.run_oracle --corpus corpora/holdout100.tsv --mode active \
 	  --jobs $(JOBS) --data-root $(DATA_ROOT) \
-	  --out oracle/holdout100_tierAB.jsonl --summary-out corpora/summaries/holdout100_tierAB.json
+	  --out oracle/holdout100_active.jsonl --summary-out corpora/summaries/holdout100_active.json
 
 mutgen:
 	$(PY) -m verosim_harness.gen_mutations --write
@@ -71,12 +71,12 @@ sweep: require-data-root build
 	$(PY) -m verosim_harness.sweep_report oracle/sweep_perf10k.jsonl oracle/sweep_lieder.jsonl \
 	  --out oracle/reports/parse_coverage.md
 
-# ---- DEV-200 Tier-A symbol-count audit ----
+# ---- DEV-200 active symbol-count audit ----
 
 count-audit: require-data-root build
-	$(PY) -m verosim_harness.count_audit --oracle oracle/dev200_tierA.jsonl \
+	$(PY) -m verosim_harness.count_audit --oracle oracle/dev200_active.jsonl \
 	  --bin $(BUILD_DIR)/verosim --data-root $(DATA_ROOT) \
-	  --out oracle/count_audit_dev200.jsonl --report oracle/reports/tier_a_count_audit.md
+	  --out oracle/count_audit_dev200_active.jsonl --report oracle/reports/active_count_audit.md
 
 # ---- Comparison-engine validation gates ----
 # (gate (b), the mutation corpus, runs in `make test` via tests/test_mutation_gate.cpp)
@@ -89,33 +89,33 @@ identity-gate: require-data-root build
 	  --data-root $(DATA_ROOT) --out oracle/identity_gate.jsonl
 
 corr-audit: require-data-root build
-	$(PY) -m verosim_harness.corr_audit --oracle oracle/dev200_tierAB.jsonl \
+	$(PY) -m verosim_harness.corr_audit --oracle oracle/dev200_active.jsonl \
 	  --bin $(BUILD_DIR)/verosim --data-root $(DATA_ROOT) \
 	  --explained corpora/dev200_explained_pairs.tsv --threshold 0.80 \
-	  --out oracle/corr_audit_dev200_tierAB.jsonl --report oracle/reports/tier_ab_correlation_audit.md
+	  --out oracle/corr_audit_dev200_active.jsonl --report oracle/reports/active_correlation_audit.md
 	$(PY) -m verosim_harness.synth_corr --bin $(BUILD_DIR)/verosim \
-	  --data-root $(DATA_ROOT) --detail tierAB --jobs $(JOBS) --out oracle/synth_corr_tierAB.jsonl \
+	  --data-root $(DATA_ROOT) --mode active --jobs $(JOBS) --out oracle/synth_corr_active.jsonl \
 	  --explained corpora/dev200_explained_pairs.tsv --threshold 0.95 \
-	  --report-append oracle/reports/tier_ab_correlation_audit.md
+	  --report-append oracle/reports/active_correlation_audit.md
 
-# ---- Directions detail-level diagnostic ----
+# ---- Experimental directions diagnostic ----
 
 directions-audit:
-	$(PY) -m verosim_harness.directions_audit --oracle oracle/dev200_tierAB_dir.jsonl \
-	  --out oracle/reports/directions_detail_audit.md
+	$(PY) -m verosim_harness.directions_audit --oracle oracle/dev200_experimental.jsonl \
+	  --out oracle/reports/experimental_directions_audit.md
 
 # ---- Final acceptance, robustness, and performance ----
 
 holdout-acceptance: require-data-root build oracle-holdout
-	$(PY) -m verosim_harness.corr_audit --oracle oracle/holdout100_tierAB.jsonl \
-	  --bin $(BUILD_DIR)/verosim --data-root $(DATA_ROOT) --detail tierAB \
-	  --threshold 0.75 --out oracle/holdout_acceptance_tierAB.jsonl \
+	$(PY) -m verosim_harness.corr_audit --oracle oracle/holdout100_active.jsonl \
+	  --bin $(BUILD_DIR)/verosim --data-root $(DATA_ROOT) --mode active \
+	  --threshold 0.75 --out oracle/holdout_acceptance_active.jsonl \
 	  --report oracle/reports/holdout_acceptance.md
 
 holdout-engine-gate: require-data-root build
 	$(PY) -m verosim_harness.synth_corr --bin $(BUILD_DIR)/verosim \
-	  --data-root $(DATA_ROOT) --corpus corpora/holdout100.tsv --detail tierAB \
-	  --jobs $(JOBS) --n 100 --out oracle/holdout_synth_corr_tierAB.jsonl \
+	  --data-root $(DATA_ROOT) --corpus corpora/holdout100.tsv --mode active \
+	  --jobs $(JOBS) --n 100 --out oracle/holdout_synth_corr_active.jsonl \
 	  --exclude-oracle-degenerate-threshold 0.9 --threshold 0.95 \
 	  --report-append oracle/reports/holdout_acceptance.md --workdir oracle/holdout_synth_work
 

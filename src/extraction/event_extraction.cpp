@@ -467,7 +467,7 @@ void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &e
         }
         else if (child->Is(vrv::BARLINE) || child->Is(vrv::MNUM) || child->Is(vrv::TUPLET_NUM)
             || child->Is(vrv::TUPLET_BRACKET)) {
-            // barlines are not Tier A; tupletNum/tupletBracket are visual
+            // barlines are not counted; tupletNum/tupletBracket are visual
             // companions of <tuplet>, whose @num we already read
         }
         else {
@@ -487,7 +487,7 @@ Event Extractor::MakeCarrierEvent(const vrv::Object *obj, const Fraction &cursor
     ev.tuplets = tupletStack;
     ev.is_rest = obj->Is(vrv::REST) || obj->Is(vrv::MREST) || obj->Is(vrv::MULTIREST)
         || obj->Is(vrv::SPACE) || obj->Is(vrv::MSPACE);
-    if (DetailIncludesTierB(options_.detail)) AppendArticulations(obj, ev.articulations);
+    AppendArticulations(obj, ev.articulations);
 
     // duration attributes live on the carrier (chord-level for chords)
     const vrv::DurationInterface *durInterface = obj->GetDurationInterface();

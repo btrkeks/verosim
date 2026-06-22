@@ -69,8 +69,8 @@ std::string_view ExtraKindName(ExtraKind kind)
 
 int SymNote::notation_size() const
 {
-    // AnnNote.notation_size (annotation.py:264-315), v1 tiers: articulations/
-    // expressions/style terms appear from Tier B/C on; all zero for Tier A.
+    // AnnNote.notation_size (annotation.py:264-315), for fields materialized
+    // by the active/experimental metric modes.
     int size = 0;
     for (const SymPitch &p : pitches) {
         size += 1; // pitch name

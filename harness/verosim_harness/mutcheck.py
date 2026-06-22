@@ -29,11 +29,11 @@ def check_case(case: dict, mutations_dir: Path) -> dict:
     record = run_pair(
         mutations_dir / case["mutated"],
         mutations_dir / case["base"],
-        case["tier"],
+        case["mode"],
     )
     result = {
         "id": case["id"],
-        "tier": case["tier"],
+        "mode": case["mode"],
         "expected_cost": case["expected_cost"],
         "actual_cost": record["distance"],
         "expected_ops": case["expected_ops"],
@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
 
     failures = [r for r in results if not r["ok"]]
     for r in failures:
-        print(f"MISMATCH {r['id']} ({r['tier']})")
+        print(f"MISMATCH {r['id']} ({r['mode']})")
         print(f"  cost: expected {r['expected_cost']}, got {r['actual_cost']}")
         if r["expected_ops"] is not None and r["actual_ops"] != r["expected_ops"]:
             print(f"  ops:  expected {r['expected_ops']}")

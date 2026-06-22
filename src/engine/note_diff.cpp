@@ -383,7 +383,7 @@ DiffResult AnnotatedNoteDiff(const SymNote &n1, const SymNote &n2)
         result.ops.push_back(note_op(name, 1));
     }
     // noteshape / noteheadFill / noteheadParenthesis / stemDirection /
-    // styledict: Style-gated (Tier D), constant-equal at v1 tiers.
+    // styledict: style-gated and constant-equal in the current metric modes.
     return result;
 }
 

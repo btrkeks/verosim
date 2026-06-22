@@ -23,9 +23,9 @@ namespace verosim {
 struct SymPitch {
     std::string step_octave; // "C4"; "R" for rests
     std::string accid = "None"; // "sharp", "flat", "natural", "double-sharp", "double-flat"
-    bool tie = false; // always false at Tier A (Ties bit off)
+    bool tie = false;
     // Effective-pitch resolver output (D13): sounding alter in semitones.
-    // Not part of any Tier A comparison or count; recorded for cross-checks
+    // Not part of any metric comparison or count; recorded for cross-checks
     // (--per-measure triage) and the deferred D4 work.
     int sounding_alter = 0;
 };
@@ -63,7 +63,7 @@ struct SymNote {
     std::vector<TupletValue> tuplets; // post get_tuplets_type
     std::vector<std::string> tuplet_info; // parallel to tuplets; "" on non-start
     std::vector<std::string> articulations; // sorted music21 articulation names
-    std::vector<std::string> expressions; // Tier C/stretch; normally empty in v1
+    std::vector<std::string> expressions; // stretch surface; normally empty
     std::string grace_type; // "", "acc", "unacc"
     bool grace_slash = false;
     Fraction gap_dur; // always 0 in flat mode (annotation.py:1224,1237)
@@ -89,11 +89,11 @@ struct SymExtra {
     SymbolLocator locator;
     ExtraKind kind = ExtraKind::kClef;
     std::optional<std::string> symbolic; // clef: "G2"; dynamic: "p", "ff"; else nullopt
-    std::optional<std::string> content; // directions/text; unused for core tierAB
+    std::optional<std::string> content; // directions/text; unused by current metric modes
     // insertion-ordered, deterministic (mirrors AnnExtra.infodict)
     std::vector<std::pair<std::string, std::string>> infodict;
     Fraction offset; // offset in measure
-    std::optional<Fraction> duration; // nullopt for all Tier A kinds
+    std::optional<Fraction> duration; // set on spanning controls
 
     int notation_size() const; // AnnExtra.notation_size (content is never set at v1 tiers)
     std::string str() const; // readable form for triage
@@ -141,13 +141,13 @@ struct SymbolCounts {
     long grace = 0;
     long grace_slash = 0;
     long gaps = 0;
-    long articulations = 0; // Tier B; always 0 for Tier A
-    long expressions = 0; // Tier C; always 0 for Tier A
-    long style = 0; // never set at v1 tiers
+    long articulations = 0;
+    long expressions = 0; // stretch surface; currently always 0
+    long style = 0; // currently never set
     long clef = 0;
     long keysig = 0;
     long timesig = 0;
-    long other_extras = 0; // Tier B+ extras; always 0 for Tier A
+    long other_extras = 0; // slurs, dynamics, hairpins
 
     long total() const;
 };

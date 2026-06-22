@@ -29,7 +29,7 @@ measure             → staff@n → layer@n → events; control elements (tie @s
   `staffGrp` with one `staffDef` per staff — musicdiff's part = one staff
   (music21 PartStaff), so SymPart per staffDef.
 
-## Per-element mapping (Tier A)
+## Per-element mapping (active)
 
 | MEI (Verovio class) | SymScore | Symbols counted |
 |---|---|---|
@@ -38,13 +38,20 @@ measure             → staff@n → layer@n → events; control elements (tie @s
 | `rest` | SymNote, pitch "R" | head 1 + dots n (+ beam entries when beamed/flagged: enhanced-beam rules) |
 | `mRest` | SymNote "R"; duration = governing meter's measure length | head (+ dot if meter length needs one, e.g. 3/4 → dotted half) |
 | `multiRest` | SymNote "R"; treated as one full-measure rest with a warning (v1 corpus does not require multi-measure expansion) | head (+ dot if meter length needs one, like `mRest`) |
+| note/chord/rest articulations (`@artic`, `artic`) | sorted SymNote articulation names | 1 per articulation |
+| `tie` control or note `@tie` | `SymPitch.tie` on the tie-start pitch | 1 on each tie start |
 | `space` (hidden, e.g. kern `4ryy`) | nothing (advances offset cursor) | 0 — musicdiff skips `hideObjectOnPrint` notes |
 | `beam` (container) | per-note beam-type lists, then musicdiff `get_enhance_beamings` fixups | 1 per beam/flag entry |
 | `tuplet` (container, @num @numbase) | per-note tuplet-type entries + tuplet_info (num string on start, "" otherwise) | 2 per active tuplet per note (type + info) |
 | `clef` (staffDef child or inline in layer) | SymExtra kind=clef, symbolic `{shape}{line}[{±8}]` | 1 |
 | `keySig` (@sig, staffDef child or scoreDef child) | SymExtra kind=keysig, infodict per accidental; sig=0 → `flats/sharps: none` | max(1, |accidentals|) |
 | `meterSig` (@count @unit @sym @form); modern `mensur` C/C\| from kern `*met(C)`/`*met(C\|)` | SymExtra kind=timesig | 2 (numerator+denominator), or 1 (@sym common/cut, modern mensur common/cut, or @form="num" = MusicXML single-number → numerator only). Hidden numeric meterSig updates meter context but is not scored as a visible symbol. If a staffDef has both a visible meterSig and mensur, Verovio renders the meterSig; scoreDef-level visible pairs can render both, so both are scored. |
+| `slur` control | SymExtra kind=slur with offset and duration | 1 duration symbol |
 | `mNum`, `stem`, `flag`, `dots`, `label`, `instrDef`, `pgHead`, `grpSym`, `mdiv`, milestones | ignored | 0 |
+
+Experimental mode additionally includes selected direction controls:
+dynamics (`dynam`) and hairpins (`hairpin`). These use musicdiff's broader
+Directions bit, so the harness reports them separately from the active gate.
 
 ## Accidentals / effective pitch (D13)
 
@@ -95,7 +102,7 @@ VrvBridge at load).
 - `quarterLengthToClosestType` edge durations ('complex') — ported from
   music21; only reachable through mRest/multiRest and irregular tuplet math.
 
-## Importer differences found by the DEV-200 Tier-A count audit (D6, accepted)
+## Importer differences found by the DEV-200 active count audit (D6, accepted)
 
 Validation summary in `docs/validation.md`; the audit lands at 0.30% (xml) /
 1.53% (kern) aggregate |Δ| against the oracle's notation sizes.

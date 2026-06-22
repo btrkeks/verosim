@@ -69,7 +69,7 @@ SymNote Extractor::MakeSymNote(const Event &ev, const vrv::Note *note,
     sn.visual_id = note->GetID();
     sn.is_in_chord = idxInChord >= 0;
     sn.note_idx_in_chord = idxInChord;
-    if (DetailIncludesTierB(options_.detail) && note != carrier) {
+    if (note != carrier) {
         AppendArticulations(note, sn.articulations);
     }
 
@@ -127,7 +127,7 @@ SymNote Extractor::MakeSymNote(const Event &ev, const vrv::Note *note,
     if (step != 0) {
         pitch.sounding_alter
             = state.accids.Resolve(step, note->GetOct(), writtenAlter, gesturalAlter, tied);
-        pitch.tie = DetailIncludesTierB(options_.detail) && tieStart;
+        pitch.tie = tieStart;
         if (tieStart) {
             state.accids.RegisterTieStart(step, note->GetOct(), pitch.sounding_alter);
         }

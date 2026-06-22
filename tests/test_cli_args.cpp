@@ -10,24 +10,20 @@
 #include "verosim/cli/args.h"
 #include "verosim/cli/batch.h"
 #include "verosim/cli/list_io.h"
-#include "verosim/model/detail_tier.h"
+#include "verosim/model/metric_mode.h"
 
 using namespace verosim;
 
-TEST_CASE("DetailTier helpers map the public tier names", "[cli]")
+TEST_CASE("MetricMode helpers map the public mode names", "[cli]")
 {
-    REQUIRE(ParseDetailTier("tierA") == DetailTier::kTierA);
-    REQUIRE(ParseDetailTier("tierAB") == DetailTier::kTierAB);
-    REQUIRE(ParseDetailTier("tierAB_dir") == DetailTier::kTierABDir);
-    CHECK_FALSE(ParseDetailTier("allobjects").has_value());
+    REQUIRE(ParseMetricMode("active") == MetricMode::kActive);
+    REQUIRE(ParseMetricMode("experimental") == MetricMode::kExperimental);
+    CHECK_FALSE(ParseMetricMode("tierAB").has_value());
+    CHECK_FALSE(ParseMetricMode("allobjects").has_value());
 
-    CHECK(DetailTierName(DetailTier::kTierA) == "tierA");
-    CHECK_FALSE(DetailIncludesTierB(DetailTier::kTierA));
-    CHECK_FALSE(DetailIncludesDirections(DetailTier::kTierA));
-    CHECK(DetailIncludesTierB(DetailTier::kTierAB));
-    CHECK_FALSE(DetailIncludesDirections(DetailTier::kTierAB));
-    CHECK(DetailIncludesTierB(DetailTier::kTierABDir));
-    CHECK(DetailIncludesDirections(DetailTier::kTierABDir));
+    CHECK(MetricModeName(MetricMode::kActive) == "active");
+    CHECK_FALSE(MetricModeIncludesDirections(MetricMode::kActive));
+    CHECK(MetricModeIncludesDirections(MetricMode::kExperimental));
 
     REQUIRE(ParseNotePositionPolicy("visual") == NotePositionPolicy::kVisualEventOrder);
     REQUIRE(ParseNotePositionPolicy("musical") == NotePositionPolicy::kMusicalOnset);
@@ -41,32 +37,37 @@ TEST_CASE("DetailTier helpers map the public tier names", "[cli]")
     CHECK_FALSE(ParseTypedSpaceHandling("auto").has_value());
 }
 
-TEST_CASE("StripCompareOptions parses detail and ops without changing dispatch args", "[cli]")
+TEST_CASE("StripCompareOptions parses mode and ops without changing dispatch args", "[cli]")
 {
     CompareCliOptions options;
-    std::vector<std::string> args{ "pred.krn", "gt.krn", "--ops", "--detail", "tierAB_dir",
+    std::vector<std::string> args{ "pred.krn", "gt.krn", "--ops", "--mode", "experimental",
         "--note-position", "musical", "--typed-space-handling", "preserve" };
     std::string error;
 
     REQUIRE(StripCompareOptions(args, options, error));
     CHECK(options.emit_ops);
-    CHECK(options.detail == DetailTier::kTierABDir);
+    CHECK(options.mode == MetricMode::kExperimental);
     CHECK(options.note_position_policy == NotePositionPolicy::kMusicalOnset);
     CHECK(options.typed_space_handling == TypedSpaceHandling::kPreserve);
     CHECK(args == std::vector<std::string>{ "pred.krn", "gt.krn" });
 }
 
-TEST_CASE("Compare options default to tierAB visual and reject unknown values", "[cli]")
+TEST_CASE("Compare options default to active mode and reject unknown values", "[cli]")
 {
     CompareCliOptions options;
-    CHECK(options.detail == DetailTier::kTierAB);
+    CHECK(options.mode == MetricMode::kActive);
     CHECK(options.note_position_policy == NotePositionPolicy::kVisualEventOrder);
     CHECK(options.typed_space_handling == TypedSpaceHandling::kSuppressStraddleFiller);
 
-    std::vector<std::string> args{ "pred.krn", "gt.krn", "--detail", "bogus" };
+    std::vector<std::string> args{ "pred.krn", "gt.krn", "--mode", "bogus" };
     std::string error;
     CHECK_FALSE(StripCompareOptions(args, options, error));
     CHECK_FALSE(error.empty());
+
+    args = { "pred.krn", "gt.krn", "--detail", "tierAB" };
+    error.clear();
+    CHECK_FALSE(StripCompareOptions(args, options, error));
+    CHECK(error.find("--detail has been removed") != std::string::npos);
 
     args = { "pred.krn", "gt.krn", "--note-position", "bogus" };
     error.clear();

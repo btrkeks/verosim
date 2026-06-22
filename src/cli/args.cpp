@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <exception>
 
-#include "verosim/model/detail_tier.h"
+#include "verosim/model/metric_mode.h"
 
 namespace verosim {
 
@@ -17,16 +17,20 @@ bool StripCompareOptions(
             args.erase(args.begin() + static_cast<std::ptrdiff_t>(i));
         }
         else if (args[i] == "--detail") {
+            error = "--detail has been removed; use --mode active or --mode experimental";
+            return false;
+        }
+        else if (args[i] == "--mode") {
             if (i + 1 >= args.size()) {
-                error = "--detail requires tierA, tierAB, or tierAB_dir";
+                error = "--mode requires active or experimental";
                 return false;
             }
-            const std::optional<DetailTier> detail = ParseDetailTier(args[i + 1]);
-            if (!detail.has_value()) {
-                error = "unknown detail tier " + args[i + 1];
+            const std::optional<MetricMode> mode = ParseMetricMode(args[i + 1]);
+            if (!mode.has_value()) {
+                error = "unknown metric mode " + args[i + 1];
                 return false;
             }
-            options.detail = *detail;
+            options.mode = *mode;
             args.erase(args.begin() + static_cast<std::ptrdiff_t>(i),
                 args.begin() + static_cast<std::ptrdiff_t>(i + 2));
         }

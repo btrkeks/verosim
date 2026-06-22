@@ -12,8 +12,8 @@ what the piece contains.
 
 Usage:
   python -m verosim_harness.synth_corr --bin build/verosim \\
-      [--data-root <root>] [--corpus corpora/dev200.tsv] [--detail tierAB] [--n 100] \\
-      [--out oracle/synth_corr_tierAB.jsonl] [--report-append oracle/reports/tier_ab_correlation_audit.md]
+      [--data-root <root>] [--corpus corpora/dev200.tsv] [--mode active] [--n 100] \\
+      [--out oracle/synth_corr_active.jsonl] [--report-append oracle/reports/active_correlation_audit.md]
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import DEFAULT_DATA_ROOT, DETAIL_LEVELS
+from . import DEFAULT_DATA_ROOT, METRIC_MODES
 from .gates import threshold_status
 from .lists import read_list
 from .stats import format_rho, spearman_or_none
@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--bin", type=Path, required=True)
     ap.add_argument("--data-root", default=DEFAULT_DATA_ROOT, required=not DEFAULT_DATA_ROOT)
     ap.add_argument("--corpus", type=Path, default=REPO_ROOT / "corpora" / "dev200.tsv")
-    ap.add_argument("--detail", default="tierAB", choices=sorted(DETAIL_LEVELS))
+    ap.add_argument("--mode", default="active", choices=sorted(METRIC_MODES))
     ap.add_argument("--n", type=int, default=100)
     ap.add_argument("--jobs", type=int, default=8)
     ap.add_argument("--out", type=Path)
@@ -152,8 +152,8 @@ def main(argv: list[str] | None = None) -> int:
             "verosim_harness.run_oracle",
             "--corpus",
             str(pairs_path),
-            "--detail",
-            args.detail,
+            "--mode",
+            args.mode,
             "--jobs",
             str(args.jobs),
             "--data-root",
@@ -169,8 +169,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # C++ side
     cpp_cmd = [str(args.bin), "--batch", str(pairs_path), "--base-dir", str(workdir), "--jobs", str(args.jobs)]
-    if args.detail != "tierAB":
-        cpp_cmd += ["--detail", args.detail]
+    if args.mode != "active":
+        cpp_cmd += ["--mode", args.mode]
     proc = subprocess.run(
         cpp_cmd,
         capture_output=True,
@@ -256,7 +256,7 @@ def main(argv: list[str] | None = None) -> int:
             f.write(
                 f"\n## Same-format (engine-isolating) correlation: {corpus_label}\n\n"
                 "Both stacks compare identical kern file pairs (original vs "
-                f"rhythm-safe random {args.detail} pitch/articulation mutations; "
+                f"rhythm-safe random {args.mode} pitch/articulation mutations; "
                 "`verosim_harness/synth_corr.py`), removing the cross-importer "
                 "confound of the xml<->krn gate:\n\n"
             )

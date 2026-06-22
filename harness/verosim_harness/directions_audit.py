@@ -1,15 +1,14 @@
-"""Audit musicdiff's coarse Directions detail level for Tier-B validation.
+"""Audit musicdiff's coarse Directions bit in experimental mode.
 
-`DetailLevel.Directions` bundles v1 Tier-B dynamics/hairpins with text
+`DetailLevel.Directions` bundles dynamics/hairpins with text
 directions, pedal marks, endings, tempos, and other non-v1 categories. This
 script quantifies that traffic from cached oracle JSONL records so the
-validation gate can separate hard Tier A+B checks from diagnostic reporting
-(D16).
+validation gate can keep active mode separate from broader diagnostic reporting.
 
 Usage:
   python -m verosim_harness.directions_audit \
-      --oracle oracle/dev200_tierAB_dir.jsonl \
-      --out oracle/reports/directions_detail_audit.md
+      --oracle oracle/dev200_experimental.jsonl \
+      --out oracle/reports/experimental_directions_audit.md
 """
 
 from __future__ import annotations
@@ -107,7 +106,7 @@ def write_markdown(result: dict, oracle_path: Path, out_path: Path) -> None:
     examples: dict[str, list[dict]] = result["examples"]
 
     lines = [
-        "# Directions Detail-Level Audit",
+        "# Experimental Directions Audit",
         "",
         f"Generated from `{oracle_path}` by `verosim_harness.directions_audit`.",
         "",
@@ -117,11 +116,11 @@ def write_markdown(result: dict, oracle_path: Path, out_path: Path) -> None:
         "",
         "## Interpretation",
         "",
-        "The `tierAB_dir` oracle run is useful diagnostic evidence, but it is not a clean "
-        "Tier-B gate: musicdiff's Directions bit includes v1 dynamics/hairpins as well "
+        "The `experimental` oracle run is useful diagnostic evidence, but it is not a clean "
+        "active-mode gate: musicdiff's Directions bit includes dynamics/hairpins as well "
         "as non-v1 text directions, pedal marks, endings, tempos, and rehearsal marks. "
-        "Per D16, validation gates correlation on the cleaner `tierAB` level and reports this "
-        "decomposition separately.",
+        "Validation gates correlation on the cleaner `active` mode and reports this "
+        "experimental decomposition separately.",
         "",
         "## Extra Cost By Kind",
         "",

@@ -67,7 +67,7 @@ class TestCountOracleGolden(unittest.TestCase):
         for name in ("mono", "tiny"):
             with self.subTest(name=name):
                 expected = json.loads((hand10 / "expected" / f"{name}.expected.json").read_text())
-                got = count_file(hand10 / expected["file"], "tierA")
+                got = count_file(hand10 / expected["file"], "active")
                 self.assertEqual(got["total"], expected["total"])
                 for key, value in expected["categories"].items():
                     self.assertEqual(got["categories"][key], value, f"category {key}")

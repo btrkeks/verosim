@@ -1,31 +1,27 @@
-"""Golden test: run_pair reproduces the oracle smoke-check values exactly.
-
-Skipped when the Transcoda data root is absent.
-"""
+"""Golden test: run_pair emits the active-mode oracle schema and costs."""
 
 import unittest
 from pathlib import Path
 
-from verosim_harness import DEFAULT_DATA_ROOT
-
-PAIR = (
-    "train/openscore-lieder/0_raw_xml/lc28688206.xml",
-    "train/openscore-lieder/1_kern_conversions/lc28688206.krn",
-)
+MUTATIONS = Path(__file__).resolve().parents[2] / "corpora" / "mutations"
 
 
-@unittest.skipUnless(DEFAULT_DATA_ROOT and Path(DEFAULT_DATA_ROOT).is_dir(), "Transcoda data root not available")
 class OracleGolden(unittest.TestCase):
-    def test_oracle_smoke_tier_a(self):
+    def test_oracle_active_articulation_case(self):
         from verosim_harness.oracle import run_pair
 
-        r = run_pair(*PAIR, "tierA", DEFAULT_DATA_ROOT)
+        r = run_pair("cases/mono_artic_staccato.krn", "base/mono.krn", "active", MUTATIONS)
         self.assertIsNone(r["error"])
-        self.assertEqual(r["distance"], 148)
-        self.assertEqual(r["n_pred"], 1095)
-        self.assertEqual(r["n_gt"], 1097)
-        self.assertAlmostEqual(r["omr_ned"], 0.06751824817518248)
-        self.assertEqual(sum(op["cost"] for op in r["edit_ops"]), 148)
+        self.assertEqual(r["mode"], {"name": "active", "value": 243})
+        self.assertEqual(r["distance"], 1)
+        self.assertEqual(
+            r["edit_distances_dict"],
+            {"wrong articulation OMR-ED": 1, "bad kern syntax OMR-ED": 0},
+        )
+        self.assertEqual(
+            {op["op"]: op["cost"] for op in r["edit_ops"]},
+            {"delarticulation": 1},
+        )
 
 
 if __name__ == "__main__":

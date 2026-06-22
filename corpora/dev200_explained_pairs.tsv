@@ -24,7 +24,7 @@ lc6236155	converter21-signature-restating
 #
 # 2. iomusxml drops <time-modification> without <tuplet> notation (measured
 #    tremolos): the affected notes' tuplet symbols and offsets are
-#    unrepresentable on the C++ side; flagged in the Tier-A count audit.
+#    unrepresentable on the C++ side; flagged in the active count audit.
 lc6189652	iomusxml-time-modification-drop
 lc6581327	iomusxml-time-modification-drop
 lc6182149	iomusxml-time-modification-drop

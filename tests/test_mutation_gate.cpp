@@ -1,4 +1,4 @@
-// Exact validation for every Tier-A mutation case
+// Exact validation for every active mutation case
 // (corpora/mutations/manifest.json, oracle-cross-checked by mutcheck.py)
 // must produce exactly the analytically expected cost — and the expected op
 // multiset where the manifest pins one. Convention from mutcheck.py:
@@ -26,14 +26,14 @@ SymScore ExtractFile(VrvBridge &bridge, const std::string &path)
     const SourceFormat format
         = bridge.last_input_format() == vrv::HUMDRUM ? SourceFormat::kKern : SourceFormat::kMusicXml;
     ExtractResult result
-        = ExtractSymScore(bridge.GetDoc(), format, ExtractOptions{ .detail = DetailTier::kTierAB });
+        = ExtractSymScore(bridge.GetDoc(), format, ExtractOptions{ .mode = MetricMode::kActive });
     CHECK(result.warnings.empty());
     return std::move(result.score);
 }
 
 } // namespace
 
-TEST_CASE("Tier A+B mutation cases produce the analytically expected cost", "[mutations]")
+TEST_CASE("active mutation cases produce the analytically expected cost", "[mutations]")
 {
     const std::string dir(VEROSIM_MUTATIONS_DIR);
     std::ifstream in(dir + "/manifest.json");
@@ -50,13 +50,9 @@ TEST_CASE("Tier A+B mutation cases produce the analytically expected cost", "[mu
     int checked_cases = 0;
     for (std::size_t i = 0; i < cases.size(); ++i) {
         const jsonxx::Object &c = cases.get<jsonxx::Object>(static_cast<unsigned>(i));
-        const std::string tier = c.get<jsonxx::String>("tier");
+        const std::string mode = c.get<jsonxx::String>("mode");
         const std::string id = c.get<jsonxx::String>("id");
-        if (tier != "tierA" && tier != "tierAB") continue;
-        // These pin the Python oracle's lower DetailLevel filtering. The C++
-        // v1 engine is compiled as the current Tier A+B surface, not as a
-        // runtime-selectable DetailLevel clone.
-        if (id.ends_with("_tierA")) continue;
+        if (mode != "active") continue;
         // Rhythm-broken kern parses differently under humlib than under
         // converter21 (straddle-space repair vs syntax-fix costing); those
         // cases pin oracle behavior only — D6, see the manifest field text.
@@ -88,5 +84,5 @@ TEST_CASE("Tier A+B mutation cases produce the analytically expected cost", "[mu
             }
         }
     }
-    CHECK(checked_cases >= 45); // Tier A plus the committed Tier AB cases.
+    CHECK(checked_cases >= 45);
 }

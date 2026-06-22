@@ -5,7 +5,7 @@
 
 #include "verosim/engine/compare.h"
 #include "verosim/extraction/typed_space_policy.h"
-#include "verosim/model/detail_tier.h"
+#include "verosim/model/metric_mode.h"
 
 namespace verosim {
 
@@ -13,7 +13,7 @@ class VrvBridge;
 
 struct CompareCliOptions {
     bool emit_ops = false; // include the per-edit operation list (large)
-    DetailTier detail = DetailTier::kTierAB; // default compare surface is Tier A+B
+    MetricMode mode = MetricMode::kActive;
     NotePositionPolicy note_position_policy = NotePositionPolicy::kVisualEventOrder;
     TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
 };

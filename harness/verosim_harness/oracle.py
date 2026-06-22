@@ -19,7 +19,7 @@ import traceback
 from fractions import Fraction
 from pathlib import Path
 
-from . import DETAIL_LEVELS, SCHEMA_VERSION
+from . import METRIC_MODES, SCHEMA_VERSION
 from .cache import cache_key
 from .versions import get_versions
 
@@ -72,7 +72,7 @@ def _parse(path: Path, accept_syntax_errors: bool):
         return m21.stream.Score(), traceback.format_exc()
 
 
-def new_record(pred_rel: str, gt_rel: str, detail_name: str) -> dict:
+def new_record(pred_rel: str, gt_rel: str, mode_name: str) -> dict:
     """The one authoritative constructor of the oracle JSONL record schema.
 
     Every record in an oracle output file comes from here — run_pair fills in
@@ -80,7 +80,7 @@ def new_record(pred_rel: str, gt_rel: str, detail_name: str) -> dict:
     a worker (timeout, OOM kill, crash). Keep the schema in this one place."""
     return {
         "pair": {"pred": str(pred_rel), "gt": str(gt_rel)},
-        "detail": {"name": detail_name, "value": DETAIL_LEVELS[detail_name]},
+        "mode": {"name": mode_name, "value": METRIC_MODES[mode_name]},
         "distance": None,
         "n_pred": None,
         "n_gt": None,
@@ -99,22 +99,22 @@ def new_record(pred_rel: str, gt_rel: str, detail_name: str) -> dict:
 def run_pair(
     pred_path: str | Path,
     gt_path: str | Path,
-    detail_name: str,
+    mode_name: str,
     data_root: str | Path | None = None,
 ) -> dict:
     """Returns the oracle record (JSONL schema, see plan). Never raises."""
     ensure_converter21()
 
-    detail_value = DETAIL_LEVELS[detail_name]
+    mode_value = METRIC_MODES[mode_name]
     pred_rel, gt_rel = str(pred_path), str(gt_path)
     pred_abs = Path(data_root, pred_path) if data_root else Path(pred_path)
     gt_abs = Path(data_root, gt_path) if data_root else Path(gt_path)
 
-    record = new_record(pred_rel, gt_rel, detail_name)
+    record = new_record(pred_rel, gt_rel, mode_name)
 
     start = time.monotonic()
     try:
-        record["cache_key"] = cache_key(pred_abs, gt_abs, detail_value)
+        record["cache_key"] = cache_key(pred_abs, gt_abs, mode_value)
 
         from musicdiff import _getInputExtensionsList
         from musicdiff.annotation import AnnScore
@@ -134,8 +134,8 @@ def run_pair(
             record["error"] = "gt_empty_or_unparseable"
             return record
 
-        ann_pred = AnnScore(pred_score, detail_value)
-        ann_gt = AnnScore(gt_score, detail_value)
+        ann_pred = AnnScore(pred_score, mode_value)
+        ann_gt = AnnScore(gt_score, mode_value)
         n_pred = ann_pred.notation_size()
         n_gt = ann_gt.notation_size()
         op_list, distance = Comparison.annotated_scores_diff(ann_pred, ann_gt)
@@ -144,7 +144,7 @@ def run_pair(
         record["n_pred"] = n_pred
         record["n_gt"] = n_gt
         record["edit_distances_dict"] = Visualization.get_edit_distances_dict(
-            op_list, ann_pred.num_syntax_errors_fixed, detail_value
+            op_list, ann_pred.num_syntax_errors_fixed, mode_value
         )
         record["omr_ned"] = Visualization.get_omr_ned(distance, n_pred, n_gt)
         # ops are (op_name, obj1, obj2, cost) plus an optional 5th element with
@@ -169,7 +169,7 @@ def run_pair(
 
 def serve() -> int:
     """Persistent worker (used by run_oracle): one JSON request per stdin line
-    {pred, gt, detail, data_root}, one JSON record per stdout line. Runs each
+    {pred, gt, mode, data_root}, one JSON record per stdout line. Runs each
     pair in an isolated process so an OOM kill / crash / hang costs exactly
     one pair: the parent times out, records an error, and respawns."""
     import argparse
@@ -199,7 +199,7 @@ def serve() -> int:
         if not line.strip():
             continue
         req = json.loads(line)
-        record = run_pair(req["pred"], req["gt"], req["detail"], req["data_root"])
+        record = run_pair(req["pred"], req["gt"], req["mode"], req["data_root"])
         if record["cache_key"] and record["error"] is None:
             cache.store(record["cache_key"], record)
         protocol_out.write(json.dumps(record) + "\n")
@@ -208,7 +208,7 @@ def serve() -> int:
         # diff, so a MemoryError mid-diff would otherwise leave a near-rlimit
         # dict alive through the next pair's parse — one monster pair then
         # poisons the worker and every pair after it MemoryErrors (observed:
-        # 84 consecutive failures in the dev200 tierAB run). Clear it now.
+        # 84 consecutive failures in the dev200 active run). Clear it now.
         try:
             from musicdiff.comparison import Comparison
             Comparison._clear_memoizer_caches()

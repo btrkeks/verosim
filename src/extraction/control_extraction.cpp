@@ -139,13 +139,13 @@ void Extractor::CollectControlExtras(const vrv::Measure *measure, const std::str
             && !staff_order_.empty() && staffN != staff_order_.front()) {
             continue;
         }
-        if (DetailIncludesDirections(options_.detail) && obj->Is(vrv::DYNAM)) {
+        if (MetricModeIncludesDirections(options_.mode) && obj->Is(vrv::DYNAM)) {
             const vrv::Dynam *dynam = vrv_cast<const vrv::Dynam *>(obj);
             if (auto off = ControlPointOffset(obj, dynam->GetTimePointInterface(), staffN, start_abs)) {
                 extras.push_back(MakeDynamicExtra(*dynam, *off));
             }
         }
-        else if (DetailIncludesDirections(options_.detail) && obj->Is(vrv::HAIRPIN)) {
+        else if (MetricModeIncludesDirections(options_.mode) && obj->Is(vrv::HAIRPIN)) {
             const vrv::Hairpin *hairpin = vrv_cast<const vrv::Hairpin *>(obj);
             if (auto off
                 = ControlPointOffset(obj, hairpin->GetTimePointInterface(), staffN, start_abs)) {
@@ -159,7 +159,7 @@ void Extractor::CollectControlExtras(const vrv::Measure *measure, const std::str
                 }
             }
         }
-        else if (DetailIncludesTierB(options_.detail) && obj->Is(vrv::SLUR)) {
+        else if (obj->Is(vrv::SLUR)) {
             const vrv::Slur *slur = vrv_cast<const vrv::Slur *>(obj);
             if (auto off = ControlPointOffset(obj, slur->GetTimePointInterface(), staffN, start_abs)) {
                 extras.push_back(MakeSlurExtra(*slur, *off,

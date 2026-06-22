@@ -4,6 +4,8 @@
 // individual fields: offsets, chord splitting, beams, tuplets, graces,
 // extras, the measure drop rule, and the repr format.
 
+#include <algorithm>
+
 #include <catch2/catch_test_macros.hpp>
 
 #include "durationinterface.h"
@@ -351,12 +353,25 @@ TEST_CASE("tie_chain.krn: sounding alter carries across barlines via ties", "[ex
     const SymNote &start = part.bar_list[0].notes[1]; // [4f#
     CHECK(start.pitches[0].accid == "sharp");
     CHECK(start.pitches[0].sounding_alter == 1);
+    CHECK(start.pitches[0].tie);
     const SymNote &middle = part.bar_list[1].notes[0]; // 4f#_
     CHECK(middle.pitches[0].accid == "None");
     CHECK(middle.pitches[0].sounding_alter == 1);
+    CHECK(middle.pitches[0].tie);
     const SymNote &end = part.bar_list[2].notes[0]; // 4f#]
     CHECK(end.pitches[0].accid == "None");
     CHECK(end.pitches[0].sounding_alter == 1);
+    CHECK_FALSE(end.pitches[0].tie);
+}
+
+TEST_CASE("active mode extracts articulations", "[extract]")
+{
+    const ExtractResult result = ExtractKernData("**kern\n*clefG2\n*k[]\n*M4/4\n=1\n4c'\n4d\n4e\n4f\n==\n*-\n");
+    CHECK(result.warnings.empty());
+    const SymMeasure &m1 = result.score.parts[0].bar_list[0];
+    REQUIRE(m1.notes.size() == 4);
+    CHECK(std::find(m1.notes[0].articulations.begin(), m1.notes[0].articulations.end(), "staccato")
+        != m1.notes[0].articulations.end());
 }
 
 TEST_CASE("Humdrum common and cut time symbols count as one visible timesig", "[extract]")
@@ -677,7 +692,7 @@ TEST_CASE("repair_space_beamspan.mei: repair spaces and beamSpan controls", "[ex
 
 TEST_CASE("repair_space_beamspan.mei: preserve mode keeps typed space duration", "[extract]")
 {
-    const ExtractOptions options{ .detail = DetailTier::kTierA,
+    const ExtractOptions options{ .mode = MetricMode::kActive,
         .typed_space_handling = TypedSpaceHandling::kPreserve };
     const ExtractResult result = ExtractFixture("repair_space_beamspan.mei", SourceFormat::kOther, options);
     CHECK(result.warnings.empty());
@@ -813,7 +828,7 @@ TEST_CASE("single_number.xml: single-number timesig counts one symbol", "[extrac
 TEST_CASE("mei_controls.mei: timestamp controls use active meter and staff resolution", "[extract]")
 {
     const ExtractResult result = ExtractFixture(
-        "mei_controls.mei", SourceFormat::kOther, ExtractOptions{ .detail = DetailTier::kTierABDir });
+        "mei_controls.mei", SourceFormat::kOther, ExtractOptions{ .mode = MetricMode::kExperimental });
     CHECK(result.warnings.empty());
     REQUIRE(result.score.parts.size() == 2);
     REQUIRE(result.score.parts[0].bar_list.size() == 2);
@@ -861,4 +876,18 @@ TEST_CASE("mei_controls.mei: timestamp controls use active meter and staff resol
     CHECK(cross_slur->offset == Fraction(1));
     REQUIRE(cross_slur->duration.has_value());
     CHECK(*cross_slur->duration == Fraction(4));
+}
+
+TEST_CASE("mei_controls.mei: active mode extracts slurs but skips directions", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("mei_controls.mei", SourceFormat::kOther);
+    CHECK(result.warnings.empty());
+    const SymMeasure &staff1_m1 = result.score.parts[0].bar_list[0];
+    const SymMeasure &staff2_m1 = result.score.parts[1].bar_list[0];
+
+    CHECK(ExtrasOfKind(staff1_m1, ExtraKind::kDynamic).empty());
+    CHECK(ExtrasOfKind(staff1_m1, ExtraKind::kCrescendo).empty());
+    CHECK(ExtrasOfKind(staff2_m1, ExtraKind::kDynamic).empty());
+    CHECK(ExtrasOfKind(staff1_m1, ExtraKind::kSlur).size() == 1);
+    CHECK(ExtrasOfKind(staff2_m1, ExtraKind::kSlur).size() == 1);
 }

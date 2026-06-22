@@ -1,4 +1,4 @@
-"""DEV-200 Tier-A symbol-count audit: C++ extraction vs the cached oracle.
+"""DEV-200 active symbol-count audit: C++ extraction vs the cached oracle.
 
 Joins `verosim --count-symbols` totals against the per-pair notation sizes
 (n_pred / n_gt) stored in an oracle JSONL (run_oracle output), per side:
@@ -10,9 +10,9 @@ the report ranks outliers and fingerprints them by category so divergence
 triage starts at the worst offender.
 
 Usage:
-  python -m verosim_harness.count_audit --oracle oracle/dev200_tierA.jsonl \\
+  python -m verosim_harness.count_audit --oracle oracle/dev200_active.jsonl \\
       --bin build/verosim --data-root <root> \\
-      --out oracle/count_audit_dev200.jsonl --report oracle/reports/tier_a_count_audit.md
+      --out oracle/count_audit_dev200_active.jsonl --report oracle/reports/active_count_audit.md
 """
 
 from __future__ import annotations
@@ -118,9 +118,9 @@ def summarize(rows: list[dict]) -> dict:
 
 def write_report(rows: list[dict], summary: dict, report_path: Path, top_n: int = 20,
         notes_path: Path | None = None) -> None:
-    lines = ["# DEV-200 Tier-A Symbol-Count Audit", ""]
+    lines = ["# DEV-200 Active Symbol-Count Audit", ""]
     lines.append("C++ `--count-symbols` totals vs oracle notation sizes "
-                 "(`n_pred`/`n_gt`, DetailLevel 131). Pair convention: pred = .xml, gt = .krn.")
+                 "(`n_pred`/`n_gt`, mode active). Pair convention: pred = .xml, gt = .krn.")
     lines.append("")
     lines.append("| side | files | errors | Σn (oracle) | Σ\\|Δ\\| | Σ\\|Δ\\| % | ΣΔ % | exact |")
     lines.append("|---|---|---|---|---|---|---|---|")
