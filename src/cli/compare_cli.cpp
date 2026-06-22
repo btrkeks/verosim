@@ -93,6 +93,7 @@ LoadedScore LoadAndExtract(
     // failure modes, e.g. vector::_M_default_append) — a pair must fail as a
     // record, never abort a --pairs run.
     try {
+        bridge.set_typed_space_handling(options.typed_space_handling);
         if (!bridge.LoadScoreFile(path)) {
             loaded.error = "failed to load " + path;
             return loaded;
@@ -113,6 +114,7 @@ LoadedScore LoadAndExtractData(VrvBridge &bridge, const std::string &data, const
 {
     LoadedScore loaded;
     try {
+        bridge.set_typed_space_handling(options.typed_space_handling);
         if (!bridge.LoadScoreData(data, vrv::HUMDRUM)) {
             loaded.error = "failed to load " + label;
             return loaded;
@@ -185,7 +187,8 @@ bool ComparePairToJson(VrvBridge &bridge, const std::string &pred_path,
 
     // One bridge, two loads: SymScore is self-contained, so the first
     // extraction survives the second load.
-    const ExtractOptions extract_options{ .detail = options.detail };
+    const ExtractOptions extract_options{ .detail = options.detail,
+        .typed_space_handling = options.typed_space_handling };
     const LoadedScore pred = LoadAndExtract(bridge, pred_path, extract_options);
     const LoadedScore gt = pred.ok ? LoadAndExtract(bridge, gt_path, extract_options) : LoadedScore{};
 
@@ -203,7 +206,8 @@ bool CompareScoreDataToJson(VrvBridge &bridge, const std::string &pred_data,
     std::ostream &out)
 {
     const auto start = std::chrono::steady_clock::now();
-    const ExtractOptions extract_options{ .detail = options.detail };
+    const ExtractOptions extract_options{ .detail = options.detail,
+        .typed_space_handling = options.typed_space_handling };
     const LoadedScore pred = LoadAndExtractData(bridge, pred_data, "prediction", extract_options);
     const LoadedScore gt = pred.ok ? LoadAndExtractData(bridge, gt_data, "target", extract_options)
                                    : LoadedScore{};

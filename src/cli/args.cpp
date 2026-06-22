@@ -44,6 +44,20 @@ bool StripCompareOptions(
             args.erase(args.begin() + static_cast<std::ptrdiff_t>(i),
                 args.begin() + static_cast<std::ptrdiff_t>(i + 2));
         }
+        else if (args[i] == "--typed-space-handling") {
+            if (i + 1 >= args.size()) {
+                error = "--typed-space-handling requires preserve or suppress-straddle-filler";
+                return false;
+            }
+            const std::optional<TypedSpaceHandling> handling = ParseTypedSpaceHandling(args[i + 1]);
+            if (!handling.has_value()) {
+                error = "unknown typed space handling " + args[i + 1];
+                return false;
+            }
+            options.typed_space_handling = *handling;
+            args.erase(args.begin() + static_cast<std::ptrdiff_t>(i),
+                args.begin() + static_cast<std::ptrdiff_t>(i + 2));
+        }
         else {
             ++i;
         }

@@ -33,6 +33,7 @@ bool LoadAndExtractVisualScore(VrvBridge &bridge, const std::string &path,
     const ExtractOptions &options, LoadedVisualScore &loaded, std::string &error)
 {
     try {
+        bridge.set_typed_space_handling(options.typed_space_handling);
         if (!bridge.LoadScoreFile(path)) {
             error = "failed to load " + path;
             return false;
@@ -109,7 +110,8 @@ bool BuildVisualComparison(const std::string &pred_path, const std::string &gt_p
 
     VrvBridge pred_bridge;
     VrvBridge gt_bridge;
-    const ExtractOptions extract_options{ .detail = options.detail };
+    const ExtractOptions extract_options{ .detail = options.detail,
+        .typed_space_handling = options.typed_space_handling };
 
     LoadedVisualScore pred;
     LoadedVisualScore gt;

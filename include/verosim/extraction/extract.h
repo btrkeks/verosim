@@ -5,6 +5,7 @@
 
 #include "verosim/model/detail_tier.h"
 #include "verosim/model/sym_score.h"
+#include "verosim/extraction/typed_space_policy.h"
 
 namespace vrv {
 class Doc;
@@ -25,6 +26,7 @@ struct ExtractResult {
 
 struct ExtractOptions {
     DetailTier detail = DetailTier::kTierA; // count/extraction default remains Tier A
+    TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
 };
 
 // Walk the parse-only Verovio Object tree of the first <score> into the

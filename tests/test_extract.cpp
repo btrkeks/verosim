@@ -6,8 +6,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "durationinterface.h"
 #include "verosim/engine/interner.h"
 #include "verosim/extraction/extract.h"
+#include "verosim/extraction/typed_space_policy.h"
 #include "verosim/extraction/vrv_bridge.h"
 
 using namespace verosim;
@@ -31,9 +33,19 @@ ExtractResult ExtractFixture(const std::string &name, SourceFormat format)
 ExtractResult ExtractFixture(
     const std::string &name, SourceFormat format, const ExtractOptions &options)
 {
-    VrvBridge bridge;
+    VrvBridgeConfig config;
+    config.typed_space_handling = options.typed_space_handling;
+    VrvBridge bridge(config);
     REQUIRE(bridge.LoadScoreFile(std::string(VEROSIM_TEST_FIXTURE_DIR) + "/" + name));
     return ExtractSymScore(bridge.GetDoc(), format, options);
+}
+
+const vrv::Object *FindStraddleOrFillerSpace(const vrv::Doc &doc)
+{
+    for (const vrv::Object *obj : doc.FindAllDescendantsByType(vrv::SPACE)) {
+        if (IsStraddleOrFillerSpace(obj)) return obj;
+    }
+    return nullptr;
 }
 
 } // namespace
@@ -360,6 +372,22 @@ TEST_CASE("repair_space_beamspan.mei: repair spaces and beamSpan controls", "[ex
     CHECK(m1.notes[4].beamings.empty());
 }
 
+TEST_CASE("repair_space_beamspan.mei: preserve mode keeps typed space duration", "[extract]")
+{
+    const ExtractOptions options{ .detail = DetailTier::kTierA,
+        .typed_space_handling = TypedSpaceHandling::kPreserve };
+    const ExtractResult result = ExtractFixture("repair_space_beamspan.mei", SourceFormat::kOther, options);
+    CHECK(result.warnings.empty());
+    const SymMeasure &m1 = result.score.parts[0].bar_list[0];
+    REQUIRE(m1.notes.size() == 5);
+
+    CHECK(m1.notes[0].note_offset == Fraction(1));
+    CHECK(m1.notes[1].note_offset == Fraction(5, 4));
+    CHECK(m1.notes[2].note_offset == Fraction(3, 2));
+    CHECK(m1.notes[3].note_offset == Fraction(7, 4));
+    CHECK(m1.notes[4].note_offset == Fraction(3));
+}
+
 TEST_CASE("overlapping_beamspans.mei: nested spans preserve outer beam depth", "[extract]")
 {
     const ExtractResult result = ExtractFixture("overlapping_beamspans.mei", SourceFormat::kOther);
@@ -422,6 +450,29 @@ TEST_CASE("VrvBridge normalizes Verovio rhythm-repair spaces after import", "[ex
 
     CHECK(bridge.last_normalized_rhythm_repair_spaces() == 1);
     CHECK(bridge.GetDoc().FindAllDescendantsByType(vrv::SPACE).size() == 2);
+
+    const vrv::Object *repair = FindStraddleOrFillerSpace(bridge.GetDoc());
+    REQUIRE(repair != nullptr);
+    const vrv::DurationInterface *duration = repair->GetDurationInterface();
+    REQUIRE(duration != nullptr);
+    CHECK(duration->GetDur() == vrv::DURATION_1024);
+}
+
+TEST_CASE("VrvBridge preserve mode leaves typed spaces unchanged after import", "[extract]")
+{
+    VrvBridgeConfig config;
+    config.typed_space_handling = TypedSpaceHandling::kPreserve;
+    VrvBridge bridge(config);
+    REQUIRE(bridge.LoadScoreFile(std::string(VEROSIM_TEST_FIXTURE_DIR) + "/repair_space_beamspan.mei"));
+
+    CHECK(bridge.last_normalized_rhythm_repair_spaces() == 0);
+    CHECK(bridge.GetDoc().FindAllDescendantsByType(vrv::SPACE).size() == 2);
+
+    const vrv::Object *repair = FindStraddleOrFillerSpace(bridge.GetDoc());
+    REQUIRE(repair != nullptr);
+    const vrv::DurationInterface *duration = repair->GetDurationInterface();
+    REQUIRE(duration != nullptr);
+    CHECK(duration->GetDur() == vrv::DURATION_4);
 }
 
 TEST_CASE("cross_measure_beamspan.mei: beamSpan continues across barlines", "[extract]")

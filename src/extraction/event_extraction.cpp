@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "verosim/extraction/notation_rules.h"
+#include "verosim/extraction/typed_space_policy.h"
 
 namespace verosim {
 
@@ -93,15 +94,6 @@ std::vector<SymExtra> NormalizeMeasureExtras(std::vector<SymExtra> extras)
 bool IsHiddenCarrier(const vrv::Object *obj)
 {
     return obj->Is(vrv::SPACE) || obj->Is(vrv::MSPACE);
-}
-
-bool IsRhythmRepairSpace(const vrv::Object *obj)
-{
-    if (!IsHiddenCarrier(obj)) return false;
-    const auto *element = vrv_cast<const vrv::LayerElement *>(obj);
-    if (!element || !element->HasType()) return false;
-    const std::string type = element->GetType();
-    return type == "straddle" || type == "filler";
 }
 
 const vrv::Object *DurationCarrierForBeamMember(const vrv::Object *obj)
@@ -432,7 +424,10 @@ void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &e
             Event ev = MakeCarrierEvent(child, cursor, state, tupletStack, beam);
             const bool hidden = IsHiddenCarrier(child);
             if (!hidden) events.push_back(ev);
-            if (ev.grace_type.empty() && !IsRhythmRepairSpace(child)) cursor += ev.dur_ql;
+            if (ev.grace_type.empty()
+                && !ShouldSuppressTypedSpaceDuration(child, options_.typed_space_handling)) {
+                cursor += ev.dur_ql;
+            }
         }
         else if (child->Is(vrv::CLEF)) {
             extras.push_back(MakeClefExtra(*vrv_cast<const vrv::Clef *>(child), cursor));

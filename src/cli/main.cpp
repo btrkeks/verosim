@@ -20,10 +20,12 @@ void PrintUsage(std::ostream &os)
 {
     os << "usage: verosim <pred> <gt> [--ops] [--detail tierA|tierAB|tierAB_dir]\n"
           "                                      [--note-position visual|musical]\n"
+          "                                      [--typed-space-handling preserve|suppress-straddle-filler]\n"
           "                                      compare two scores, OMR-NED as JSON\n"
           "                                      (--ops includes the per-edit operation list)\n"
           "       verosim --visualize <pred> <gt> --out <html> [--detail tierA|tierAB|tierAB_dir]\n"
           "                                      [--note-position visual|musical]\n"
+          "                                      [--typed-space-handling preserve|suppress-straddle-filler]\n"
           "                                      compare and write a side-by-side SVG HTML report\n"
           "       verosim --visualize <pred> <gt> --out-dir <dir> --output-format svg\n"
           "                                      compare and write raw annotated SVG pages\n"
@@ -50,9 +52,11 @@ void PrintUsage(std::ostream &os)
           "Supported inputs: MusicXML, .mxl, Humdrum/kern, MEI, ... (Verovio autodetect)\n";
 }
 
-int DumpTreeMain(const std::string &path)
+int DumpTreeMain(const std::string &path, verosim::TypedSpaceHandling typedSpaceHandling)
 {
-    verosim::VrvBridge bridge;
+    verosim::VrvBridgeConfig config;
+    config.typed_space_handling = typedSpaceHandling;
+    verosim::VrvBridge bridge(config);
     if (!bridge.LoadScoreFile(path)) {
         std::cerr << "verosim: failed to load " << path << '\n';
         return 1;
@@ -138,15 +142,17 @@ int VisualizeMain(
     return 0;
 }
 
-int CheckOneMain(const std::string &path)
+int CheckOneMain(const std::string &path, verosim::TypedSpaceHandling typedSpaceHandling)
 {
-    verosim::VrvBridge bridge({ .log_level = vrv::LOG_WARNING, .capture_log = true });
+    verosim::VrvBridge bridge(
+        { .log_level = vrv::LOG_WARNING, .capture_log = true, .typed_space_handling = typedSpaceHandling });
     const verosim::CheckResult result = verosim::CheckFile(bridge, path);
     verosim::WriteCheckJsonl(result, std::cout);
     return result.ok ? 0 : 1;
 }
 
-int CheckListMain(const std::string &listPath, const std::string &baseDir)
+int CheckListMain(const std::string &listPath, const std::string &baseDir,
+    verosim::TypedSpaceHandling typedSpaceHandling)
 {
     std::vector<std::string> files;
     try {
@@ -156,7 +162,8 @@ int CheckListMain(const std::string &listPath, const std::string &baseDir)
         std::cerr << "verosim: " << e.what() << '\n';
         return 2;
     }
-    verosim::VrvBridge bridge({ .log_level = vrv::LOG_WARNING, .capture_log = true });
+    verosim::VrvBridge bridge(
+        { .log_level = vrv::LOG_WARNING, .capture_log = true, .typed_space_handling = typedSpaceHandling });
     for (const std::string &line : files) {
         const std::string path = verosim::JoinBaseDir(baseDir, line);
         verosim::CheckResult result = verosim::CheckFile(bridge, path);
@@ -169,14 +176,19 @@ int CheckListMain(const std::string &listPath, const std::string &baseDir)
     return 0;
 }
 
-int CountSymbolsOneMain(const std::string &path, bool perMeasure)
+int CountSymbolsOneMain(
+    const std::string &path, bool perMeasure, verosim::TypedSpaceHandling typedSpaceHandling)
 {
-    verosim::VrvBridge bridge;
-    const verosim::CountSymbolsOptions options{ .per_measure = perMeasure };
+    verosim::VrvBridgeConfig config;
+    config.typed_space_handling = typedSpaceHandling;
+    verosim::VrvBridge bridge(config);
+    const verosim::CountSymbolsOptions options{ .per_measure = perMeasure,
+        .typed_space_handling = typedSpaceHandling };
     return verosim::CountSymbolsFile(bridge, path, options, std::cout) ? 0 : 1;
 }
 
-int CountSymbolsListMain(const std::string &listPath, const std::string &baseDir)
+int CountSymbolsListMain(const std::string &listPath, const std::string &baseDir,
+    verosim::TypedSpaceHandling typedSpaceHandling)
 {
     std::vector<std::string> files;
     try {
@@ -186,8 +198,11 @@ int CountSymbolsListMain(const std::string &listPath, const std::string &baseDir
         std::cerr << "verosim: " << e.what() << '\n';
         return 2;
     }
-    verosim::VrvBridge bridge;
-    const verosim::CountSymbolsOptions options;
+    verosim::VrvBridgeConfig config;
+    config.typed_space_handling = typedSpaceHandling;
+    verosim::VrvBridge bridge(config);
+    const verosim::CountSymbolsOptions options{ .per_measure = false,
+        .typed_space_handling = typedSpaceHandling };
     for (const std::string &line : files) {
         const std::string path = verosim::JoinBaseDir(baseDir, line);
         verosim::CountSymbolsFile(bridge, path, options, std::cout);
@@ -205,7 +220,7 @@ int main(int argc, char **argv)
         PrintUsage(std::cout);
         return 0;
     }
-    // Global comparison options modify the compare modes only; strip before dispatch.
+    // Global comparison/extraction options modify supported load/compare modes before dispatch.
     verosim::CompareCliOptions compareOptions;
     std::string parseError;
     if (!verosim::StripCompareOptions(args, compareOptions, parseError)) {
@@ -227,11 +242,11 @@ int main(int argc, char **argv)
             return VisualizeMain(*visual, compareOptions);
         }
         if (args.size() == 2 && args[0] == "--dump-tree") {
-            return DumpTreeMain(args[1]);
+            return DumpTreeMain(args[1], compareOptions.typed_space_handling);
         }
         if (!args.empty() && args[0] == "--check") {
             if (args.size() == 2 && args[1][0] != '-') {
-                return CheckOneMain(args[1]);
+                return CheckOneMain(args[1], compareOptions.typed_space_handling);
             }
             std::string listPath, baseDir;
             for (std::size_t i = 1; i + 1 < args.size(); i += 2) {
@@ -240,15 +255,15 @@ int main(int argc, char **argv)
                 else { listPath.clear(); break; }
             }
             if (!listPath.empty() && (args.size() == 3 || args.size() == 5)) {
-                return CheckListMain(listPath, baseDir);
+                return CheckListMain(listPath, baseDir, compareOptions.typed_space_handling);
             }
         }
         if (!args.empty() && args[0] == "--count-symbols") {
             if (args.size() == 2 && args[1][0] != '-') {
-                return CountSymbolsOneMain(args[1], false);
+                return CountSymbolsOneMain(args[1], false, compareOptions.typed_space_handling);
             }
             if (args.size() == 3 && args[1] == "--per-measure" && args[2][0] != '-') {
-                return CountSymbolsOneMain(args[2], true);
+                return CountSymbolsOneMain(args[2], true, compareOptions.typed_space_handling);
             }
             std::string listPath, baseDir;
             for (std::size_t i = 1; i + 1 < args.size(); i += 2) {
@@ -257,7 +272,7 @@ int main(int argc, char **argv)
                 else { listPath.clear(); break; }
             }
             if (!listPath.empty() && (args.size() == 3 || args.size() == 5)) {
-                return CountSymbolsListMain(listPath, baseDir);
+                return CountSymbolsListMain(listPath, baseDir, compareOptions.typed_space_handling);
             }
         }
         if (args.size() == 2 && args[0][0] != '-' && args[1][0] != '-') {

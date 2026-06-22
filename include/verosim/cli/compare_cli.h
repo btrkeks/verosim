@@ -4,6 +4,7 @@
 #include <string>
 
 #include "verosim/engine/compare.h"
+#include "verosim/extraction/typed_space_policy.h"
 #include "verosim/model/detail_tier.h"
 
 namespace verosim {
@@ -14,6 +15,7 @@ struct CompareCliOptions {
     bool emit_ops = false; // include the per-edit operation list (large)
     DetailTier detail = DetailTier::kTierAB; // default compare surface is Tier A+B
     NotePositionPolicy note_position_policy = NotePositionPolicy::kVisualEventOrder;
+    TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
 };
 
 // Loads pred and gt, extracts both, runs the comparison engine, and writes

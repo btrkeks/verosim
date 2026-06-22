@@ -5,6 +5,7 @@
 
 #include "toolkit.h"
 #include "toolkitdef.h"
+#include "verosim/extraction/typed_space_policy.h"
 
 namespace verosim {
 
@@ -15,7 +16,7 @@ struct VrvBridgeConfig {
     // hook is what the parse-coverage audit and deferred D4 consume (D13).
     vrv::LogLevel log_level = vrv::LOG_OFF;
     bool capture_log = false;
-    bool normalize_repair_spaces = true;
+    TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
 };
 
 // Layer 1 wrapper: a vrv::Toolkit configured for parse-only use (breaks:none,
@@ -43,6 +44,9 @@ public:
     // ZIP is resolved to MUSICXML — .mxl payloads are MusicXML).
     vrv::FileFormat last_input_format() const { return m_lastInputFormat; }
 
+    TypedSpaceHandling typed_space_handling() const { return m_typedSpaceHandling; }
+    void set_typed_space_handling(TypedSpaceHandling handling) { m_typedSpaceHandling = handling; }
+
     std::size_t last_normalized_rhythm_repair_spaces() const
     {
         return m_lastNormalizedRhythmRepairSpaces;
@@ -61,7 +65,7 @@ private:
     void NormalizeImportedScore();
 
     vrv::FileFormat m_lastInputFormat = vrv::UNKNOWN;
-    bool m_normalizeRepairSpaces = true;
+    TypedSpaceHandling m_typedSpaceHandling = TypedSpaceHandling::kSuppressStraddleFiller;
     std::size_t m_lastNormalizedRhythmRepairSpaces = 0;
 };
 

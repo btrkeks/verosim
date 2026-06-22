@@ -500,7 +500,7 @@ TEST_CASE("cost-only set distance agrees on multi-note measures", "[engine][cost
         const SymMeasure comp = MakeMeasure({
             MakeNote("E4", Fraction(0)),
             MakeNote("C4", Fraction(1, 2), { .accid = "flat" }),
-            MakeNote("D4", Fraction(3, 2), { .beams = { BeamValue::kStop }, .dots = 2 }),
+            MakeNote("D4", Fraction(3, 2), { .dots = 2, .beams = { BeamValue::kStop } }),
         }, { MakeClef("F4"), MakeKeySig("3"), MakeTimeSig("6", "8") });
         const DiffResult full = MeasureDiff(orig, comp);
         CHECK(full.cost > 0);

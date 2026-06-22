@@ -89,6 +89,7 @@ bool CountSymbolsFile(VrvBridge &bridge, const std::string &path,
     bool loaded = false;
     std::string error;
     try {
+        bridge.set_typed_space_handling(options.typed_space_handling);
         loaded = bridge.LoadScoreFile(path);
         if (!loaded) error = "load failed";
     }
@@ -102,7 +103,9 @@ bool CountSymbolsFile(VrvBridge &bridge, const std::string &path,
         return false;
     }
 
-    ExtractResult result = ExtractSymScore(bridge.GetDoc(), SourceFormatFromBridge(bridge));
+    const ExtractOptions extract_options{ .detail = DetailTier::kTierA,
+        .typed_space_handling = options.typed_space_handling };
+    ExtractResult result = ExtractSymScore(bridge.GetDoc(), SourceFormatFromBridge(bridge), extract_options);
     const SymbolCounts counts = CountSymbols(result.score);
     const int total = result.score.notation_size();
     // the per-category split must tile the notation size exactly

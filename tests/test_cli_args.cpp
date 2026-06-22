@@ -33,19 +33,26 @@ TEST_CASE("DetailTier helpers map the public tier names", "[cli]")
     REQUIRE(ParseNotePositionPolicy("musical") == NotePositionPolicy::kMusicalOnset);
     CHECK(NotePositionPolicyName(NotePositionPolicy::kVisualEventOrder) == "visual");
     CHECK_FALSE(ParseNotePositionPolicy("rhythmic").has_value());
+
+    REQUIRE(ParseTypedSpaceHandling("preserve") == TypedSpaceHandling::kPreserve);
+    REQUIRE(ParseTypedSpaceHandling("suppress-straddle-filler")
+        == TypedSpaceHandling::kSuppressStraddleFiller);
+    CHECK(TypedSpaceHandlingName(TypedSpaceHandling::kPreserve) == std::string("preserve"));
+    CHECK_FALSE(ParseTypedSpaceHandling("auto").has_value());
 }
 
 TEST_CASE("StripCompareOptions parses detail and ops without changing dispatch args", "[cli]")
 {
     CompareCliOptions options;
     std::vector<std::string> args{ "pred.krn", "gt.krn", "--ops", "--detail", "tierAB_dir",
-        "--note-position", "musical" };
+        "--note-position", "musical", "--typed-space-handling", "preserve" };
     std::string error;
 
     REQUIRE(StripCompareOptions(args, options, error));
     CHECK(options.emit_ops);
     CHECK(options.detail == DetailTier::kTierABDir);
     CHECK(options.note_position_policy == NotePositionPolicy::kMusicalOnset);
+    CHECK(options.typed_space_handling == TypedSpaceHandling::kPreserve);
     CHECK(args == std::vector<std::string>{ "pred.krn", "gt.krn" });
 }
 
@@ -54,6 +61,7 @@ TEST_CASE("Compare options default to tierAB visual and reject unknown values", 
     CompareCliOptions options;
     CHECK(options.detail == DetailTier::kTierAB);
     CHECK(options.note_position_policy == NotePositionPolicy::kVisualEventOrder);
+    CHECK(options.typed_space_handling == TypedSpaceHandling::kSuppressStraddleFiller);
 
     std::vector<std::string> args{ "pred.krn", "gt.krn", "--detail", "bogus" };
     std::string error;
@@ -61,6 +69,16 @@ TEST_CASE("Compare options default to tierAB visual and reject unknown values", 
     CHECK_FALSE(error.empty());
 
     args = { "pred.krn", "gt.krn", "--note-position", "bogus" };
+    error.clear();
+    CHECK_FALSE(StripCompareOptions(args, options, error));
+    CHECK_FALSE(error.empty());
+
+    args = { "pred.krn", "gt.krn", "--typed-space-handling" };
+    error.clear();
+    CHECK_FALSE(StripCompareOptions(args, options, error));
+    CHECK_FALSE(error.empty());
+
+    args = { "pred.krn", "gt.krn", "--typed-space-handling", "auto" };
     error.clear();
     CHECK_FALSE(StripCompareOptions(args, options, error));
     CHECK_FALSE(error.empty());

@@ -3,12 +3,15 @@
 #include <ostream>
 #include <string>
 
+#include "verosim/extraction/typed_space_policy.h"
+
 namespace verosim {
 
 class VrvBridge;
 
 struct CountSymbolsOptions {
     bool per_measure = false; // include per-part/measure/note triage detail
+    TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
 };
 
 // Load one file, extract the Tier-A SymScore, and write one JSON record

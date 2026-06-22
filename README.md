@@ -44,6 +44,7 @@ Verovio parser:
 ```sh
 build/verosim pred.xml gt.krn
 build/verosim pred.mxl gt.mei --ops --detail tierAB
+build/verosim pred.krn gt.krn --typed-space-handling preserve
 ```
 
 Write a visual OMR-NED report for a single pair:
@@ -86,6 +87,12 @@ build/verosim --count-symbols --per-measure score.krn
 Detail tiers are `tierA`, `tierAB`, and `tierAB_dir`. The v1 acceptance gate uses
 `tierAB`; `tierAB_dir` is a diagnostic run for the broader musicdiff Directions
 bit.
+
+Typed Verovio spaces can be controlled with
+`--typed-space-handling preserve|suppress-straddle-filler`. The default is
+`suppress-straddle-filler`, which keeps the legacy workaround for Verovio
+`type=straddle`/`type=filler` rhythm-repair spaces. Use `preserve` to keep those
+spaces as normal hidden-duration carriers.
 
 The exception is `--batch-jsonl`, which compares in-memory score strings from
 JSONL records and currently expects Humdrum/kern text (`--format kern`).

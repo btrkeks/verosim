@@ -2,6 +2,7 @@
 
 #include <sstream>
 
+#include "verosim/extraction/typed_space_policy.h"
 #include "verosim/extraction/vrv_bridge.h"
 #include "verosim/visual/svg_overlap.h"
 
@@ -24,48 +25,35 @@ std::string RenderOptionsJson(bool include_bounding_boxes, const std::string &br
     return out.str();
 }
 
-bool HasClassToken(const std::string &classes, const std::string &token)
-{
-    std::size_t pos = 0;
-    while (pos < classes.size()) {
-        while (pos < classes.size() && classes[pos] == ' ') ++pos;
-        const std::size_t start = pos;
-        while (pos < classes.size() && classes[pos] != ' ') ++pos;
-        if (classes.substr(start, pos - start) == token) return true;
-    }
-    return false;
-}
-
-bool IsRepairSpaceGroup(pugi::xml_node node)
+bool IsRepairSpaceGroup(pugi::xml_node node, TypedSpaceHandling handling)
 {
     if (std::string(node.name()) != "g") return false;
     const pugi::xml_attribute class_attr = node.attribute("class");
     if (!class_attr) return false;
-    const std::string classes = class_attr.value();
-    return HasClassToken(classes, "space") && HasClassToken(classes, "straddle");
+    return ShouldStripTypedSpaceSvgGroup(class_attr.value(), handling);
 }
 
-void RemoveRepairSpaceGroups(pugi::xml_node node)
+void RemoveRepairSpaceGroups(pugi::xml_node node, TypedSpaceHandling handling)
 {
     for (pugi::xml_node child = node.first_child(); child;) {
         pugi::xml_node next = child.next_sibling();
-        if (child.type() == pugi::node_element && IsRepairSpaceGroup(child)) {
+        if (child.type() == pugi::node_element && IsRepairSpaceGroup(child, handling)) {
             node.remove_child(child);
         }
         else {
-            RemoveRepairSpaceGroups(child);
+            RemoveRepairSpaceGroups(child, handling);
         }
         child = next;
     }
 }
 
-std::string StripRepairSpaceGroupsFromSvg(const std::string &svg)
+std::string StripRepairSpaceGroupsFromSvg(const std::string &svg, TypedSpaceHandling handling)
 {
     pugi::xml_document doc;
     const pugi::xml_parse_result parsed = doc.load_string(svg.c_str(), pugi::parse_default);
     if (!parsed) return svg;
 
-    RemoveRepairSpaceGroups(doc);
+    RemoveRepairSpaceGroups(doc, handling);
 
     std::ostringstream out;
     doc.save(out, "  ", pugi::format_default | pugi::format_no_declaration);
@@ -125,7 +113,7 @@ bool RenderScoreToSvgPages(VrvBridge &bridge, RenderedScore &rendered, std::stri
         error = "Verovio rendered an empty SVG for page 1";
         return false;
     }
-    first = StripRepairSpaceGroupsFromSvg(first);
+    first = StripRepairSpaceGroupsFromSvg(first, bridge.typed_space_handling());
     rendered.pages.push_back(RenderedPage{ .page_no = 1, .svg = std::move(first) });
 
     for (int page = 2; page <= page_count; ++page) {
@@ -134,7 +122,7 @@ bool RenderScoreToSvgPages(VrvBridge &bridge, RenderedScore &rendered, std::stri
             rendered.warnings.push_back("Verovio rendered an empty SVG for page " + std::to_string(page));
             continue;
         }
-        svg = StripRepairSpaceGroupsFromSvg(svg);
+        svg = StripRepairSpaceGroupsFromSvg(svg, bridge.typed_space_handling());
         rendered.pages.push_back(RenderedPage{ .page_no = page, .svg = std::move(svg) });
     }
     return true;

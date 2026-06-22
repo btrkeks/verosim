@@ -51,6 +51,7 @@ add_library(verosim_core STATIC
     src/extraction/control_extraction.cpp
     src/extraction/signature_extraction.cpp
     src/extraction/score_normalizer.cpp
+    src/extraction/typed_space_policy.cpp
     src/extraction/effective_pitch.cpp
     src/extraction/notation_rules.cpp
     src/model/detail_tier.cpp

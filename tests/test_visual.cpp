@@ -665,6 +665,31 @@ TEST_CASE("RenderScoreToSvgPages honors encoded Humdrum line breaks", "[visual]"
     std::filesystem::remove(path);
 }
 
+TEST_CASE("RenderScoreToSvgPages strips typed spaces only in suppress mode", "[visual]")
+{
+    const std::string path = std::string(VEROSIM_TEST_FIXTURE_DIR) + "/repair_space_beamspan.mei";
+
+    VrvBridge suppress_bridge;
+    REQUIRE(suppress_bridge.LoadScoreFile(path));
+    RenderedScore suppress_rendered;
+    std::string error;
+    REQUIRE(RenderScoreToSvgPages(suppress_bridge, suppress_rendered, error));
+    CHECK(error.empty());
+    REQUIRE(suppress_rendered.pages.size() == 1);
+    CHECK(suppress_rendered.pages[0].svg.find("space straddle") == std::string::npos);
+
+    VrvBridgeConfig config;
+    config.typed_space_handling = TypedSpaceHandling::kPreserve;
+    VrvBridge preserve_bridge(config);
+    REQUIRE(preserve_bridge.LoadScoreFile(path));
+    RenderedScore preserve_rendered;
+    error.clear();
+    REQUIRE(RenderScoreToSvgPages(preserve_bridge, preserve_rendered, error));
+    CHECK(error.empty());
+    REQUIRE(preserve_rendered.pages.size() == 1);
+    CHECK(preserve_rendered.pages[0].svg.find("space straddle") != std::string::npos);
+}
+
 TEST_CASE("VisualizePairToHtml writes a mutation report", "[visual]")
 {
     const std::filesystem::path out = std::filesystem::temp_directory_path()

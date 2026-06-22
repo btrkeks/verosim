@@ -13,7 +13,7 @@
 #endif
 
 #include "toolkitdef.h"
-#include "verosim/extraction/score_normalizer.h"
+#include "verosim/extraction/typed_space_policy.h"
 #include "vrv.h"
 
 namespace verosim {
@@ -72,7 +72,7 @@ bool LooksLikeResourcePath(const std::string &path)
 } // namespace
 
 VrvBridge::VrvBridge(const VrvBridgeConfig &config)
-    : vrv::Toolkit(false), m_normalizeRepairSpaces(config.normalize_repair_spaces)
+    : vrv::Toolkit(false), m_typedSpaceHandling(config.typed_space_handling)
 {
     vrv::EnableLog(config.log_level);
     vrv::EnableLogToBuffer(config.capture_log);
@@ -140,11 +140,7 @@ bool VrvBridge::LoadScoreData(const std::string &data, vrv::FileFormat format)
 
 void VrvBridge::NormalizeImportedScore()
 {
-    if (!m_normalizeRepairSpaces) {
-        m_lastNormalizedRhythmRepairSpaces = 0;
-        return;
-    }
-    m_lastNormalizedRhythmRepairSpaces = NormalizeVerovioRhythmRepairSpaces(this->GetDoc());
+    m_lastNormalizedRhythmRepairSpaces = NormalizeTypedSpaces(this->GetDoc(), m_typedSpaceHandling);
 }
 
 } // namespace verosim
