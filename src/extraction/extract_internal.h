@@ -22,6 +22,7 @@
 #include "layer.h"
 #include "layerelement.h"
 #include "measure.h"
+#include "mensur.h"
 #include "metersig.h"
 #include "note.h"
 #include "object.h"
@@ -62,7 +63,9 @@ struct PendingSig {
     // heap copies from GetClefCopy()/... (attribute forms materialized)
     std::shared_ptr<const vrv::Clef> clef;
     std::shared_ptr<const vrv::KeySig> keysig;
+    std::shared_ptr<const vrv::Mensur> mensur;
     std::shared_ptr<const vrv::MeterSig> metersig;
+    bool staffdef_visible_meter_hides_mensur = false;
 };
 
 struct StaffState {
@@ -106,7 +109,10 @@ void AppendArticulations(const vrv::Object *obj, std::vector<std::string> &out);
 std::string StripIdRef(std::string ref);
 bool StaffMatches(const vrv::Object *obj, const std::string &staffN);
 bool HasStaffIdent(const vrv::Object *obj);
+std::optional<std::string> ModernMensurSymbol(const vrv::Mensur &mensur);
+bool IsVisibleMeterSig(const vrv::MeterSig &metersig);
 bool MeterQLFromMeterSig(const vrv::MeterSig &metersig, Fraction &ql);
+bool MeterQLFromMensur(const vrv::Mensur &mensur, Fraction &ql);
 Fraction BeatQLFromMeterSig(const vrv::MeterSig &metersig);
 Fraction FractionFromDouble(double value);
 
@@ -168,6 +174,7 @@ private:
 
     SymExtra MakeClefExtra(const vrv::Clef &clef, const Fraction &offset);
     SymExtra MakeKeySigExtra(const vrv::KeySig &keysig, const Fraction &offset);
+    SymExtra MakeMensurTimeSigExtra(const vrv::Mensur &mensur, const Fraction &offset);
     SymExtra MakeMeterSigExtra(const vrv::MeterSig &metersig, const Fraction &offset);
     SymExtra MakeDynamicExtra(const vrv::Dynam &dynam, const Fraction &offset);
     SymExtra MakeHairpinExtra(const vrv::Hairpin &hairpin, const Fraction &offset,

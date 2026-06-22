@@ -66,17 +66,24 @@ void Extractor::ApplyScoreDefChange(const vrv::ScoreDef *scoreDef)
     std::unique_ptr<const vrv::Clef> clef(scoreDef->HasClefInfo(1) ? scoreDef->GetClefCopy() : nullptr);
     std::unique_ptr<const vrv::KeySig> keysig(
         scoreDef->HasKeySigInfo(1) ? scoreDef->GetKeySigCopy() : nullptr);
+    std::unique_ptr<const vrv::Mensur> mensur(
+        scoreDef->HasMensurInfo(1) ? scoreDef->GetMensurCopy() : nullptr);
     std::unique_ptr<const vrv::MeterSig> metersig(
         scoreDef->HasMeterSigInfo(1) ? scoreDef->GetMeterSigCopy() : nullptr);
 
-    if (clef || keysig || metersig) {
+    if (clef || keysig || mensur || metersig) {
         std::shared_ptr<const vrv::Clef> sharedClef(std::move(clef));
         std::shared_ptr<const vrv::KeySig> sharedKeySig(std::move(keysig));
+        std::shared_ptr<const vrv::Mensur> sharedMensur(std::move(mensur));
         std::shared_ptr<const vrv::MeterSig> sharedMeterSig(std::move(metersig));
         for (const std::string &n : staff_order_) {
             StaffState &state = staves_[n];
             if (sharedClef) state.pending.clef = sharedClef;
             if (sharedKeySig) state.pending.keysig = sharedKeySig;
+            if (sharedMensur) {
+                state.pending.mensur = sharedMensur;
+                state.pending.staffdef_visible_meter_hides_mensur = false;
+            }
             if (sharedMeterSig) state.pending.metersig = sharedMeterSig;
         }
     }
@@ -93,6 +100,8 @@ void Extractor::ApplyStaffDef(const vrv::StaffDef *staffDef, const vrv::ScoreDef
 {
     const std::string n = std::to_string(staffDef->GetN());
     StaffState &state = EnsureStaffPart(n, false);
+    const bool staffDefHasMensur = staffDef->HasMensurInfo(1);
+    const bool staffDefHasMeterSig = staffDef->HasMeterSigInfo(1);
 
     const auto component = [&](auto hasInfo, auto getCopy) {
         using Ptr = decltype((staffDef->*getCopy)());
@@ -105,11 +114,19 @@ void Extractor::ApplyStaffDef(const vrv::StaffDef *staffDef, const vrv::ScoreDef
         component(&vrv::ScoreDefElement::HasClefInfo, &vrv::ScoreDefElement::GetClefCopy));
     std::unique_ptr<const vrv::KeySig> keysig(
         component(&vrv::ScoreDefElement::HasKeySigInfo, &vrv::ScoreDefElement::GetKeySigCopy));
+    std::unique_ptr<const vrv::Mensur> mensur(
+        component(&vrv::ScoreDefElement::HasMensurInfo, &vrv::ScoreDefElement::GetMensurCopy));
     std::unique_ptr<const vrv::MeterSig> metersig(
         component(&vrv::ScoreDefElement::HasMeterSigInfo, &vrv::ScoreDefElement::GetMeterSigCopy));
+    const bool staffDefVisibleMeterHidesMensur
+        = staffDefHasMensur && staffDefHasMeterSig && metersig && IsVisibleMeterSig(*metersig);
 
     if (clef) state.pending.clef = std::shared_ptr<const vrv::Clef>(std::move(clef));
     if (keysig) state.pending.keysig = std::shared_ptr<const vrv::KeySig>(std::move(keysig));
+    if (mensur) {
+        state.pending.mensur = std::shared_ptr<const vrv::Mensur>(std::move(mensur));
+        state.pending.staffdef_visible_meter_hides_mensur = staffDefVisibleMeterHidesMensur;
+    }
     if (metersig) state.pending.metersig = std::shared_ptr<const vrv::MeterSig>(std::move(metersig));
 }
 
@@ -148,11 +165,24 @@ void Extractor::ApplyPendingSignatures(StaffState &state, std::vector<SymExtra> 
         extras.push_back(MakeKeySigExtra(*state.pending.keysig, Fraction(0)));
     }
     if (state.pending.metersig) {
-        extras.push_back(MakeMeterSigExtra(*state.pending.metersig, Fraction(0)));
         if (MeterQLFromMeterSig(*state.pending.metersig, state.meter_ql)) {
             state.has_meter = true;
         }
         state.beat_ql = BeatQLFromMeterSig(*state.pending.metersig);
+    }
+    const bool hasVisibleMeterSig
+        = state.pending.metersig && IsVisibleMeterSig(*state.pending.metersig);
+    const bool suppressMensur
+        = hasVisibleMeterSig && state.pending.staffdef_visible_meter_hides_mensur;
+    if (state.pending.mensur && ModernMensurSymbol(*state.pending.mensur) && !suppressMensur) {
+        extras.push_back(MakeMensurTimeSigExtra(*state.pending.mensur, Fraction(0)));
+        if (!state.pending.metersig && MeterQLFromMensur(*state.pending.mensur, state.meter_ql)) {
+            state.has_meter = true;
+            state.beat_ql = Fraction(1);
+        }
+    }
+    if (hasVisibleMeterSig) {
+        extras.push_back(MakeMeterSigExtra(*state.pending.metersig, Fraction(0)));
     }
     state.pending = PendingSig();
 }

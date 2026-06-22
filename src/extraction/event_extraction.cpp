@@ -402,6 +402,7 @@ void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &e
     std::vector<SymExtra> &extras, Fraction &cursor, StaffState &state,
     std::vector<const vrv::Tuplet *> &tupletStack, const vrv::Object *beam)
 {
+    std::optional<Fraction> meterSigContextOffset;
     for (const vrv::Object *child : obj->GetChildren()) {
         if (child->Is(vrv::BEAM)) {
             CollectLayerEvents(child, events, extras, cursor, state, tupletStack, child);
@@ -441,11 +442,28 @@ void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &e
         }
         else if (child->Is(vrv::METERSIG)) {
             const vrv::MeterSig *metersig = vrv_cast<const vrv::MeterSig *>(child);
-            extras.push_back(MakeMeterSigExtra(*metersig, cursor));
+            if (IsVisibleMeterSig(*metersig)) {
+                extras.push_back(MakeMeterSigExtra(*metersig, cursor));
+            }
             // mirror the inline KEYSIG case: the new meter governs any
             // following mRest (in this measure and beyond)
-            if (MeterQLFromMeterSig(*metersig, state.meter_ql)) state.has_meter = true;
+            if (MeterQLFromMeterSig(*metersig, state.meter_ql)) {
+                state.has_meter = true;
+                meterSigContextOffset = cursor;
+            }
             state.beat_ql = BeatQLFromMeterSig(*metersig);
+        }
+        else if (child->Is(vrv::MENSUR)) {
+            const vrv::Mensur *mensur = vrv_cast<const vrv::Mensur *>(child);
+            if (ModernMensurSymbol(*mensur)) {
+                extras.push_back(MakeMensurTimeSigExtra(*mensur, cursor));
+                const bool hasPairedMeterSigContext
+                    = meterSigContextOffset && (*meterSigContextOffset == cursor);
+                if (!hasPairedMeterSigContext && MeterQLFromMensur(*mensur, state.meter_ql)) {
+                    state.has_meter = true;
+                    state.beat_ql = Fraction(1);
+                }
+            }
         }
         else if (child->Is(vrv::BARLINE) || child->Is(vrv::MNUM) || child->Is(vrv::TUPLET_NUM)
             || child->Is(vrv::TUPLET_BRACKET)) {

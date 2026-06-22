@@ -433,6 +433,30 @@ TEST_CASE("SvgSymbolIndex resolves structural measures notes accidentals and ext
     CHECK_FALSE(page_local_note.has_value());
 }
 
+TEST_CASE("SvgSymbolIndex resolves mensur glyphs as time signatures", "[visual]")
+{
+    const std::string svg = R"SVG(
+<svg>
+  <g id="measure-L1" class="measure">
+    <g id="staff-L1F1" class="staff">
+      <g id="random-mensur-id" class="mensur"/>
+    </g>
+  </g>
+</svg>
+)SVG";
+    const SvgSymbolIndex index = SvgSymbolIndex::Build(svg);
+    REQUIRE(index.parse_ok());
+    const std::optional<SvgSelector> timesig = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kExtra,
+        .locator = TestLocator(),
+        .primary_id = "missing-mensur",
+        .extra_kind = ExtraKind::kTimeSig,
+        .has_extra_kind = true });
+    REQUIRE(timesig.has_value());
+    CHECK(timesig->kind == SvgSelectorKind::kId);
+    CHECK(timesig->value == "random-mensur-id");
+}
+
 TEST_CASE("VisualResolver keeps exact ID fast path and class-token fallback", "[visual]")
 {
     const std::string svg = R"SVG(

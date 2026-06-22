@@ -22,6 +22,21 @@ std::string ClefSign(vrv::data_CLEFSHAPE shape)
     }
 }
 
+std::optional<std::string> ModernMensurSymbol(const vrv::Mensur &mensur)
+{
+    if (!mensur.HasSign() || mensur.GetSign() != vrv::MENSURATIONSIGN_C) return std::nullopt;
+    if (mensur.HasDot() && mensur.GetDot() == vrv::BOOLEAN_true) return std::nullopt;
+    if (mensur.HasOrient()) return std::nullopt;
+    if (mensur.HasNum() || mensur.HasNumbase()) return std::nullopt;
+    return mensur.HasSlash() ? std::optional<std::string>("cut")
+                             : std::optional<std::string>("common");
+}
+
+bool IsVisibleMeterSig(const vrv::MeterSig &metersig)
+{
+    return metersig.GetVisible() != vrv::BOOLEAN_false;
+}
+
 } // namespace extract_detail
 
 SymExtra Extractor::MakeClefExtra(const vrv::Clef &clef, const Fraction &offset)
@@ -72,6 +87,18 @@ SymExtra Extractor::MakeKeySigExtra(const vrv::KeySig &keysig, const Fraction &o
         for (int i = 0; i < count; ++i) {
             extra.infodict.emplace_back("sharp" + std::to_string(i), kSharpNames[i % 7]);
         }
+    }
+    return extra;
+}
+
+SymExtra Extractor::MakeMensurTimeSigExtra(const vrv::Mensur &mensur, const Fraction &offset)
+{
+    SymExtra extra;
+    extra.vrv_id = mensur.GetID();
+    extra.kind = ExtraKind::kTimeSig;
+    extra.offset = offset;
+    if (const std::optional<std::string> symbol = ModernMensurSymbol(mensur)) {
+        extra.infodict.emplace_back("symbol", *symbol);
     }
     return extra;
 }

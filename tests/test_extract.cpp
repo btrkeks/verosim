@@ -40,6 +40,33 @@ ExtractResult ExtractFixture(
     return ExtractSymScore(bridge.GetDoc(), format, options);
 }
 
+ExtractResult ExtractData(
+    const std::string &data, vrv::FileFormat inputFormat, SourceFormat sourceFormat)
+{
+    VrvBridge bridge;
+    REQUIRE(bridge.LoadScoreData(data, inputFormat));
+    return ExtractSymScore(bridge.GetDoc(), sourceFormat);
+}
+
+ExtractResult ExtractKernData(const std::string &data)
+{
+    return ExtractData(data, vrv::HUMDRUM, SourceFormat::kKern);
+}
+
+ExtractResult ExtractMeiData(const std::string &data)
+{
+    return ExtractData(data, vrv::MEI, SourceFormat::kOther);
+}
+
+std::vector<const SymExtra *> ExtrasOfKind(const SymMeasure &measure, ExtraKind kind)
+{
+    std::vector<const SymExtra *> found;
+    for (const SymExtra &extra : measure.extras) {
+        if (extra.kind == kind) found.push_back(&extra);
+    }
+    return found;
+}
+
 const vrv::Object *FindStraddleOrFillerSpace(const vrv::Doc &doc)
 {
     for (const vrv::Object *obj : doc.FindAllDescendantsByType(vrv::SPACE)) {
@@ -330,6 +357,282 @@ TEST_CASE("tie_chain.krn: sounding alter carries across barlines via ties", "[ex
     const SymNote &end = part.bar_list[2].notes[0]; // 4f#]
     CHECK(end.pitches[0].accid == "None");
     CHECK(end.pitches[0].sounding_alter == 1);
+}
+
+TEST_CASE("Humdrum common and cut time symbols count as one visible timesig", "[extract]")
+{
+    struct Case {
+        std::string name;
+        std::string signatureTokens;
+        std::string symbol;
+    };
+    const std::vector<Case> cases = {
+        { "lowercase common", "*met(c)\n", "common" },
+        { "lowercase cut", "*met(c|)\n", "cut" },
+        { "uppercase common mensur", "*met(C)\n", "common" },
+        { "uppercase cut mensur", "*met(C|)\n", "cut" },
+        { "hidden numeric plus uppercase common", "*M4/4\n*met(C)\n", "common" },
+        { "hidden numeric plus uppercase cut", "*M2/2\n*met(C|)\n", "cut" },
+    };
+
+    for (const Case &testCase : cases) {
+        INFO(testCase.name);
+        const ExtractResult result = ExtractKernData(
+            "**kern\n*clefG2\n" + testCase.signatureTokens + "=1\n1c\n*-\n");
+        CHECK(result.warnings.empty());
+        REQUIRE(result.score.parts.size() == 1);
+        REQUIRE(result.score.parts[0].bar_list.size() == 1);
+        const std::vector<const SymExtra *> timesigs
+            = ExtrasOfKind(result.score.parts[0].bar_list[0], ExtraKind::kTimeSig);
+        REQUIRE(timesigs.size() == 1);
+        CHECK(timesigs[0]->notation_size() == 1);
+        CHECK(timesigs[0]->infodict
+            == std::vector<std::pair<std::string, std::string>>{ { "symbol", testCase.symbol } });
+    }
+}
+
+TEST_CASE("hidden numeric meterSig governs mRest while mensur is the visible timesig", "[extract]")
+{
+    const ExtractResult result = ExtractMeiData(R"MEI(
+<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2">
+                <meterSig count="2" unit="1" visible="false"/>
+                <mensur sign="C" slash="1"/>
+              </staffDef>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1">
+              <staff n="1">
+                <layer n="1">
+                  <mRest/>
+                </layer>
+              </staff>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>
+)MEI");
+    CHECK(result.warnings.empty());
+    REQUIRE(result.score.parts.size() == 1);
+    REQUIRE(result.score.parts[0].bar_list.size() == 1);
+    const SymMeasure &m1 = result.score.parts[0].bar_list[0];
+    const std::vector<const SymExtra *> timesigs = ExtrasOfKind(m1, ExtraKind::kTimeSig);
+    REQUIRE(timesigs.size() == 1);
+    CHECK(timesigs[0]->infodict
+        == std::vector<std::pair<std::string, std::string>>{ { "symbol", "cut" } });
+    REQUIRE(m1.notes.size() == 1);
+    CHECK(m1.notes[0].pitches[0].step_octave == "R");
+    CHECK(m1.notes[0].note_dur_type == "breve");
+    CHECK(m1.notes[0].dots == 0);
+}
+
+TEST_CASE("visible meterSig is extracted when paired with scoreDef mensur", "[extract]")
+{
+    const ExtractResult result = ExtractMeiData(R"MEI(
+<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2">
+                <meterSig count="4" unit="4"/>
+                <mensur sign="C"/>
+              </staffDef>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1">
+              <staff n="1">
+                <layer n="1">
+                  <note dur="4" oct="4" pname="c"/>
+                </layer>
+              </staff>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>
+)MEI");
+    CHECK(result.warnings.empty());
+    REQUIRE(result.score.parts.size() == 1);
+    REQUIRE(result.score.parts[0].bar_list.size() == 1);
+    const SymMeasure &m1 = result.score.parts[0].bar_list[0];
+    const std::vector<const SymExtra *> timesigs = ExtrasOfKind(m1, ExtraKind::kTimeSig);
+    REQUIRE(timesigs.size() == 1);
+    CHECK(timesigs[0]->notation_size() == 2);
+    CHECK(timesigs[0]->infodict
+        == std::vector<std::pair<std::string, std::string>>{
+            { "numerator", "4" }, { "denominator", "4" } });
+}
+
+TEST_CASE("scoreDef-level visible meterSig and mensur are both extracted", "[extract]")
+{
+    const ExtractResult result = ExtractMeiData(R"MEI(
+<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <meterSig count="4" unit="4"/>
+            <mensur sign="C"/>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2"/>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1">
+              <staff n="1">
+                <layer n="1">
+                  <note dur="4" oct="4" pname="c"/>
+                </layer>
+              </staff>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>
+)MEI");
+    CHECK(result.warnings.empty());
+    REQUIRE(result.score.parts.size() == 1);
+    REQUIRE(result.score.parts[0].bar_list.size() == 1);
+    const SymMeasure &m1 = result.score.parts[0].bar_list[0];
+    const std::vector<const SymExtra *> timesigs = ExtrasOfKind(m1, ExtraKind::kTimeSig);
+    REQUIRE(timesigs.size() == 2);
+    bool sawCommon = false;
+    bool sawNumeric = false;
+    for (const SymExtra *timesig : timesigs) {
+        if (timesig->infodict
+            == std::vector<std::pair<std::string, std::string>>{ { "symbol", "common" } }) {
+            sawCommon = true;
+        }
+        if (timesig->infodict
+            == std::vector<std::pair<std::string, std::string>>{
+                { "numerator", "4" }, { "denominator", "4" } }) {
+            sawNumeric = true;
+        }
+    }
+    CHECK(sawCommon);
+    CHECK(sawNumeric);
+}
+
+TEST_CASE("inline mensur updates governing meter for following mRest", "[extract]")
+{
+    const ExtractResult result = ExtractMeiData(R"MEI(
+<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="3" meter.unit="4"/>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1">
+              <staff n="1">
+                <layer n="1">
+                  <mensur sign="C"/>
+                  <note dur="4" oct="4" pname="c"/>
+                </layer>
+              </staff>
+            </measure>
+            <measure n="2">
+              <staff n="1">
+                <layer n="1">
+                  <mRest/>
+                </layer>
+              </staff>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>
+)MEI");
+    CHECK(result.warnings.empty());
+    REQUIRE(result.score.parts.size() == 1);
+    REQUIRE(result.score.parts[0].bar_list.size() == 2);
+    const SymMeasure &m2 = result.score.parts[0].bar_list[1];
+    REQUIRE(m2.notes.size() == 1);
+    CHECK(m2.notes[0].pitches[0].step_octave == "R");
+    CHECK(m2.notes[0].note_dur_type == "whole");
+    CHECK(m2.notes[0].dots == 0);
+}
+
+TEST_CASE("inline mensur preserves paired hidden numeric meter for following mRest", "[extract]")
+{
+    const ExtractResult result = ExtractMeiData(R"MEI(
+<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2"/>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1">
+              <staff n="1">
+                <layer n="1">
+                  <meterSig count="2" unit="1" visible="false"/>
+                  <mensur sign="C" slash="1"/>
+                  <note dur="4" oct="4" pname="c"/>
+                </layer>
+              </staff>
+            </measure>
+            <measure n="2">
+              <staff n="1">
+                <layer n="1">
+                  <mRest/>
+                </layer>
+              </staff>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>
+)MEI");
+    CHECK(result.warnings.empty());
+    REQUIRE(result.score.parts.size() == 1);
+    REQUIRE(result.score.parts[0].bar_list.size() == 2);
+    const SymMeasure &m1 = result.score.parts[0].bar_list[0];
+    const std::vector<const SymExtra *> timesigs = ExtrasOfKind(m1, ExtraKind::kTimeSig);
+    REQUIRE(timesigs.size() == 1);
+    CHECK(timesigs[0]->infodict
+        == std::vector<std::pair<std::string, std::string>>{ { "symbol", "cut" } });
+    const SymMeasure &m2 = result.score.parts[0].bar_list[1];
+    REQUIRE(m2.notes.size() == 1);
+    CHECK(m2.notes[0].pitches[0].step_octave == "R");
+    CHECK(m2.notes[0].note_dur_type == "breve");
+    CHECK(m2.notes[0].dots == 0);
 }
 
 TEST_CASE("inline_meter.mei: layer meterSig governs a following mRest", "[extract]")

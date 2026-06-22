@@ -44,6 +44,13 @@ bool MeterQLFromMeterSig(const vrv::MeterSig &metersig, Fraction &ql)
     return false;
 }
 
+bool MeterQLFromMensur(const vrv::Mensur &mensur, Fraction &ql)
+{
+    if (!ModernMensurSymbol(mensur)) return false;
+    ql = Fraction(4); // modern common/cut fallback when no numeric meter exists
+    return true;
+}
+
 Fraction BeatQLFromMeterSig(const vrv::MeterSig &metersig)
 {
     if (metersig.GetUnit() > 0) return Fraction(4, metersig.GetUnit());
