@@ -46,6 +46,7 @@ measure             → staff@n → layer@n → events; control elements (tie @s
 | `clef` (staffDef child or inline in layer) | SymExtra kind=clef, symbolic `{shape}{line}[{±8}]` | 1 |
 | `keySig` (@sig, staffDef child or scoreDef child) | SymExtra kind=keysig, infodict per accidental; sig=0 → `flats/sharps: none` | max(1, |accidentals|) |
 | `meterSig` (@count @unit @sym @form); modern `mensur` C/C\| from kern `*met(C)`/`*met(C\|)` | SymExtra kind=timesig | 2 (numerator+denominator), or 1 (@sym common/cut, modern mensur common/cut, or @form="num" = MusicXML single-number → numerator only). Hidden numeric meterSig updates meter context but is not scored as a visible symbol. If a staffDef has both a visible meterSig and mensur, Verovio renders the meterSig; scoreDef-level visible pairs can render both, so both are scored. |
+| measure `@left`/`@right`; layer `barLine` | SymExtra kind=barline or repeat; metric offset/duration are `None` | 1 for a non-regular visible barline; repeat barlines add 1 for repeat direction. Invisible barlines and regular boundary barlines are ignored. |
 | `slur` control | SymExtra kind=slur with offset and duration | 1 duration symbol |
 | `mNum`, `stem`, `flag`, `dots`, `label`, `instrDef`, `pgHead`, `grpSym`, `mdiv`, milestones | ignored | 0 |
 
@@ -99,6 +100,9 @@ VrvBridge at load).
 - humlib vs converter21 visual-accidental analysis may disagree on exotic
   cases; vendored musicdiff wins (D12) — divergences surface in the count
   audit and are listed here as found.
+- Barline v1 covers ordinary visible forms, invisible/regular-boundary ignore
+  rules, and repeat start/end direction. Repeat counts, barline fermatas,
+  barline style, and precise SVG barline highlighting are deferred.
 - `quarterLengthToClosestType` edge durations ('complex') — ported from
   music21; only reachable through mRest/multiRest and irregular tuplet math.
 

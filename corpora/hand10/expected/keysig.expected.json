@@ -1,6 +1,6 @@
 {
  "file": "keysig.krn",
- "total": 20,
+ "total": 21,
  "categories": {
   "pitches": 8,
   "accidentals": 0,
@@ -16,6 +16,7 @@
   "articulations": 0,
   "expressions": 0,
   "style": 0,
+  "barline": 1,
   "clef": 1,
   "keysig": 1,
   "timesig": 2,
@@ -25,7 +26,7 @@
   {
    "per_measure": [
     12,
-    8
+    9
    ]
   }
  ]

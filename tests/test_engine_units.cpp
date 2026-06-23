@@ -289,6 +289,51 @@ TEST_CASE("extras set distance and diff", "[engine]")
         CHECK(r.cost == 2); // numerator + denominator
         CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "extradel", 1 } });
     }
+    SECTION("barline symbolic change costs delete plus add")
+    {
+        const SymMeasure orig = MakeMeasure({}, { MakeBarline("final") });
+        const SymMeasure comp = MakeMeasure({}, { MakeBarline("double") });
+        const DiffResult r = MeasureDiff(orig, comp);
+        CHECK(r.cost == 2);
+        CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "extrasymboledit", 1 } });
+        CHECK(EditDistancesDict(r.ops) == std::map<std::string, long>{
+                                           { "bad kern syntax OMR-ED", 0 },
+                                           { "wrong barline OMR-ED", 2 } });
+    }
+    SECTION("barline insert/delete costs one symbol")
+    {
+        const SymMeasure orig = MakeMeasure({}, { MakeBarline("final") });
+        const SymMeasure comp = MakeMeasure({}, {});
+        const DiffResult r = MeasureDiff(orig, comp);
+        CHECK(r.cost == 1);
+        CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "extradel", 1 } });
+        CHECK(EditDistancesDict(r.ops) == std::map<std::string, long>{
+                                           { "bad kern syntax OMR-ED", 0 },
+                                           { "wrong barline OMR-ED", 1 } });
+    }
+    SECTION("repeat insert/delete costs symbolic plus repeat direction")
+    {
+        const SymMeasure orig = MakeMeasure({}, { MakeRepeat("heavy-light", "start") });
+        const SymMeasure comp = MakeMeasure({}, {});
+        const DiffResult r = MeasureDiff(orig, comp);
+        CHECK(r.cost == 2);
+        CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "extradel", 1 } });
+        CHECK(EditDistancesDict(r.ops) == std::map<std::string, long>{
+                                           { "bad kern syntax OMR-ED", 0 },
+                                           { "wrong barline OMR-ED", 2 } });
+    }
+    SECTION("barline and repeat offsets are ignored")
+    {
+        const SymMeasure barlineOrig = MakeMeasure({}, { MakeBarline("final", Fraction(0)) });
+        const SymMeasure barlineComp = MakeMeasure({}, { MakeBarline("final", Fraction(4)) });
+        CHECK(MeasureDiff(barlineOrig, barlineComp).cost == 0);
+
+        const SymMeasure repeatOrig
+            = MakeMeasure({}, { MakeRepeat("heavy-light", "start", Fraction(0)) });
+        const SymMeasure repeatComp
+            = MakeMeasure({}, { MakeRepeat("heavy-light", "start", Fraction(4)) });
+        CHECK(MeasureDiff(repeatOrig, repeatComp).cost == 0);
+    }
 }
 
 TEST_CASE("are_different_enough tolerance", "[engine]")

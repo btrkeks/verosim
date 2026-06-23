@@ -1,6 +1,6 @@
 {
  "file": "accid.krn",
- "total": 27,
+ "total": 28,
  "categories": {
   "pitches": 9,
   "accidentals": 3,
@@ -16,6 +16,7 @@
   "articulations": 0,
   "expressions": 0,
   "style": 0,
+  "barline": 1,
   "clef": 1,
   "keysig": 1,
   "timesig": 2,
@@ -25,7 +26,7 @@
   {
    "per_measure": [
     17,
-    10
+    11
    ]
   }
  ]

@@ -1,6 +1,6 @@
 {
  "file": "changes.krn",
- "total": 23,
+ "total": 24,
  "categories": {
   "pitches": 6,
   "accidentals": 1,
@@ -16,6 +16,7 @@
   "articulations": 0,
   "expressions": 0,
   "style": 0,
+  "barline": 1,
   "clef": 2,
   "keysig": 3,
   "timesig": 4,
@@ -26,7 +27,7 @@
    "per_measure": [
     13,
     6,
-    4
+    5
    ]
   }
  ]

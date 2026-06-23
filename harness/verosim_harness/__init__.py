@@ -6,8 +6,8 @@ test_metric_modes.py recomputes them from musicdiff.DetailLevel to catch
 vendored-enum drift.
 
   active       = NotesAndRests | Beams | Signatures
-                 | Ties | Slurs | Articulations              = 243
-  experimental = active | Directions                         = 499
+                 | Ties | Slurs | Articulations | Barlines   = 755
+  experimental = active | Directions                         = 1011
 
 The Lyrics bit (16384) is never set (v1 excludes lyrics). Directions bundles
 dynamics/wedges with tempo/text/rehearsal/pedal marks, so it remains a broader
@@ -27,8 +27,8 @@ if _vendored not in _sys.path:
     _sys.path.insert(0, _vendored)
 
 METRIC_MODES: dict[str, int] = {
-    "active": 243,
-    "experimental": 499,
+    "active": 755,
+    "experimental": 1011,
 }
 
 SCHEMA_VERSION = 2

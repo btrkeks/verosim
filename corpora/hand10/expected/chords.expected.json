@@ -1,6 +1,6 @@
 {
  "file": "chords.krn",
- "total": 34,
+ "total": 35,
  "categories": {
   "pitches": 13,
   "accidentals": 0,
@@ -16,6 +16,7 @@
   "articulations": 0,
   "expressions": 0,
   "style": 0,
+  "barline": 1,
   "clef": 1,
   "keysig": 1,
   "timesig": 2,
@@ -25,7 +26,7 @@
   {
    "per_measure": [
     26,
-    8
+    9
    ]
   }
  ]

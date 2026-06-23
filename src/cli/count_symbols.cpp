@@ -21,8 +21,9 @@ void WriteCategories(const SymbolCounts &c, std::ostream &os)
        << ",\"tuplet_info\":" << c.tuplet_info << ",\"grace\":" << c.grace
        << ",\"grace_slash\":" << c.grace_slash << ",\"gaps\":" << c.gaps
        << ",\"articulations\":" << c.articulations << ",\"expressions\":" << c.expressions
-       << ",\"style\":" << c.style << ",\"clef\":" << c.clef << ",\"keysig\":" << c.keysig
-       << ",\"timesig\":" << c.timesig << ",\"other_extras\":" << c.other_extras << "}";
+       << ",\"style\":" << c.style << ",\"barline\":" << c.barline << ",\"clef\":"
+       << c.clef << ",\"keysig\":" << c.keysig << ",\"timesig\":" << c.timesig
+       << ",\"other_extras\":" << c.other_extras << "}";
 }
 
 void WritePerMeasure(const SymScore &score, std::ostream &os)
@@ -66,7 +67,8 @@ void WritePerMeasure(const SymScore &score, std::ostream &os)
                 os << "{\"kind\":";
                 WriteJsonString(std::string(ExtraKindName(extra.kind)), os);
                 os << ",\"offset\":";
-                WriteJsonString(extra.offset.str(), os);
+                WriteJsonString(
+                    ExtraKindHasMetricOffset(extra.kind) ? extra.offset.str() : "None", os);
                 os << ",\"size\":" << extra.notation_size() << ",\"str\":";
                 WriteJsonString(extra.str(), os);
                 os << "}";

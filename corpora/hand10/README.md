@@ -1,6 +1,6 @@
 # HAND-10: hand-counted active symbol inventories
 
-Ten very small scores with manually derived active-mode (DetailLevel 243)
+Ten very small scores with manually derived active-mode (DetailLevel 755)
 symbol counts: the only fully human-verified
 ground truth in the validation suite. Authored before any C++ extraction
 existed (fixtures-before-code, D11), with the same discipline as the mutation

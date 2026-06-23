@@ -245,6 +245,7 @@ void Extractor::HandleMeasure(const vrv::Measure *measure)
         RegisterEventLocations(n, events);
         CollectControlExtras(measure, n, events, extras);
         const Fraction measureSpan = MeasureSpan(state, events);
+        CollectMeasureBarlines(measure, n, measureSpan, extras);
         EmitMeasure(measure, n, std::move(events), std::move(extras), state);
         FinishStaffMeasure(state, measureSpan);
     }

@@ -118,7 +118,12 @@ CASES: list[dict] = [
          expected_cost=10, expected_ops={"insbar": 1, "notedel": 2},
          rationale="Barline removed merges m1+m2. Myers leaves m3 common; cheapest edit is "
                    "editbar(merged, m1) = del g@4(2)+a@5(3) from pred, plus insbar(m2) = 5. "
-                   "Barlines themselves are not counted (Barlines bit excluded)."),
+                   "The removed barline is a regular internal boundary, so it remains an "
+                   "ignored barline extra."),
+    dict(id="mono_final_barline_double", base="mono.krn", mode="active",
+         edits=[dict(line=19, find="==", replace="=||")],
+         expected_cost=2, expected_ops={"extrasymboledit": 1},
+         rationale="Terminal final barline changed to double: barline symbolic edit = del+add = 2."),
     dict(id="mono_grace_end", base="mono.krn", mode="active",
          edits=[dict(line=18, find="4c", replace="8qc")],
          expected_cost=7, expected_ops={"notedel": 1, "noteins": 1},
@@ -277,10 +282,10 @@ CASES: list[dict] = [
                    "Excluded from the C++ exact gate per D6 (active validation record)."),
     dict(id="grand_bass_octave", base="grand.krn", mode="active",
          edits=[dict(line=12, find="1CC", replace="1C")],
-         expected_cost=4, expected_ops={"insbar": 1, "delbar": 1},
+         expected_cost=4, expected_ops={"notedel": 1, "noteins": 1},
          rationale="C2 -> C3 in bass m2: octave change unpairs, cost 4. The bar holds only "
-                   "this note, so replacing the whole bar ties del+ins of the note at "
-                   "cost 4 and musicdiff's min() tie-break reports bar-level ops."),
+                   "this note plus the terminal final barline, so editbar is strictly cheaper "
+                   "than deleting/inserting the whole bar and reports note-level ops."),
     dict(id="grand_treble_clef", base="grand.krn", mode="active",
          edits=[dict(line=3, find="*clefG2", replace="*clefC3")],
          expected_cost=2, expected_ops={"extrasymboledit": 1},

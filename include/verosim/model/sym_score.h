@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <utility>
@@ -81,8 +82,22 @@ struct SymNote {
 
 // kind strings are musicdiff's; enum order == lexicographic order of the
 // kind strings, so sorting by (kind, offset) matches annotation.py:1255.
-enum class ExtraKind { kClef, kCrescendo, kDiminuendo, kDynamic, kKeySig, kSlur, kTimeSig };
+enum class ExtraKind {
+    kBarline,
+    kClef,
+    kCrescendo,
+    kDiminuendo,
+    kDynamic,
+    kKeySig,
+    kRepeat,
+    kSlur,
+    kTimeSig
+};
 std::string_view ExtraKindName(ExtraKind kind);
+std::string_view ExtraKindEditHeader(ExtraKind kind);
+bool ExtraKindHasMetricOffset(ExtraKind kind);
+bool ExtraKindHasMetricDuration(ExtraKind kind);
+std::size_t ExtraKindSortRank(ExtraKind kind);
 
 struct SymExtra {
     std::string vrv_id;
@@ -144,6 +159,7 @@ struct SymbolCounts {
     long articulations = 0;
     long expressions = 0; // stretch surface; currently always 0
     long style = 0; // currently never set
+    long barline = 0; // barlines and repeat-style barlines
     long clef = 0;
     long keysig = 0;
     long timesig = 0;

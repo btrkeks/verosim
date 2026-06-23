@@ -825,6 +825,119 @@ TEST_CASE("single_number.xml: single-number timesig counts one symbol", "[extrac
     CHECK(result.score.notation_size() == 9);
 }
 
+TEST_CASE("MEI barlines are extracted as barline and repeat extras", "[extract]")
+{
+    const char *mei = R"mei(<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="4" meter.unit="4"/>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1" left="single" right="dbl">
+              <staff n="1"><layer n="1"><note dur="1" oct="4" pname="c"/></layer></staff>
+            </measure>
+            <measure n="2" left="rptstart" right="rptend">
+              <staff n="1"><layer n="1"><note dur="1" oct="4" pname="d"/></layer></staff>
+            </measure>
+            <measure n="3" right="invis">
+              <staff n="1">
+                <layer n="1">
+                  <note dur="2" oct="4" pname="e"/>
+                  <barLine form="dbl" xml:id="mid_dbl"/>
+                  <note dur="2" oct="4" pname="f"/>
+                </layer>
+              </staff>
+            </measure>
+            <measure n="4" right="end">
+              <staff n="1"><layer n="1"><note dur="1" oct="4" pname="g"/></layer></staff>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>)mei";
+    const ExtractResult result = ExtractMeiData(mei);
+    CHECK(result.warnings.empty());
+    REQUIRE(result.score.parts.size() == 1);
+    const SymPart &part = result.score.parts[0];
+    REQUIRE(part.bar_list.size() == 4);
+
+    const std::vector<const SymExtra *> m1_barlines
+        = ExtrasOfKind(part.bar_list[0], ExtraKind::kBarline);
+    REQUIRE(m1_barlines.size() == 1);
+    CHECK(m1_barlines[0]->symbolic == "double");
+    CHECK(m1_barlines[0]->str() == "barline@None:double");
+
+    const std::vector<const SymExtra *> m2_repeats
+        = ExtrasOfKind(part.bar_list[1], ExtraKind::kRepeat);
+    REQUIRE(m2_repeats.size() == 2);
+    CHECK(m2_repeats[0]->symbolic == "heavy-light");
+    CHECK(m2_repeats[0]->infodict
+        == std::vector<std::pair<std::string, std::string>>{ { "repeatdirection", "start" } });
+    CHECK(m2_repeats[0]->notation_size() == 2);
+    CHECK(m2_repeats[1]->symbolic == "final");
+    CHECK(m2_repeats[1]->infodict
+        == std::vector<std::pair<std::string, std::string>>{ { "repeatdirection", "end" } });
+    CHECK(m2_repeats[1]->notation_size() == 2);
+
+    const std::vector<const SymExtra *> m3_barlines
+        = ExtrasOfKind(part.bar_list[2], ExtraKind::kBarline);
+    REQUIRE(m3_barlines.size() == 1);
+    CHECK(m3_barlines[0]->vrv_id == "mid_dbl");
+    CHECK(m3_barlines[0]->symbolic == "double");
+    CHECK(m3_barlines[0]->offset == Fraction(2));
+
+    const std::vector<const SymExtra *> m4_barlines
+        = ExtrasOfKind(part.bar_list[3], ExtraKind::kBarline);
+    REQUIRE(m4_barlines.size() == 1);
+    CHECK(m4_barlines[0]->symbolic == "final");
+    CHECK(CountSymbols(result.score).barline == 7);
+    CHECK(result.score.notation_size() == 20);
+}
+
+TEST_CASE("regular layer barline at a partial-measure end is ignored", "[extract]")
+{
+    const char *mei = R"mei(<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="4" meter.unit="4"/>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1">
+              <staff n="1">
+                <layer n="1">
+                  <note dur="2" oct="4" pname="c"/>
+                  <barLine form="single" xml:id="partial_regular"/>
+                </layer>
+              </staff>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>)mei";
+    const ExtractResult result = ExtractMeiData(mei);
+    CHECK(result.warnings.empty());
+    REQUIRE(result.score.parts.size() == 1);
+    REQUIRE(result.score.parts[0].bar_list.size() == 1);
+    CHECK(ExtrasOfKind(result.score.parts[0].bar_list[0], ExtraKind::kBarline).empty());
+    CHECK(CountSymbols(result.score).barline == 0);
+}
+
 TEST_CASE("mei_controls.mei: timestamp controls use active meter and staff resolution", "[extract]")
 {
     const ExtractResult result = ExtractFixture(

@@ -1,6 +1,6 @@
 {
  "file": "mono.krn",
- "total": 29,
+ "total": 30,
  "categories": {
   "pitches": 11,
   "accidentals": 0,
@@ -16,6 +16,7 @@
   "articulations": 0,
   "expressions": 0,
   "style": 0,
+  "barline": 1,
   "clef": 1,
   "keysig": 1,
   "timesig": 2,
@@ -26,7 +27,7 @@
    "per_measure": [
     16,
     5,
-    8
+    9
    ]
   }
  ]

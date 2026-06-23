@@ -1,5 +1,6 @@
 #include "verosim/model/sym_score.h"
 
+#include <array>
 #include <numeric>
 #include <sstream>
 
@@ -56,15 +57,56 @@ std::string_view TupletValueName(TupletValue value)
 std::string_view ExtraKindName(ExtraKind kind)
 {
     switch (kind) {
+        case ExtraKind::kBarline: return "barline";
         case ExtraKind::kClef: return "clef";
         case ExtraKind::kCrescendo: return "crescendo";
         case ExtraKind::kDiminuendo: return "diminuendo";
         case ExtraKind::kDynamic: return "dynamic";
         case ExtraKind::kKeySig: return "keysig";
+        case ExtraKind::kRepeat: return "repeat";
         case ExtraKind::kSlur: return "slur";
         case ExtraKind::kTimeSig: return "timesig";
     }
     return "?";
+}
+
+std::size_t ExtraKindSortRank(ExtraKind kind)
+{
+    constexpr std::array<std::string_view, 9> kOrderedNames = {
+        "barline", "clef", "crescendo", "diminuendo", "dynamic", "keysig", "repeat", "slur",
+        "timesig"
+    };
+    const std::string_view name = ExtraKindName(kind);
+    for (std::size_t i = 0; i < kOrderedNames.size(); ++i) {
+        if (name == kOrderedNames[i]) return i;
+    }
+    return kOrderedNames.size();
+}
+
+std::string_view ExtraKindEditHeader(ExtraKind kind)
+{
+    switch (kind) {
+        case ExtraKind::kBarline:
+        case ExtraKind::kRepeat: return "wrong barline OMR-ED";
+        case ExtraKind::kClef: return "wrong clef OMR-ED";
+        case ExtraKind::kKeySig: return "wrong keysig OMR-ED";
+        case ExtraKind::kTimeSig: return "wrong timesig OMR-ED";
+        case ExtraKind::kCrescendo: return "wrong crescendo OMR-ED";
+        case ExtraKind::kDiminuendo: return "wrong diminuendo OMR-ED";
+        case ExtraKind::kDynamic: return "wrong dynamic OMR-ED";
+        case ExtraKind::kSlur: return "wrong slur OMR-ED";
+    }
+    return "wrong direction OMR-ED";
+}
+
+bool ExtraKindHasMetricOffset(ExtraKind kind)
+{
+    return kind != ExtraKind::kBarline && kind != ExtraKind::kRepeat;
+}
+
+bool ExtraKindHasMetricDuration(ExtraKind kind)
+{
+    return kind != ExtraKind::kBarline && kind != ExtraKind::kRepeat;
 }
 
 int SymNote::notation_size() const
@@ -189,7 +231,9 @@ int SymExtra::notation_size() const
 std::string SymExtra::str() const
 {
     std::string s(ExtraKindName(kind));
-    s += "@" + offset.str() + ":";
+    s += "@";
+    s += ExtraKindHasMetricOffset(kind) ? offset.str() : "None";
+    s += ":";
     if (content.has_value()) s += "content=" + *content;
     if (symbolic.has_value()) s += *symbolic;
     for (const auto &[k, v] : infodict) s += " " + k + ":" + v;
@@ -221,8 +265,8 @@ int SymScore::notation_size() const
 long SymbolCounts::total() const
 {
     return pitches + accidentals + ties + noteheads + dots + beams + tuplets + tuplet_info
-        + grace + grace_slash + gaps + articulations + expressions + style + clef + keysig
-        + timesig + other_extras;
+        + grace + grace_slash + gaps + articulations + expressions + style + barline + clef
+        + keysig + timesig + other_extras;
 }
 
 SymbolCounts CountSymbols(const SymScore &score)
@@ -252,6 +296,8 @@ SymbolCounts CountSymbols(const SymScore &score)
             for (const SymExtra &extra : measure.extras) {
                 long body = extra.notation_size();
                 switch (extra.kind) {
+                    case ExtraKind::kBarline:
+                    case ExtraKind::kRepeat: c.barline += body; break;
                     case ExtraKind::kClef: c.clef += body; break;
                     case ExtraKind::kCrescendo:
                     case ExtraKind::kDiminuendo:

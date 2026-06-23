@@ -10,6 +10,7 @@
 
 #include "accid.h"
 #include "artic.h"
+#include "barline.h"
 #include "beam.h"
 #include "beamspan.h"
 #include "chord.h"
@@ -97,6 +98,8 @@ struct EmittedExtraLocation {
     std::size_t extra_idx = 0;
 };
 
+enum class BarlineLocation { kLeft, kRight, kMiddle };
+
 namespace extract_detail {
 
 char StepFromPname(vrv::data_PITCHNAME pname);
@@ -147,6 +150,8 @@ private:
     void FinishStaffMeasure(StaffState &state, const Fraction &measureSpan);
     void CollectControlExtras(const vrv::Measure *measure, const std::string &staffN,
         const std::vector<Event> &events, std::vector<SymExtra> &extras);
+    void CollectMeasureBarlines(const vrv::Measure *measure, const std::string &staffN,
+        const Fraction &measureSpan, std::vector<SymExtra> &extras);
     void RegisterEventLocations(const std::string &staffN, const std::vector<Event> &events);
     void ResolvePendingSpans();
     void RegisterEmittedExtras(int partIdx, std::size_t measureIdx);
@@ -181,6 +186,8 @@ private:
         const std::optional<Fraction> &duration);
     SymExtra MakeSlurExtra(const vrv::Slur &slur, const Fraction &offset,
         const std::optional<Fraction> &duration);
+    std::vector<SymExtra> MakeBarlineExtras(vrv::data_BARRENDITION form,
+        BarlineLocation location, const Fraction &offset, const std::string &id);
 
     vrv::Doc &doc_;
     SourceFormat format_;

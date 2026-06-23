@@ -66,10 +66,29 @@ void AppendArticulations(const vrv::Object *obj, std::vector<std::string> &out)
 
 namespace {
 
-std::vector<SymExtra> NormalizeMeasureExtras(std::vector<SymExtra> extras)
+Fraction EventContentSpan(const std::vector<Event> &events)
+{
+    Fraction span(0);
+    for (const Event &ev : events) {
+        const Fraction relEnd = ev.offset + ev.dur_ql;
+        if (relEnd > span) span = relEnd;
+    }
+    return span;
+}
+
+bool IsIgnoredRegularBoundaryBarline(const SymExtra &extra, const Fraction &contentSpan)
+{
+    return extra.kind == ExtraKind::kBarline && extra.symbolic.has_value()
+        && *extra.symbolic == "regular"
+        && (extra.offset == Fraction(0) || extra.offset == contentSpan);
+}
+
+std::vector<SymExtra> NormalizeMeasureExtras(std::vector<SymExtra> extras, const Fraction &contentSpan)
 {
     // m21utils.py:877-904: sort by offset, drop consecutive equivalent clefs,
     // then apply the final kind/offset ordering used by the oracle.
+    std::erase_if(extras,
+        [&](const SymExtra &extra) { return IsIgnoredRegularBoundaryBarline(extra, contentSpan); });
     std::stable_sort(extras.begin(), extras.end(),
         [](const SymExtra &a, const SymExtra &b) { return a.offset < b.offset; });
     std::vector<SymExtra> dedupedExtras;
@@ -85,7 +104,7 @@ std::vector<SymExtra> NormalizeMeasureExtras(std::vector<SymExtra> extras)
     }
     std::stable_sort(dedupedExtras.begin(), dedupedExtras.end(),
         [](const SymExtra &a, const SymExtra &b) {
-            if (a.kind != b.kind) return a.kind < b.kind;
+            if (a.kind != b.kind) return ExtraKindSortRank(a.kind) < ExtraKindSortRank(b.kind);
             return a.offset < b.offset;
         });
     return dedupedExtras;
@@ -465,10 +484,23 @@ void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &e
                 }
             }
         }
-        else if (child->Is(vrv::BARLINE) || child->Is(vrv::MNUM) || child->Is(vrv::TUPLET_NUM)
+        else if (child->Is(vrv::BARLINE)) {
+            const vrv::BarLine *barline = vrv_cast<const vrv::BarLine *>(child);
+            BarlineLocation location = BarlineLocation::kMiddle;
+            if (cursor == Fraction(0)) {
+                location = BarlineLocation::kLeft;
+            }
+            else if (cursor == state.meter_ql) {
+                location = BarlineLocation::kRight;
+            }
+            std::vector<SymExtra> barlineExtras
+                = MakeBarlineExtras(barline->GetForm(), location, cursor, barline->GetID());
+            extras.insert(extras.end(), barlineExtras.begin(), barlineExtras.end());
+        }
+        else if (child->Is(vrv::MNUM) || child->Is(vrv::TUPLET_NUM)
             || child->Is(vrv::TUPLET_BRACKET)) {
-            // barlines are not counted; tupletNum/tupletBracket are visual
-            // companions of <tuplet>, whose @num we already read
+            // tupletNum/tupletBracket are visual companions of <tuplet>,
+            // whose @num we already read
         }
         else {
             Warn("unhandled layer element <" + child->GetClassName() + "> skipped");
@@ -597,7 +629,7 @@ void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staf
         .offset = Fraction(0),
         .occurrence = 0 };
     symMeasure.locator = measureLocator;
-    symMeasure.extras = NormalizeMeasureExtras(std::move(extras));
+    symMeasure.extras = NormalizeMeasureExtras(std::move(extras), EventContentSpan(events));
     std::map<ExtraKind, int> extraOccurrences;
     for (SymExtra &extra : symMeasure.extras) {
         extra.locator = measureLocator;

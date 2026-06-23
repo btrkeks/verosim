@@ -12,7 +12,7 @@ class OracleGolden(unittest.TestCase):
 
         r = run_pair("cases/mono_artic_staccato.krn", "base/mono.krn", "active", MUTATIONS)
         self.assertIsNone(r["error"])
-        self.assertEqual(r["mode"], {"name": "active", "value": 243})
+        self.assertEqual(r["mode"], {"name": "active", "value": 755})
         self.assertEqual(r["distance"], 1)
         self.assertEqual(
             r["edit_distances_dict"],

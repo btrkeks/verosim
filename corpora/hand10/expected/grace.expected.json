@@ -1,6 +1,6 @@
 {
  "file": "grace.krn",
- "total": 18,
+ "total": 19,
  "categories": {
   "pitches": 5,
   "accidentals": 0,
@@ -16,6 +16,7 @@
   "articulations": 0,
   "expressions": 0,
   "style": 0,
+  "barline": 1,
   "clef": 1,
   "keysig": 0,
   "timesig": 2,
@@ -25,7 +26,7 @@
   {
    "per_measure": [
     16,
-    2
+    3
    ]
   }
  ]

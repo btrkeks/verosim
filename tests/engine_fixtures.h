@@ -61,6 +61,28 @@ inline SymExtra MakeClef(const std::string &symbolic, Fraction offset = Fraction
     return extra;
 }
 
+inline SymExtra MakeBarline(const std::string &symbolic, Fraction offset = Fraction(0))
+{
+    SymExtra extra;
+    extra.vrv_id = "barline";
+    extra.kind = ExtraKind::kBarline;
+    extra.symbolic = symbolic;
+    extra.offset = offset;
+    return extra;
+}
+
+inline SymExtra MakeRepeat(
+    const std::string &symbolic, const std::string &direction, Fraction offset = Fraction(0))
+{
+    SymExtra extra;
+    extra.vrv_id = "repeat";
+    extra.kind = ExtraKind::kRepeat;
+    extra.symbolic = symbolic;
+    extra.infodict = { { "repeatdirection", direction } };
+    extra.offset = offset;
+    return extra;
+}
+
 inline SymExtra MakeTimeSig(
     const std::string &num, const std::string &den, Fraction offset = Fraction(0))
 {

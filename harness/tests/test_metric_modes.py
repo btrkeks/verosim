@@ -15,7 +15,7 @@ class MetricModes(unittest.TestCase):
 
         active = (
             D.NotesAndRests | D.Beams | D.Signatures
-            | D.Ties | D.Slurs | D.Articulations
+            | D.Ties | D.Slurs | D.Articulations | D.Barlines
         )
         self.assertEqual(METRIC_MODES["active"], int(active))
         self.assertEqual(METRIC_MODES["experimental"], int(active | D.Directions))

@@ -32,7 +32,7 @@ CATEGORIES = [
     "pitches", "accidentals", "ties", "noteheads", "dots", "beams",
     "tuplets", "tuplet_info", "grace", "grace_slash", "gaps",
     "articulations", "expressions", "style",
-    "clef", "keysig", "timesig", "other_extras",
+    "barline", "clef", "keysig", "timesig", "other_extras",
 ]
 
 
@@ -106,7 +106,9 @@ def _count_extra(extra, counts: dict[str, int]) -> int:
         counts["style"] += 1
         size += 1
     body = size - (1 if extra.styledict else 0)
-    if extra.kind in ("clef", "keysig", "timesig"):
+    if extra.kind in ("barline", "repeat"):
+        counts["barline"] += body
+    elif extra.kind in ("clef", "keysig", "timesig"):
         counts[extra.kind] += body
     else:
         counts["other_extras"] += body

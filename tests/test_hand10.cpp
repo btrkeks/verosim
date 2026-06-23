@@ -109,6 +109,7 @@ long CategoryValue(const SymbolCounts &c, const std::string &key)
         { "articulations", &SymbolCounts::articulations },
         { "expressions", &SymbolCounts::expressions },
         { "style", &SymbolCounts::style },
+        { "barline", &SymbolCounts::barline },
         { "clef", &SymbolCounts::clef },
         { "keysig", &SymbolCounts::keysig },
         { "timesig", &SymbolCounts::timesig },

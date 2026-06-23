@@ -1,6 +1,9 @@
 #include "verosim/engine/compare.h"
 
 #include <iterator>
+#include <map>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "verosim/engine/block_diff.h"
@@ -316,10 +319,22 @@ std::string CategoryEditName(const EditOp &op)
     return edit_name;
 }
 
+const SymExtra *ExtraForOp(const EditOp &op)
+{
+    if (op.a.kind == OpSide::Kind::kExtra) return op.a.extra;
+    if (op.b.kind == OpSide::Kind::kExtra) return op.b.extra;
+    return nullptr;
+}
+
 } // namespace
 
 std::string EditOpCategory(const EditOp &op)
 {
+    if (std::string_view(OpNameStr(op.name)).starts_with("extra")) {
+        if (const SymExtra *extra = ExtraForOp(op)) {
+            return std::string(ExtraKindEditHeader(extra->kind));
+        }
+    }
     return HeaderName(CategoryEditName(op));
 }
 

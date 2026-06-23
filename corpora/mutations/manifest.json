@@ -3,9 +3,9 @@
   "generated_by": "harness/verosim_harness/gen_mutations.py",
   "orientation": "pred=mutated, gt=base; op names are pred->gt",
   "mode_details": {
-    "active": 243
+    "active": 755
   },
-  "n_cases": 47,
+  "n_cases": 48,
   "cases": [
     {
       "id": "mono_pitch_letter",
@@ -280,7 +280,25 @@
           "replace": "."
         }
       ],
-      "rationale": "Barline removed merges m1+m2. Myers leaves m3 common; cheapest edit is editbar(merged, m1) = del g@4(2)+a@5(3) from pred, plus insbar(m2) = 5. Barlines themselves are not counted (Barlines bit excluded)."
+      "rationale": "Barline removed merges m1+m2. Myers leaves m3 common; cheapest edit is editbar(merged, m1) = del g@4(2)+a@5(3) from pred, plus insbar(m2) = 5. The removed barline is a regular internal boundary, so it remains an ignored barline extra."
+    },
+    {
+      "id": "mono_final_barline_double",
+      "base": "base/mono.krn",
+      "mutated": "cases/mono_final_barline_double.krn",
+      "mode": "active",
+      "expected_cost": 2,
+      "expected_ops": {
+        "extrasymboledit": 1
+      },
+      "edits": [
+        {
+          "line": 19,
+          "find": "==",
+          "replace": "=||"
+        }
+      ],
+      "rationale": "Terminal final barline changed to double: barline symbolic edit = del+add = 2."
     },
     {
       "id": "mono_grace_end",
@@ -794,8 +812,8 @@
       "mode": "active",
       "expected_cost": 4,
       "expected_ops": {
-        "insbar": 1,
-        "delbar": 1
+        "notedel": 1,
+        "noteins": 1
       },
       "edits": [
         {
@@ -804,7 +822,7 @@
           "replace": "1C"
         }
       ],
-      "rationale": "C2 -> C3 in bass m2: octave change unpairs, cost 4. The bar holds only this note, so replacing the whole bar ties del+ins of the note at cost 4 and musicdiff's min() tie-break reports bar-level ops."
+      "rationale": "C2 -> C3 in bass m2: octave change unpairs, cost 4. The bar holds only this note plus the terminal final barline, so editbar is strictly cheaper than deleting/inserting the whole bar and reports note-level ops."
     },
     {
       "id": "grand_treble_clef",

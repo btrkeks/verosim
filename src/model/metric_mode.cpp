@@ -23,4 +23,9 @@ bool MetricModeIncludesDirections(MetricMode mode)
     return mode == MetricMode::kExperimental;
 }
 
+bool MetricModeIncludesBarlines(MetricMode)
+{
+    return true;
+}
+
 } // namespace verosim

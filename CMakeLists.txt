@@ -46,6 +46,7 @@ add_library(verosim_core STATIC
     src/extraction/vrv_bridge.cpp
     src/extraction/extract.cpp
     src/extraction/event_extraction.cpp
+    src/extraction/barline_extraction.cpp
     src/extraction/pitch_context.cpp
     src/extraction/meter_context.cpp
     src/extraction/control_extraction.cpp

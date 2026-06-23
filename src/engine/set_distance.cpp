@@ -321,12 +321,16 @@ DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,
         const SymExtra &oe = orig.extras[o];
         const SymExtra &ce = comp.extras[c];
         if (oe.kind != ce.kind) return false;
+        if (!ExtraKindHasMetricOffset(oe.kind)) return true;
         return !AreDifferentEnough(oe.offset, ce.offset);
     };
     const auto preferred = [&](int o, int c) {
         const SymExtra &oe = orig.extras[o];
         const SymExtra &ce = comp.extras[c];
-        if (AreDifferentEnough(oe.duration, ce.duration)) return false;
+        if (ExtraKindHasMetricDuration(oe.kind)
+            && AreDifferentEnough(oe.duration, ce.duration)) {
+            return false;
+        }
         // kind-specific preferences (two simultaneous keysigs/timesigs/clefs
         // must not be cross-paired). 'slur' placement is Style-gated and
         // therefore vacuous at v1, exactly like musicdiff.
@@ -335,6 +339,8 @@ DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,
             case ExtraKind::kCrescendo:
             case ExtraKind::kDiminuendo:
             case ExtraKind::kDynamic:
+            case ExtraKind::kBarline:
+            case ExtraKind::kRepeat:
             case ExtraKind::kSlur:
                 return true;
             case ExtraKind::kKeySig:
@@ -398,12 +404,12 @@ DiffResult AnnotatedExtraDiff(const SymExtra &e1, const SymExtra &e2)
         result.ops.push_back(extra_op(OpName::kExtraInfoEdit, info_cost));
     }
     // offset
-    if (AreDifferentEnough(e1.offset, e2.offset)) {
+    if (ExtraKindHasMetricOffset(e1.kind) && AreDifferentEnough(e1.offset, e2.offset)) {
         result.cost += 1;
         result.ops.push_back(extra_op(OpName::kExtraOffsetEdit, 1));
     }
     // duration
-    if (AreDifferentEnough(e1.duration, e2.duration)) {
+    if (ExtraKindHasMetricDuration(e1.kind) && AreDifferentEnough(e1.duration, e2.duration)) {
         result.cost += 1;
         result.ops.push_back(extra_op(OpName::kExtraDurationEdit, 1));
     }
@@ -499,8 +505,10 @@ long AnnotatedExtraDiffCost(const SymExtra &e1, const SymExtra &e2)
     if (e1.symbolic != e2.symbolic) cost += 2;
     if (!InfodictsEqual(e1.infodict, e2.infodict))
         cost += InfodictDiffCost(e1.infodict, e2.infodict);
-    if (AreDifferentEnough(e1.offset, e2.offset)) cost += 1;
-    if (AreDifferentEnough(e1.duration, e2.duration)) cost += 1;
+    if (ExtraKindHasMetricOffset(e1.kind) && AreDifferentEnough(e1.offset, e2.offset)) cost += 1;
+    if (ExtraKindHasMetricDuration(e1.kind) && AreDifferentEnough(e1.duration, e2.duration)) {
+        cost += 1;
+    }
     return cost;
 }
 
@@ -511,17 +519,23 @@ long ExtrasSetDistanceCost(const SymMeasure &orig, const SymMeasure &comp,
         const SymExtra &oe = orig.extras[o];
         const SymExtra &ce = comp.extras[c];
         if (oe.kind != ce.kind) return false;
+        if (!ExtraKindHasMetricOffset(oe.kind)) return true;
         return !AreDifferentEnough(oe.offset, ce.offset);
     };
     const auto preferred = [&](int o, int c) {
         const SymExtra &oe = orig.extras[o];
         const SymExtra &ce = comp.extras[c];
-        if (AreDifferentEnough(oe.duration, ce.duration)) return false;
+        if (ExtraKindHasMetricDuration(oe.kind)
+            && AreDifferentEnough(oe.duration, ce.duration)) {
+            return false;
+        }
         switch (oe.kind) {
             case ExtraKind::kClef: return oe.symbolic == ce.symbolic;
             case ExtraKind::kCrescendo:
             case ExtraKind::kDiminuendo:
             case ExtraKind::kDynamic:
+            case ExtraKind::kBarline:
+            case ExtraKind::kRepeat:
             case ExtraKind::kSlur:
                 return true;
             case ExtraKind::kKeySig:

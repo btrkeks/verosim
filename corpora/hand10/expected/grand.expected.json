@@ -1,6 +1,6 @@
 {
  "file": "grand.krn",
- "total": 24,
+ "total": 26,
  "categories": {
   "pitches": 8,
   "accidentals": 0,
@@ -16,6 +16,7 @@
   "articulations": 0,
   "expressions": 0,
   "style": 0,
+  "barline": 2,
   "clef": 2,
   "keysig": 2,
   "timesig": 4,
@@ -25,13 +26,13 @@
   {
    "per_measure": [
     12,
-    2
+    3
    ]
   },
   {
    "per_measure": [
     8,
-    2
+    3
    ]
   }
  ]
