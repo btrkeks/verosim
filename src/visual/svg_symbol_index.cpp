@@ -89,6 +89,7 @@ std::optional<ExtraKind> ExtraKindFromClasses(const std::string &classes)
     if (HasClassToken(classes, "keySig")) return ExtraKind::kKeySig;
     if (HasClassToken(classes, "meterSig")) return ExtraKind::kTimeSig;
     if (HasClassToken(classes, "mensur")) return ExtraKind::kTimeSig;
+    if (HasClassToken(classes, "octave")) return ExtraKind::kOttava;
     return std::nullopt;
 }
 

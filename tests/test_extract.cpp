@@ -1103,9 +1103,45 @@ TEST_CASE("mei_controls.mei: timestamp controls use active meter and staff resol
     CHECK(cross_slur->offset == Fraction(1));
     REQUIRE(cross_slur->duration.has_value());
     CHECK(*cross_slur->duration == Fraction(4));
+
+    const SymExtra *octave_8va = find_extra(staff1_m1, "octave_8va_staff1");
+    REQUIRE(octave_8va != nullptr);
+    CHECK(octave_8va->kind == ExtraKind::kOttava);
+    CHECK(octave_8va->symbolic == "8va");
+    CHECK(octave_8va->offset == Fraction(1, 2));
+    REQUIRE(octave_8va->duration.has_value());
+    CHECK(*octave_8va->duration == Fraction(5, 2));
+    CHECK(find_extra(staff2_m1, "octave_8va_staff1") == nullptr);
+
+    const SymExtra *octave_8vb = find_extra(staff2_m1, "octave_8vb_staff2");
+    REQUIRE(octave_8vb != nullptr);
+    CHECK(octave_8vb->kind == ExtraKind::kOttava);
+    CHECK(octave_8vb->symbolic == "8vb");
+    CHECK(octave_8vb->offset == Fraction(0));
+    REQUIRE(octave_8vb->duration.has_value());
+    CHECK(*octave_8vb->duration == Fraction(2));
+    CHECK(find_extra(staff1_m1, "octave_8vb_staff2") == nullptr);
+
+    const SymExtra *cross_octave = find_extra(staff1_m1, "octave_cross_measure");
+    REQUIRE(cross_octave != nullptr);
+    CHECK(cross_octave->kind == ExtraKind::kOttava);
+    CHECK(cross_octave->symbolic == "15ma");
+    CHECK(cross_octave->offset == Fraction(2));
+    REQUIRE(cross_octave->duration.has_value());
+    CHECK(*cross_octave->duration == Fraction(4));
+
+    long ottava_symbols = 0;
+    for (const SymPart &part : result.score.parts) {
+        for (const SymMeasure &measure : part.bar_list) {
+            for (const SymExtra &extra : measure.extras) {
+                if (extra.kind == ExtraKind::kOttava) ottava_symbols += extra.notation_size();
+            }
+        }
+    }
+    CHECK(ottava_symbols == 6);
 }
 
-TEST_CASE("mei_controls.mei: active mode extracts slurs but skips directions", "[extract]")
+TEST_CASE("mei_controls.mei: active mode extracts slurs but skips directions and ottavas", "[extract]")
 {
     const ExtractResult result = ExtractFixture("mei_controls.mei", SourceFormat::kOther);
     CHECK(result.warnings.empty());
@@ -1114,7 +1150,83 @@ TEST_CASE("mei_controls.mei: active mode extracts slurs but skips directions", "
 
     CHECK(ExtrasOfKind(staff1_m1, ExtraKind::kDynamic).empty());
     CHECK(ExtrasOfKind(staff1_m1, ExtraKind::kCrescendo).empty());
+    CHECK(ExtrasOfKind(staff1_m1, ExtraKind::kOttava).empty());
     CHECK(ExtrasOfKind(staff2_m1, ExtraKind::kDynamic).empty());
+    CHECK(ExtrasOfKind(staff2_m1, ExtraKind::kOttava).empty());
     CHECK(ExtrasOfKind(staff1_m1, ExtraKind::kSlur).size() == 1);
     CHECK(ExtrasOfKind(staff2_m1, ExtraKind::kSlur).size() == 1);
+}
+
+TEST_CASE("unsupported octave displacement warns and is skipped", "[extract]")
+{
+    const char *mei = R"mei(<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="4" meter.unit="4"/>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1">
+              <staff n="1">
+                <layer n="1">
+                  <note xml:id="n1" dur="4" oct="4" pname="c"/>
+                </layer>
+              </staff>
+              <octave xml:id="octave_22" staff="1" startid="#n1" endid="#n1" dis="22" dis.place="above"/>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>)mei";
+    const ExtractResult result = ExtractMeiData(
+        mei, ExtractOptions{ .surface = MetricSurface{ .mode = MetricMode::kExperimental } });
+    REQUIRE(result.warnings.size() == 1);
+    CHECK(result.warnings[0] == "octave control with 22ma/22mb displacement is unsupported");
+    REQUIRE(result.score.parts.size() == 1);
+    REQUIRE(result.score.parts[0].bar_list.size() == 1);
+    CHECK(ExtrasOfKind(result.score.parts[0].bar_list[0], ExtraKind::kOttava).empty());
+}
+
+TEST_CASE("octave without placement warns and is skipped", "[extract]")
+{
+    const char *mei = R"mei(<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="4" meter.unit="4"/>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1">
+              <staff n="1">
+                <layer n="1">
+                  <note xml:id="n1" dur="4" oct="4" pname="c"/>
+                </layer>
+              </staff>
+              <octave xml:id="octave_no_place" staff="1" startid="#n1" endid="#n1" dis="8"/>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>)mei";
+    const ExtractResult result = ExtractMeiData(
+        mei, ExtractOptions{ .surface = MetricSurface{ .mode = MetricMode::kExperimental } });
+    REQUIRE(result.warnings.size() == 1);
+    CHECK(result.warnings[0] == "octave control lacks a supported displacement or placement");
+    REQUIRE(result.score.parts.size() == 1);
+    REQUIRE(result.score.parts[0].bar_list.size() == 1);
+    CHECK(ExtrasOfKind(result.score.parts[0].bar_list[0], ExtraKind::kOttava).empty());
 }

@@ -29,7 +29,7 @@ measure             → staff@n → layer@n → events; control elements (tie @s
   `staffGrp` with one `staffDef` per staff — musicdiff's part = one staff
   (music21 PartStaff), so SymPart per staffDef.
 
-## Per-element mapping (active)
+## Per-element mapping (active plus marked experimental additions)
 
 | MEI (Verovio class) | SymScore | Symbols counted |
 |---|---|---|
@@ -48,11 +48,13 @@ measure             → staff@n → layer@n → events; control elements (tie @s
 | `meterSig` (@count @unit @sym @form); modern `mensur` C/C\| from kern `*met(C)`/`*met(C\|)` | SymExtra kind=timesig | 2 (numerator+denominator), or 1 (@sym common/cut, modern mensur common/cut, or @form="num" = MusicXML single-number → numerator only). Hidden numeric meterSig updates meter context but is not scored as a visible symbol. If a staffDef has both a visible meterSig and mensur, Verovio renders the meterSig; scoreDef-level visible pairs can render both, so both are scored. |
 | measure `@left`/`@right`; layer `barLine` | SymExtra kind=barline or repeat; metric offset/duration are `None` | 1 for a non-regular visible barline; repeat barlines add 1 for repeat direction. Invisible barlines and regular boundary barlines are ignored. |
 | `slur` control | SymExtra kind=slur with offset and duration | 1 duration symbol |
+| `octave` control (experimental) | SymExtra kind=ottava, symbolic `8va`/`8vb`/`15ma`/`15mb`, with offset and duration | 2 (symbolic ottava text + duration symbol). `22ma`/`22mb` is skipped with a warning until the Python reference supports it. |
 | `mNum`, `stem`, `flag`, `dots`, `label`, `instrDef`, `pgHead`, `grpSym`, `mdiv`, milestones | ignored | 0 |
 
-Experimental mode additionally includes selected direction controls:
-dynamics (`dynam`) and hairpins (`hairpin`). These use musicdiff's broader
-Directions bit, so the harness reports them separately from the active gate.
+Experimental mode additionally includes selected direction controls
+(`dynam`, `hairpin`) and ottavas (`octave`). Directions use musicdiff's broader
+Directions bit, while ottavas use musicdiff's separate Ottavas bit; the harness
+reports both separately from the active gate.
 
 ## Accidentals / effective pitch (D13)
 

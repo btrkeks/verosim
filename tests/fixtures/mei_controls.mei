@@ -33,6 +33,9 @@
               <hairpin xml:id="hp_tstamp2" staff="1" tstamp="2" tstamp2="0m+5" form="cres"/>
               <slur xml:id="slur_startid_staff2" startid="#s2n1" endid="#s2n3"/>
               <slur xml:id="slur_cross_measure" staff="1" startid="#s1n3" endid="#m2n2"/>
+              <octave xml:id="octave_8va_staff1" staff="1" startid="#s1n2" endid="#s1n4" dis="8" dis.place="above"/>
+              <octave xml:id="octave_8vb_staff2" staff="2" startid="#s2n1" endid="#s2n3" dis="8" dis.place="below"/>
+              <octave xml:id="octave_cross_measure" staff="1" startid="#s1n4" endid="#m2n3" dis="15" dis.place="above"/>
             </measure>
             <measure n="2">
               <staff n="1">

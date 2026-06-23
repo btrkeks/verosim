@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace verosim {
@@ -131,6 +132,24 @@ void Extractor::CollectControlExtras(const vrv::Measure *measure, const std::str
 {
     const Fraction start_abs = staves_[staffN].score_offset;
     (void)events;
+    const auto emit_spanning_extra = [&](const vrv::Object *obj,
+                                         const vrv::TimePointInterface *timePoint,
+                                         const vrv::TimeSpanningInterface *timeSpan,
+                                         auto makeExtra) {
+        const auto off = ControlPointOffset(obj, timePoint, staffN, start_abs);
+        if (!off) return;
+        std::optional<SymExtra> extra = makeExtra(
+            *off, ControlSpanDuration(timeSpan, staffN, start_abs, *off));
+        if (!extra) return;
+        const std::string extra_id = extra->vrv_id;
+        extras.push_back(std::move(*extra));
+        if (timeSpan && timeSpan->HasEndid()) {
+            const std::string end_id = StripIdRef(timeSpan->GetEndid());
+            if (!event_locations_.contains(end_id)) {
+                pending_spans_.push_back({ extra_id, end_id, start_abs + *off });
+            }
+        }
+    };
 
     for (const vrv::Object *obj : measure->GetChildren()) {
         if (!StaffMatches(obj, staffN)) continue;
@@ -147,30 +166,25 @@ void Extractor::CollectControlExtras(const vrv::Measure *measure, const std::str
         }
         else if (MetricModeIncludesDirections(options_.surface.mode) && obj->Is(vrv::HAIRPIN)) {
             const vrv::Hairpin *hairpin = vrv_cast<const vrv::Hairpin *>(obj);
-            if (auto off
-                = ControlPointOffset(obj, hairpin->GetTimePointInterface(), staffN, start_abs)) {
-                extras.push_back(MakeHairpinExtra(*hairpin, *off,
-                    ControlSpanDuration(hairpin->GetTimeSpanningInterface(), staffN, start_abs, *off)));
-                if (hairpin->GetTimeSpanningInterface()->HasEndid()) {
-                    const std::string end_id = StripIdRef(hairpin->GetTimeSpanningInterface()->GetEndid());
-                    if (!event_locations_.contains(end_id)) {
-                        pending_spans_.push_back({ hairpin->GetID(), end_id, start_abs + *off });
-                    }
-                }
-            }
+            emit_spanning_extra(obj, hairpin->GetTimePointInterface(),
+                hairpin->GetTimeSpanningInterface(),
+                [&](const Fraction &offset, const std::optional<Fraction> &duration) {
+                    return std::optional<SymExtra>(MakeHairpinExtra(*hairpin, offset, duration));
+                });
         }
         else if (obj->Is(vrv::SLUR)) {
             const vrv::Slur *slur = vrv_cast<const vrv::Slur *>(obj);
-            if (auto off = ControlPointOffset(obj, slur->GetTimePointInterface(), staffN, start_abs)) {
-                extras.push_back(MakeSlurExtra(*slur, *off,
-                    ControlSpanDuration(slur->GetTimeSpanningInterface(), staffN, start_abs, *off)));
-                if (slur->GetTimeSpanningInterface()->HasEndid()) {
-                    const std::string end_id = StripIdRef(slur->GetTimeSpanningInterface()->GetEndid());
-                    if (!event_locations_.contains(end_id)) {
-                        pending_spans_.push_back({ slur->GetID(), end_id, start_abs + *off });
-                    }
-                }
-            }
+            emit_spanning_extra(obj, slur->GetTimePointInterface(), slur->GetTimeSpanningInterface(),
+                [&](const Fraction &offset, const std::optional<Fraction> &duration) {
+                    return std::optional<SymExtra>(MakeSlurExtra(*slur, offset, duration));
+                });
+        }
+        else if (MetricModeIncludesOttavas(options_.surface.mode) && obj->Is(vrv::OCTAVE)) {
+            const vrv::Octave *octave = vrv_cast<const vrv::Octave *>(obj);
+            emit_spanning_extra(obj, octave->GetTimePointInterface(), octave->GetTimeSpanningInterface(),
+                [&](const Fraction &offset, const std::optional<Fraction> &duration) {
+                    return MakeOttavaExtra(*octave, offset, duration);
+                });
         }
     }
 }

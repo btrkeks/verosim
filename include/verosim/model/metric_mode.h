@@ -26,6 +26,7 @@ std::string_view LayoutSurfaceName(LayoutSurface layout);
 std::optional<LayoutSurface> ParseLayoutSurface(std::string_view text);
 bool MetricModeIncludesDirections(MetricMode mode);
 bool MetricModeIncludesBarlines(MetricMode mode);
+bool MetricModeIncludesOttavas(MetricMode mode);
 bool MetricSurfaceIncludesSystemBreaks(const MetricSurface &surface);
 
 } // namespace verosim

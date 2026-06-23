@@ -18,7 +18,7 @@ class MetricModes(unittest.TestCase):
             | D.Ties | D.Slurs | D.Articulations | D.Barlines
         )
         self.assertEqual(METRIC_MODES["active"], int(active))
-        self.assertEqual(METRIC_MODES["experimental"], int(active | D.Directions))
+        self.assertEqual(METRIC_MODES["experimental"], int(active | D.Directions | D.Ottavas))
 
     def test_lyrics_never_included(self):
         from musicdiff import DetailLevel as D

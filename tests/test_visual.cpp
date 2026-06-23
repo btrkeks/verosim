@@ -441,6 +441,7 @@ TEST_CASE("SvgSymbolIndex resolves structural measures notes accidentals and ext
         <g id="random-accid-id" class="accid"/>
       </g>
       <g id="random-meter-id" class="meterSig"/>
+      <g id="random-octave-id" class="octave"/>
     </g>
     <g id="right-barline-id" class="barLine"/>
   </g>
@@ -509,6 +510,16 @@ TEST_CASE("SvgSymbolIndex resolves structural measures notes accidentals and ext
     REQUIRE(timesig.has_value());
     CHECK(timesig->kind == SvgSelectorKind::kId);
     CHECK(timesig->value == "random-meter-id");
+
+    const std::optional<SvgSelector> ottava = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kExtra,
+        .locator = loc,
+        .primary_id = "missing-ottava",
+        .extra_kind = ExtraKind::kOttava,
+        .has_extra_kind = true });
+    REQUIRE(ottava.has_value());
+    CHECK(ottava->kind == SvgSelectorKind::kId);
+    CHECK(ottava->value == "random-octave-id");
 
     SymbolLocator left_barline_loc = loc;
     left_barline_loc.part_idx = 4;

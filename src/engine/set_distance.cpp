@@ -339,6 +339,7 @@ DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,
             case ExtraKind::kCrescendo:
             case ExtraKind::kDiminuendo:
             case ExtraKind::kDynamic:
+            case ExtraKind::kOttava:
             case ExtraKind::kBarline:
             case ExtraKind::kRepeat:
             case ExtraKind::kSlur:
@@ -535,6 +536,7 @@ long ExtrasSetDistanceCost(const SymMeasure &orig, const SymMeasure &comp,
             case ExtraKind::kCrescendo:
             case ExtraKind::kDiminuendo:
             case ExtraKind::kDynamic:
+            case ExtraKind::kOttava:
             case ExtraKind::kBarline:
             case ExtraKind::kRepeat:
             case ExtraKind::kSlur:

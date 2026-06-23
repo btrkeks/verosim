@@ -166,4 +166,34 @@ SymExtra Extractor::MakeSlurExtra(const vrv::Slur &slur, const Fraction &offset,
     return extra;
 }
 
+std::optional<SymExtra> Extractor::MakeOttavaExtra(const vrv::Octave &octave,
+    const Fraction &offset, const std::optional<Fraction> &duration)
+{
+    if (!octave.HasDis() || !octave.HasDisPlace()) {
+        Warn("octave control lacks a supported displacement or placement");
+        return std::nullopt;
+    }
+
+    std::string symbolic;
+    const bool below = octave.GetDisPlace() == vrv::STAFFREL_basic_below;
+    switch (octave.GetDis()) {
+        case vrv::OCTAVE_DIS_8: symbolic = below ? "8vb" : "8va"; break;
+        case vrv::OCTAVE_DIS_15: symbolic = below ? "15mb" : "15ma"; break;
+        case vrv::OCTAVE_DIS_22:
+            Warn("octave control with 22ma/22mb displacement is unsupported");
+            return std::nullopt;
+        default:
+            Warn("octave control lacks a supported displacement or placement");
+            return std::nullopt;
+    }
+
+    SymExtra extra;
+    extra.vrv_id = octave.GetID();
+    extra.kind = ExtraKind::kOttava;
+    extra.symbolic = symbolic;
+    extra.offset = offset;
+    extra.duration = duration;
+    return extra;
+}
+
 } // namespace verosim

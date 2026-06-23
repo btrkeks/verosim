@@ -353,6 +353,54 @@ TEST_CASE("extras set distance and diff", "[engine]")
         CHECK(MeasureDiff(orig, same).cost == 0);
         CHECK(MeasureDiff(orig, shifted).cost == 2);
     }
+    SECTION("ottava insert/delete costs type plus duration")
+    {
+        const SymMeasure orig = MakeMeasure({}, { MakeOttava("8va", Fraction(0), Fraction(2)) });
+        const SymMeasure comp = MakeMeasure({}, {});
+        CHECK(CountSymbols(MakeScore({ { orig } })).other_extras == 2);
+        const DiffResult r = MeasureDiff(orig, comp);
+        CHECK(r.cost == 2);
+        CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "extradel", 1 } });
+        CHECK(EditDistancesDict(r.ops) == std::map<std::string, long>{
+                                           { "bad kern syntax OMR-ED", 0 },
+                                           { "wrong ottava OMR-ED", 2 } });
+    }
+    SECTION("ottava symbolic edit costs two")
+    {
+        const SymMeasure orig = MakeMeasure({}, { MakeOttava("8va", Fraction(0), Fraction(2)) });
+        const SymMeasure comp = MakeMeasure({}, { MakeOttava("8vb", Fraction(0), Fraction(2)) });
+        const DiffResult r = MeasureDiff(orig, comp);
+        CHECK(r.cost == 2);
+        CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "extrasymboledit", 1 } });
+        CHECK(EditDistancesDict(r.ops) == std::map<std::string, long>{
+                                           { "bad kern syntax OMR-ED", 0 },
+                                           { "wrong ottava OMR-ED", 2 } });
+    }
+    SECTION("ottava duration edit costs one")
+    {
+        const SymMeasure orig = MakeMeasure({}, { MakeOttava("8va", Fraction(0), Fraction(2)) });
+        const SymMeasure comp = MakeMeasure({}, { MakeOttava("8va", Fraction(0), Fraction(3)) });
+        const DiffResult r = MeasureDiff(orig, comp);
+        CHECK(r.cost == 1);
+        CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "extradurationedit", 1 } });
+        CHECK(EditDistancesDict(r.ops) == std::map<std::string, long>{
+                                           { "bad kern syntax OMR-ED", 0 },
+                                           { "wrong ottava OMR-ED", 1 } });
+    }
+    SECTION("ottavas match only at the same offset")
+    {
+        const SymMeasure orig = MakeMeasure({}, { MakeOttava("8va", Fraction(0), Fraction(2)) });
+        const SymMeasure same = MakeMeasure({}, { MakeOttava("8va", Fraction(0), Fraction(2)) });
+        const SymMeasure shifted = MakeMeasure({}, { MakeOttava("8va", Fraction(1), Fraction(2)) });
+        CHECK(MeasureDiff(orig, same).cost == 0);
+        const DiffResult r = MeasureDiff(orig, shifted);
+        CHECK(r.cost == 4);
+        CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "extradel", 1 },
+                                      { "extrains", 1 } });
+        CHECK(EditDistancesDict(r.ops) == std::map<std::string, long>{
+                                           { "bad kern syntax OMR-ED", 0 },
+                                           { "wrong ottava OMR-ED", 4 } });
+    }
 }
 
 TEST_CASE("are_different_enough tolerance", "[engine]")

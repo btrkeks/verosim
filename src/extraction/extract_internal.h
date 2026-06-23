@@ -27,6 +27,7 @@
 #include "metersig.h"
 #include "note.h"
 #include "object.h"
+#include "octave.h"
 #include "rest.h"
 #include "score.h"
 #include "scoredef.h"
@@ -193,6 +194,8 @@ private:
     SymExtra MakeHairpinExtra(const vrv::Hairpin &hairpin, const Fraction &offset,
         const std::optional<Fraction> &duration);
     SymExtra MakeSlurExtra(const vrv::Slur &slur, const Fraction &offset,
+        const std::optional<Fraction> &duration);
+    std::optional<SymExtra> MakeOttavaExtra(const vrv::Octave &octave, const Fraction &offset,
         const std::optional<Fraction> &duration);
     SymExtra MakeSystemBreakExtra(
         const PendingLayoutBreak &layout_break, const vrv::Measure *measure) const;

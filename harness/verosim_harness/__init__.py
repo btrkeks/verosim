@@ -7,11 +7,12 @@ vendored-enum drift.
 
   active       = NotesAndRests | Beams | Signatures
                  | Ties | Slurs | Articulations | Barlines   = 755
-  experimental = active | Directions                         = 1011
+  experimental = active | Directions | Ottavas               = 5107
 
 The Lyrics bit (16384) is never set (v1 excludes lyrics). Directions bundles
-dynamics/wedges with tempo/text/rehearsal/pedal marks, so it remains a broader
-diagnostic mode rather than the default supported surface.
+dynamics/wedges with tempo/text/rehearsal/pedal marks; Ottavas is a separate
+bit. Experimental remains a broader diagnostic mode rather than the default
+supported surface.
 """
 
 import os as _os
@@ -28,7 +29,7 @@ if _vendored not in _sys.path:
 
 METRIC_MODES: dict[str, int] = {
     "active": 755,
-    "experimental": 1011,
+    "experimental": 5107,
 }
 
 SCHEMA_VERSION = 2

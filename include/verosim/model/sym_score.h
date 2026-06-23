@@ -90,6 +90,7 @@ enum class ExtraKind {
     kDiminuendo,
     kDynamic,
     kKeySig,
+    kOttava,
     kRepeat,
     kSlur,
     kSystemBreak,

@@ -114,6 +114,18 @@ inline SymExtra MakeSystemBreak(Fraction offset = Fraction(0))
     return extra;
 }
 
+inline SymExtra MakeOttava(
+    const std::string &symbolic, Fraction offset = Fraction(0), Fraction duration = Fraction(1))
+{
+    SymExtra extra;
+    extra.vrv_id = "ottava";
+    extra.kind = ExtraKind::kOttava;
+    extra.symbolic = symbolic;
+    extra.offset = offset;
+    extra.duration = duration;
+    return extra;
+}
+
 inline SymMeasure MakeMeasure(std::vector<SymNote> notes, std::vector<SymExtra> extras = {})
 {
     SymMeasure measure;

@@ -44,6 +44,11 @@ bool MetricModeIncludesBarlines(MetricMode)
     return true;
 }
 
+bool MetricModeIncludesOttavas(MetricMode mode)
+{
+    return mode == MetricMode::kExperimental;
+}
+
 bool MetricSurfaceIncludesSystemBreaks(const MetricSurface &surface)
 {
     return surface.layout == LayoutSurface::kSystemBreaks;
