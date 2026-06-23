@@ -32,6 +32,12 @@ std::string ReadFile(const std::filesystem::path &path)
     return text.str();
 }
 
+void WriteFile(const std::filesystem::path &path, const std::string &text)
+{
+    std::ofstream out(path);
+    out << text;
+}
+
 std::size_t CountOccurrences(const std::string &text, const std::string &needle)
 {
     std::size_t count = 0;
@@ -288,6 +294,60 @@ TEST_CASE("VisualPlanBuilder emits locator-only symbol refs", "[visual]")
     CHECK(plan.marks[2].target.locator.measure_idx == 1);
 }
 
+TEST_CASE("VisualPlanBuilder maps barline and repeat extras to barline marks", "[visual]")
+{
+    SymExtra barline = MakeBarline("final", Fraction(4));
+    barline.vrv_id = "barline-base:start";
+    barline.visual_barline_boundary = true;
+    barline.locator = TestLocator();
+    barline.locator.offset = Fraction(4);
+
+    SymExtra repeat = MakeRepeat("final", "end", Fraction(4));
+    repeat.vrv_id = "repeat-base:end";
+    repeat.visual_barline_boundary = true;
+    repeat.locator = TestLocator();
+    repeat.locator.offset = Fraction(4);
+
+    SymExtra repeat_with_unrelated_colon = MakeRepeat("heavy-light", "start", Fraction(0));
+    repeat_with_unrelated_colon.vrv_id = "repeat:middle";
+    repeat_with_unrelated_colon.locator = TestLocator();
+
+    const VisualPlan plan = BuildVisualPlan({
+        EditOp{ .name = OpName::kExtraIns,
+            .a = OpSide::None(),
+            .b = OpSide::Extra(&barline),
+            .cost = 1 },
+        EditOp{ .name = OpName::kExtraIns,
+            .a = OpSide::None(),
+            .b = OpSide::Extra(&repeat),
+            .cost = 2 },
+        EditOp{ .name = OpName::kExtraIns,
+            .a = OpSide::None(),
+            .b = OpSide::Extra(&repeat_with_unrelated_colon),
+            .cost = 2 },
+    });
+
+    REQUIRE(plan.marks.size() == 3);
+    CHECK(plan.marks[0].target.kind == VisualTargetKind::kBarline);
+    CHECK(plan.marks[0].target.primary_id == "barline-base:start");
+    CHECK(plan.marks[0].target.fallback_id == "barline-base");
+    CHECK(plan.marks[0].target.extra_kind == ExtraKind::kBarline);
+    CHECK(plan.marks[0].target.has_extra_kind);
+    CHECK(plan.marks[0].target.barline_boundary);
+
+    CHECK(plan.marks[1].target.kind == VisualTargetKind::kBarline);
+    CHECK(plan.marks[1].target.primary_id == "repeat-base:end");
+    CHECK(plan.marks[1].target.fallback_id == "repeat-base");
+    CHECK(plan.marks[1].target.extra_kind == ExtraKind::kRepeat);
+    CHECK(plan.marks[1].target.has_extra_kind);
+    CHECK(plan.marks[1].target.barline_boundary);
+
+    CHECK(plan.marks[2].target.kind == VisualTargetKind::kBarline);
+    CHECK(plan.marks[2].target.primary_id == "repeat:middle");
+    CHECK(plan.marks[2].target.fallback_id == "repeat:middle");
+    CHECK_FALSE(plan.marks[2].target.barline_boundary);
+}
+
 TEST_CASE("SvgAnnotator marks exact IDs and spanning class IDs", "[visual]")
 {
     const VisualMark note_mark{ .side = VisualSide::kGt,
@@ -352,6 +412,7 @@ TEST_CASE("SvgSymbolIndex resolves structural measures notes accidentals and ext
     const std::string svg = R"SVG(
 <svg>
   <g id="measure-L1" class="measure">
+    <g id="left-barline-id" class="barLineAttr"/>
     <g id="staff-L1F1" class="staff">
       <g id="bbox-random-note-id" class="note bounding-box"/>
       <g id="random-note-id" class="note">
@@ -359,12 +420,27 @@ TEST_CASE("SvgSymbolIndex resolves structural measures notes accidentals and ext
       </g>
       <g id="random-meter-id" class="meterSig"/>
     </g>
+    <g id="right-barline-id" class="barLine"/>
+  </g>
+  <g id="measure-L2" class="measure">
+    <g id="staff-L2F1" class="staff">
+      <g id="inline-barline-id" class="barLine"/>
+    </g>
+    <g id="staff-L2F2" class="staff">
+      <g id="staff2-inline-barline-id" class="barLine"/>
+    </g>
+  </g>
+  <g id="measure-L3" class="measure">
+    <g id="staff-L3F1" class="staff">
+      <g id="ambiguous-inline-barline-id" class="barLine"/>
+    </g>
+    <g id="ambiguous-right-barline-id" class="barLine"/>
   </g>
 </svg>
 )SVG";
     const SvgSymbolIndex index = SvgSymbolIndex::Build(svg);
     REQUIRE(index.parse_ok());
-    CHECK(index.measure_count() == 1);
+    CHECK(index.measure_count() == 3);
     const SymbolLocator loc = TestLocator();
 
     const std::optional<SvgSelector> measure = index.Resolve(VisualSymbolRef{
@@ -412,9 +488,100 @@ TEST_CASE("SvgSymbolIndex resolves structural measures notes accidentals and ext
     CHECK(timesig->kind == SvgSelectorKind::kId);
     CHECK(timesig->value == "random-meter-id");
 
+    SymbolLocator left_barline_loc = loc;
+    left_barline_loc.part_idx = 4;
+    left_barline_loc.offset = Fraction(0);
+    left_barline_loc.occurrence = 0;
+    const std::optional<SvgSelector> left_barline = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kBarline,
+        .locator = left_barline_loc,
+        .primary_id = "missing-left-barline",
+        .extra_kind = ExtraKind::kRepeat,
+        .has_extra_kind = true,
+        .barline_boundary = true });
+    REQUIRE(left_barline.has_value());
+    CHECK(left_barline->kind == SvgSelectorKind::kId);
+    CHECK(left_barline->value == "left-barline-id");
+
+    SymbolLocator inline_barline_loc = loc;
+    inline_barline_loc.measure_idx = 1;
+    inline_barline_loc.measure_vrv_id = "measure-L2";
+    inline_barline_loc.offset = Fraction(2);
+    inline_barline_loc.occurrence = 0;
+    const std::optional<SvgSelector> inline_barline = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kBarline,
+        .locator = inline_barline_loc,
+        .primary_id = "missing-inline-barline",
+        .extra_kind = ExtraKind::kBarline,
+        .has_extra_kind = true });
+    REQUIRE(inline_barline.has_value());
+    CHECK(inline_barline->kind == SvgSelectorKind::kId);
+    CHECK(inline_barline->value == "inline-barline-id");
+
+    SymbolLocator staff2_inline_barline_loc = loc;
+    staff2_inline_barline_loc.part_idx = 1;
+    staff2_inline_barline_loc.staff_n = "2";
+    staff2_inline_barline_loc.measure_idx = 1;
+    staff2_inline_barline_loc.measure_vrv_id = "measure-L2";
+    staff2_inline_barline_loc.offset = Fraction(2);
+    staff2_inline_barline_loc.occurrence = 0;
+    const std::optional<SvgSelector> staff2_inline_barline = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kBarline,
+        .locator = staff2_inline_barline_loc,
+        .primary_id = "missing-staff2-inline-barline",
+        .extra_kind = ExtraKind::kBarline,
+        .has_extra_kind = true });
+    REQUIRE(staff2_inline_barline.has_value());
+    CHECK(staff2_inline_barline->kind == SvgSelectorKind::kId);
+    CHECK(staff2_inline_barline->value == "staff2-inline-barline-id");
+
+    SymbolLocator right_barline_loc = loc;
+    right_barline_loc.part_idx = 4;
+    right_barline_loc.offset = Fraction(4);
+    right_barline_loc.occurrence = 0;
+    const std::optional<SvgSelector> right_barline = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kBarline,
+        .locator = right_barline_loc,
+        .primary_id = "missing-right-barline",
+        .extra_kind = ExtraKind::kBarline,
+        .has_extra_kind = true,
+        .barline_boundary = true });
+    REQUIRE(right_barline.has_value());
+    CHECK(right_barline->kind == SvgSelectorKind::kId);
+    CHECK(right_barline->value == "right-barline-id");
+
+    SymbolLocator ambiguous_inline_barline_loc = loc;
+    ambiguous_inline_barline_loc.measure_idx = 2;
+    ambiguous_inline_barline_loc.measure_vrv_id = "measure-L3";
+    ambiguous_inline_barline_loc.offset = Fraction(2);
+    ambiguous_inline_barline_loc.occurrence = 0;
+    const std::optional<SvgSelector> ambiguous_inline_barline = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kBarline,
+        .locator = ambiguous_inline_barline_loc,
+        .primary_id = "missing-ambiguous-inline-barline",
+        .extra_kind = ExtraKind::kBarline,
+        .has_extra_kind = true });
+    REQUIRE(ambiguous_inline_barline.has_value());
+    CHECK(ambiguous_inline_barline->value == "ambiguous-inline-barline-id");
+
+    SymbolLocator ambiguous_boundary_barline_loc = loc;
+    ambiguous_boundary_barline_loc.measure_idx = 2;
+    ambiguous_boundary_barline_loc.measure_vrv_id = "measure-L3";
+    ambiguous_boundary_barline_loc.offset = Fraction(4);
+    ambiguous_boundary_barline_loc.occurrence = 0;
+    const std::optional<SvgSelector> ambiguous_boundary_barline = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kBarline,
+        .locator = ambiguous_boundary_barline_loc,
+        .primary_id = "missing-ambiguous-boundary-barline",
+        .extra_kind = ExtraKind::kBarline,
+        .has_extra_kind = true,
+        .barline_boundary = true });
+    REQUIRE(ambiguous_boundary_barline.has_value());
+    CHECK(ambiguous_boundary_barline->value == "ambiguous-right-barline-id");
+
     const SvgSymbolIndex later_page_index = SvgSymbolIndex::Build(svg, 12);
     REQUIRE(later_page_index.parse_ok());
-    CHECK(later_page_index.measure_count() == 1);
+    CHECK(later_page_index.measure_count() == 3);
     SymbolLocator ordinal_only_loc = loc;
     ordinal_only_loc.measure_idx = 12;
     ordinal_only_loc.measure_vrv_id.clear();
@@ -774,6 +941,121 @@ TEST_CASE("BuildVisualComparison marks time signature extras", "[visual]")
     CHECK(report.gt.pages[0].svg.find("class=\"meterSig verosim-mark") != std::string::npos);
     CHECK(report.pred.pages[0].svg.find("wrong timesig OMR-ED") != std::string::npos);
     CHECK(report.gt.pages[0].svg.find("wrong timesig OMR-ED") != std::string::npos);
+}
+
+TEST_CASE("BuildVisualComparison marks terminal barline edits as barlines", "[visual]")
+{
+    const std::filesystem::path pred = std::filesystem::path(VEROSIM_MUTATIONS_DIR)
+        / "cases" / "mono_final_barline_double.krn";
+    const std::filesystem::path gt = std::filesystem::path(VEROSIM_MUTATIONS_DIR) / "base" / "mono.krn";
+
+    std::string error;
+    VisualReport report;
+    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareCliOptions{}, report, error));
+    CHECK(error.empty());
+    CHECK(report.unresolved_marks.empty());
+    REQUIRE(report.pred.pages.size() == 1);
+    REQUIRE(report.gt.pages.size() == 1);
+
+    CHECK(report.pred.pages[0].svg.find("class=\"barLine verosim-mark") != std::string::npos);
+    CHECK(report.gt.pages[0].svg.find("class=\"barLine verosim-mark") != std::string::npos);
+    CHECK(report.pred.pages[0].svg.find("verosim-kind-barline") != std::string::npos);
+    CHECK(report.gt.pages[0].svg.find("verosim-kind-barline") != std::string::npos);
+    CHECK(report.pred.pages[0].svg.find("wrong barline OMR-ED") != std::string::npos);
+    CHECK(report.gt.pages[0].svg.find("wrong barline OMR-ED") != std::string::npos);
+}
+
+TEST_CASE("BuildVisualComparison resolves rptboth repeat marks to one rendered barline", "[visual]")
+{
+    const auto mei = [](const std::string &right) {
+        std::ostringstream out;
+        out << R"mei(<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music><body><mdiv><score>
+    <scoreDef><staffGrp>
+      <staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="4" meter.unit="4"/>
+    </staffGrp></scoreDef>
+    <section>
+      <measure n="1" right=")mei"
+            << right << R"mei(">
+        <staff n="1"><layer n="1"><note dur="1" oct="4" pname="c"/></layer></staff>
+      </measure>
+    </section>
+  </score></mdiv></body></music>
+</mei>
+)mei";
+        return out.str();
+    };
+    const std::filesystem::path pred = std::filesystem::temp_directory_path()
+        / "verosim-rptboth-visual-pred.mei";
+    const std::filesystem::path gt = std::filesystem::temp_directory_path()
+        / "verosim-rptboth-visual-gt.mei";
+    WriteFile(pred, mei("rptboth"));
+    WriteFile(gt, mei("single"));
+
+    std::string error;
+    VisualReport report;
+    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareCliOptions{}, report, error));
+    CHECK(error.empty());
+    CHECK(report.unresolved_marks.empty());
+    REQUIRE(report.pred.pages.size() == 1);
+
+    const std::string &svg = report.pred.pages[0].svg;
+    CHECK(svg.find("class=\"barLine verosim-mark verosim-role-deleted verosim-kind-barline")
+        != std::string::npos);
+    CHECK(CountOccurrences(svg, "data-verosim-kind=\"barline\"") == 1);
+    CHECK(CountOccurrences(svg, "verosim-visual-title") == 2);
+    CHECK(svg.find("deleted extradel | wrong barline OMR-ED | cost 2") != std::string::npos);
+
+    std::filesystem::remove(pred);
+    std::filesystem::remove(gt);
+}
+
+TEST_CASE("BuildVisualComparison resolves multi-staff barline edits to a spanning barline", "[visual]")
+{
+    const auto mei = [](const std::string &right) {
+        std::ostringstream out;
+        out << R"mei(<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music><body><mdiv><score>
+    <scoreDef><staffGrp>
+      <staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="4" meter.unit="4"/>
+      <staffDef n="2" lines="5" clef.shape="F" clef.line="4" meter.count="4" meter.unit="4"/>
+    </staffGrp></scoreDef>
+    <section>
+      <measure n="1" right=")mei"
+            << right << R"mei(">
+        <staff n="1"><layer n="1"><note dur="1" oct="4" pname="c"/></layer></staff>
+        <staff n="2"><layer n="1"><note dur="1" oct="3" pname="c"/></layer></staff>
+      </measure>
+    </section>
+  </score></mdiv></body></music>
+</mei>
+)mei";
+        return out.str();
+    };
+    const std::filesystem::path pred = std::filesystem::temp_directory_path()
+        / "verosim-two-staff-barline-visual-pred.mei";
+    const std::filesystem::path gt = std::filesystem::temp_directory_path()
+        / "verosim-two-staff-barline-visual-gt.mei";
+    WriteFile(pred, mei("end"));
+    WriteFile(gt, mei("dbl"));
+
+    std::string error;
+    VisualReport report;
+    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareCliOptions{}, report, error));
+    CHECK(error.empty());
+    CHECK(report.unresolved_marks.empty());
+    REQUIRE(report.pred.pages.size() == 1);
+    REQUIRE(report.gt.pages.size() == 1);
+
+    CHECK(CountOccurrences(report.pred.pages[0].svg, "data-verosim-kind=\"barline\"") == 1);
+    CHECK(CountOccurrences(report.pred.pages[0].svg, "verosim-visual-title") == 2);
+    CHECK(CountOccurrences(report.gt.pages[0].svg, "data-verosim-kind=\"barline\"") == 1);
+    CHECK(CountOccurrences(report.gt.pages[0].svg, "verosim-visual-title") == 2);
+
+    std::filesystem::remove(pred);
+    std::filesystem::remove(gt);
 }
 
 TEST_CASE("WriteSvgAssetBundle writes annotated SVG pages and manifest", "[visual]")

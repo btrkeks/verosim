@@ -1,5 +1,6 @@
 #include "verosim/visual/visual_plan.h"
 
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -17,6 +18,32 @@ bool IsAccidentalOp(OpName name)
 {
     return name == OpName::kAccidentIns || name == OpName::kAccidentDel
         || name == OpName::kAccidentEdit;
+}
+
+bool IsBarlineVisualExtraKind(ExtraKind kind)
+{
+    return kind == ExtraKind::kBarline || kind == ExtraKind::kRepeat;
+}
+
+VisualTargetKind VisualTargetKindForExtra(ExtraKind kind)
+{
+    return IsBarlineVisualExtraKind(kind) ? VisualTargetKind::kBarline : VisualTargetKind::kExtra;
+}
+
+std::string VisualFallbackIdForExtra(const SymExtra &extra)
+{
+    if (!IsBarlineVisualExtraKind(extra.kind)) return extra.vrv_id;
+    constexpr std::string_view end_suffix = ":end";
+    constexpr std::string_view start_suffix = ":start";
+    const auto strip_suffix = [&](std::string_view suffix) -> std::optional<std::string> {
+        if (extra.vrv_id.size() <= suffix.size()) return std::nullopt;
+        const std::size_t suffix_pos = extra.vrv_id.size() - suffix.size();
+        if (extra.vrv_id.compare(suffix_pos, suffix.size(), suffix) != 0) return std::nullopt;
+        return extra.vrv_id.substr(0, suffix_pos);
+    };
+    if (const std::optional<std::string> base = strip_suffix(end_suffix)) return *base;
+    if (const std::optional<std::string> base = strip_suffix(start_suffix)) return *base;
+    return extra.vrv_id;
 }
 
 bool HasVisibleAccidental(const SymNote *note)
@@ -65,12 +92,13 @@ bool RefFromSide(const OpSide &side, ElementRef &ref)
             return true;
         case OpSide::Kind::kExtra:
             if (side.extra == nullptr) return false;
-            ref.symbol = VisualSymbolRef{ .kind = VisualTargetKind::kExtra,
+            ref.symbol = VisualSymbolRef{ .kind = VisualTargetKindForExtra(side.extra->kind),
                 .locator = side.extra->locator,
                 .primary_id = side.extra->vrv_id,
-                .fallback_id = side.extra->vrv_id,
+                .fallback_id = VisualFallbackIdForExtra(*side.extra),
                 .extra_kind = side.extra->kind,
-                .has_extra_kind = true };
+                .has_extra_kind = true,
+                .barline_boundary = side.extra->visual_barline_boundary };
             return true;
         case OpSide::Kind::kMeasure:
             if (side.measure == nullptr) return false;

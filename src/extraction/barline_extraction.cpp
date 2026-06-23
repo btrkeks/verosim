@@ -38,25 +38,27 @@ std::optional<std::string> BarlineSymbol(vrv::data_BARRENDITION form)
 }
 
 SymExtra MakeRepeatExtra(const std::string &id, const Fraction &offset, const std::string &symbolic,
-    const std::string &direction)
+    const std::string &direction, bool boundary)
 {
     SymExtra extra;
     extra.vrv_id = id;
     extra.kind = ExtraKind::kRepeat;
     extra.offset = offset;
     extra.symbolic = symbolic;
+    extra.visual_barline_boundary = boundary;
     extra.infodict.emplace_back("repeatdirection", direction);
     return extra;
 }
 
 SymExtra MakePlainBarlineExtra(
-    const std::string &id, const Fraction &offset, const std::string &symbolic)
+    const std::string &id, const Fraction &offset, const std::string &symbolic, bool boundary)
 {
     SymExtra extra;
     extra.vrv_id = id;
     extra.kind = ExtraKind::kBarline;
     extra.offset = offset;
     extra.symbolic = symbolic;
+    extra.visual_barline_boundary = boundary;
     return extra;
 }
 
@@ -75,20 +77,21 @@ std::vector<SymExtra> Extractor::MakeBarlineExtras(vrv::data_BARRENDITION form,
 {
     std::vector<SymExtra> extras;
     if (!MetricModeIncludesBarlines(options_.mode)) return extras;
+    const bool boundary = IsBoundaryLocation(location);
 
     switch (form) {
         case vrv::BARRENDITION_NONE:
         case vrv::BARRENDITION_invis:
         case vrv::BARRENDITION_MAX: return extras;
         case vrv::BARRENDITION_rptstart:
-            extras.push_back(MakeRepeatExtra(id, offset, "heavy-light", "start"));
+            extras.push_back(MakeRepeatExtra(id, offset, "heavy-light", "start", boundary));
             return extras;
         case vrv::BARRENDITION_rptend:
-            extras.push_back(MakeRepeatExtra(id, offset, "final", "end"));
+            extras.push_back(MakeRepeatExtra(id, offset, "final", "end", boundary));
             return extras;
         case vrv::BARRENDITION_rptboth:
-            extras.push_back(MakeRepeatExtra(id + ":end", offset, "final", "end"));
-            extras.push_back(MakeRepeatExtra(id + ":start", offset, "heavy-light", "start"));
+            extras.push_back(MakeRepeatExtra(id + ":end", offset, "final", "end", boundary));
+            extras.push_back(MakeRepeatExtra(id + ":start", offset, "heavy-light", "start", boundary));
             return extras;
         default: break;
     }
@@ -97,7 +100,7 @@ std::vector<SymExtra> Extractor::MakeBarlineExtras(vrv::data_BARRENDITION form,
     if (!symbolic.has_value()) return extras;
     if (*symbolic == "regular" && IsBoundaryLocation(location)) return extras;
 
-    extras.push_back(MakePlainBarlineExtra(id, offset, *symbolic));
+    extras.push_back(MakePlainBarlineExtra(id, offset, *symbolic, boundary));
     return extras;
 }
 

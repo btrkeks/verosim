@@ -31,6 +31,8 @@ private:
     std::optional<SvgSelector> ExactSelector(const std::string &id) const;
     std::optional<SvgSelector> StructuralSelector(const VisualSymbolRef &ref) const;
     const Candidate *FindCandidate(const VisualSymbolRef &ref) const;
+    const Candidate *FindBarlineCandidate(const VisualSymbolRef &ref) const;
+    bool CandidateMatchesRef(const Candidate &candidate, const VisualSymbolRef &ref) const;
 
     bool parse_ok_ = true;
     std::string error_;

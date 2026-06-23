@@ -12,7 +12,7 @@ namespace verosim {
 
 enum class VisualSide { kPred, kGt };
 enum class VisualRole { kInserted, kDeleted, kChanged };
-enum class VisualTargetKind { kNote, kExtra, kMeasure, kAccidental };
+enum class VisualTargetKind { kNote, kExtra, kMeasure, kAccidental, kBarline };
 
 struct VisualSymbolRef {
     VisualTargetKind kind = VisualTargetKind::kNote;
@@ -21,6 +21,7 @@ struct VisualSymbolRef {
     std::string fallback_id;
     ExtraKind extra_kind = ExtraKind::kClef;
     bool has_extra_kind = false;
+    bool barline_boundary = false;
 };
 
 struct VisualMark {

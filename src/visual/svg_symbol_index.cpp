@@ -78,6 +78,11 @@ bool IsNoteLike(const std::string &classes)
         || HasClassToken(classes, "mRest");
 }
 
+bool IsBarlineLike(const std::string &classes)
+{
+    return HasClassToken(classes, "barLine") || HasClassToken(classes, "barLineAttr");
+}
+
 std::optional<ExtraKind> ExtraKindFromClasses(const std::string &classes)
 {
     if (HasClassToken(classes, "clef")) return ExtraKind::kClef;
@@ -140,6 +145,58 @@ bool SameOccurrence(const SymbolLocator &a, const SymbolLocator &b)
     return a.occurrence < 0 || b.occurrence < 0 || a.occurrence == b.occurrence;
 }
 
+pugi::xml_node AncestorStaffWithinMeasure(pugi::xml_node node)
+{
+    for (pugi::xml_node parent = node.parent(); parent; parent = parent.parent()) {
+        if (HasClassToken(ClassAttr(parent), "measure")) return pugi::xml_node();
+        if (HasClassToken(ClassAttr(parent), "staff")) return parent;
+    }
+    return pugi::xml_node();
+}
+
+int PartIdxForStaff(pugi::xml_node measure, pugi::xml_node target_staff,
+    const std::map<std::string, int> &rendered_staff_order)
+{
+    int staff_order = 0;
+    for (pugi::xml_node staff = measure.first_child(); staff; staff = staff.next_sibling()) {
+        if (staff.type() != pugi::node_element || !HasClassToken(ClassAttr(staff), "staff")) {
+            continue;
+        }
+        if (staff == target_staff) {
+            const std::optional<std::string> staff_n = StaffNFromSvgId(staff.attribute("id").value());
+            if (staff_n) {
+                const auto rendered_order = rendered_staff_order.find(*staff_n);
+                if (rendered_order != rendered_staff_order.end()) return rendered_order->second;
+            }
+            return staff_order;
+        }
+        ++staff_order;
+    }
+    return -1;
+}
+
+SymbolLocator BarlineLocatorForNode(pugi::xml_node measure, pugi::xml_node barline,
+    const std::map<std::string, int> &rendered_staff_order, int measure_idx,
+    const std::string &measure_id, int occurrence)
+{
+    SymbolLocator loc{ .measure_idx = measure_idx,
+        .measure_vrv_id = measure_id,
+        .offset = Fraction(0),
+        .occurrence = occurrence };
+
+    pugi::xml_node staff = AncestorStaffWithinMeasure(barline);
+    if (staff) {
+        loc.part_idx = PartIdxForStaff(measure, staff, rendered_staff_order);
+        loc.staff_n = StaffNFromSvgId(staff.attribute("id").value()).value_or("");
+    }
+    return loc;
+}
+
+bool HasSpecificStaff(const SymbolLocator &loc)
+{
+    return loc.part_idx >= 0 || !loc.staff_n.empty();
+}
+
 } // namespace
 
 SvgSymbolIndex SvgSymbolIndex::Build(const std::string &svg, int measure_idx_offset)
@@ -186,6 +243,20 @@ SvgSymbolIndex SvgSymbolIndex::Build(const std::string &svg, int measure_idx_off
                     .offset = Fraction(0),
                     .occurrence = 0 },
                 .selector = *measure_selector });
+        }
+
+        int barline_occurrence = 0;
+        std::vector<pugi::xml_node> measure_nodes;
+        CollectDescendants(measure, measure_nodes);
+        for (pugi::xml_node child : measure_nodes) {
+            if (!IsBarlineLike(ClassAttr(child))) continue;
+            const std::optional<SvgSelector> selector = SelectorForNode(child);
+            if (!selector) continue;
+            SymbolLocator loc = BarlineLocatorForNode(
+                measure, child, rendered_staff_order, measure_idx, measure_id, barline_occurrence++);
+            index.candidates_.push_back(Candidate{ .kind = VisualTargetKind::kBarline,
+                .locator = loc,
+                .selector = *selector });
         }
 
         int staff_order = 0;
@@ -259,28 +330,76 @@ std::optional<SvgSelector> SvgSymbolIndex::ExactSelector(const std::string &id) 
     return std::nullopt;
 }
 
+bool SvgSymbolIndex::CandidateMatchesRef(
+    const SvgSymbolIndex::Candidate &candidate, const VisualSymbolRef &ref) const
+{
+    if (candidate.kind != ref.kind) return false;
+    if (ref.kind == VisualTargetKind::kExtra) {
+        if (!ref.has_extra_kind || !candidate.has_extra_kind || candidate.extra_kind != ref.extra_kind) {
+            return false;
+        }
+    }
+    if (!SameMeasure(candidate.locator, ref.locator)) return false;
+    if (ref.kind != VisualTargetKind::kMeasure && ref.kind != VisualTargetKind::kBarline
+        && !SameStaff(candidate.locator, ref.locator)) {
+        return false;
+    }
+    return SameOccurrence(candidate.locator, ref.locator);
+}
+
 const SvgSymbolIndex::Candidate *SvgSymbolIndex::FindCandidate(const VisualSymbolRef &ref) const
 {
     for (const Candidate &candidate : candidates_) {
-        if (candidate.kind != ref.kind) continue;
-        if (ref.kind == VisualTargetKind::kExtra) {
-            if (!ref.has_extra_kind || !candidate.has_extra_kind
-                || candidate.extra_kind != ref.extra_kind) {
-                continue;
-            }
-        }
-        if (!SameMeasure(candidate.locator, ref.locator)) continue;
-        if (ref.kind != VisualTargetKind::kMeasure && !SameStaff(candidate.locator, ref.locator)) {
-            continue;
-        }
-        if (!SameOccurrence(candidate.locator, ref.locator)) continue;
-        return &candidate;
+        if (CandidateMatchesRef(candidate, ref)) return &candidate;
     }
     return nullptr;
 }
 
+const SvgSymbolIndex::Candidate *SvgSymbolIndex::FindBarlineCandidate(const VisualSymbolRef &ref) const
+{
+    std::vector<const Candidate *> matches;
+    for (const Candidate &candidate : candidates_) {
+        if (candidate.kind != VisualTargetKind::kBarline) continue;
+        if (!SameMeasure(candidate.locator, ref.locator)) continue;
+        matches.push_back(&candidate);
+    }
+    if (matches.empty()) return nullptr;
+    if (matches.size() == 1) return matches.front();
+
+    std::vector<const Candidate *> staff_matches;
+    std::vector<const Candidate *> unstaffed_matches;
+    for (const Candidate *candidate : matches) {
+        if (HasSpecificStaff(candidate->locator) && SameStaff(candidate->locator, ref.locator)) {
+            staff_matches.push_back(candidate);
+        }
+        else if (!HasSpecificStaff(candidate->locator)) {
+            unstaffed_matches.push_back(candidate);
+        }
+    }
+
+    const std::vector<const Candidate *> &candidates = ref.barline_boundary && !unstaffed_matches.empty()
+        ? unstaffed_matches
+        : !staff_matches.empty() ? staff_matches
+        : !unstaffed_matches.empty() ? unstaffed_matches
+                                     : matches;
+
+    if (!ref.barline_boundary && !staff_matches.empty() && ref.locator.occurrence >= 0) {
+        for (const Candidate *candidate : candidates) {
+            if (candidate->locator.occurrence == ref.locator.occurrence) return candidate;
+        }
+    }
+
+    if (ref.locator.offset == Fraction(0)) return candidates.front();
+    return candidates.back();
+}
+
 std::optional<SvgSelector> SvgSymbolIndex::StructuralSelector(const VisualSymbolRef &ref) const
 {
+    if (ref.kind == VisualTargetKind::kBarline) {
+        const Candidate *candidate = FindBarlineCandidate(ref);
+        if (!candidate) return std::nullopt;
+        return candidate->selector;
+    }
     if (ref.kind == VisualTargetKind::kAccidental) {
         VisualSymbolRef note_ref = ref;
         note_ref.kind = VisualTargetKind::kNote;

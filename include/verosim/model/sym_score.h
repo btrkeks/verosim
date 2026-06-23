@@ -109,6 +109,7 @@ struct SymExtra {
     std::vector<std::pair<std::string, std::string>> infodict;
     Fraction offset; // offset in measure
     std::optional<Fraction> duration; // set on spanning controls
+    bool visual_barline_boundary = false; // visual-only: left/right barline, not inline
 
     int notation_size() const; // AnnExtra.notation_size (content is never set at v1 tiers)
     std::string str() const; // readable form for triage

@@ -28,6 +28,7 @@ std::string_view VisualTargetKindName(VisualTargetKind kind)
         case VisualTargetKind::kExtra: return "extra";
         case VisualTargetKind::kMeasure: return "measure";
         case VisualTargetKind::kAccidental: return "accidental";
+        case VisualTargetKind::kBarline: return "barline";
     }
     return "?";
 }
