@@ -102,7 +102,7 @@ struct CountSymbolsCommand {
     std::string list_path;
     std::string base_dir;
     bool per_measure = false;
-    MetricMode mode = MetricMode::kActive;
+    MetricSurface surface;
     TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
 };
 

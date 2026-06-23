@@ -26,7 +26,8 @@ SymScore ExtractFile(VrvBridge &bridge, const std::string &path)
     const SourceFormat format
         = bridge.last_input_format() == vrv::HUMDRUM ? SourceFormat::kKern : SourceFormat::kMusicXml;
     ExtractResult result
-        = ExtractSymScore(bridge.GetDoc(), format, ExtractOptions{ .mode = MetricMode::kActive });
+        = ExtractSymScore(bridge.GetDoc(), format,
+            ExtractOptions{ .surface = MetricSurface{ .mode = MetricMode::kActive } });
     CHECK(result.warnings.empty());
     return std::move(result.score);
 }

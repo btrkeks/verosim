@@ -13,6 +13,10 @@ ExtractResult Extractor::Run()
 {
     bool sawScore = false;
     WalkPageTree(&doc_, sawScore);
+    if (!pending_layout_breaks_.empty()) {
+        Warn("layout system break not followed by a measure; dropping it");
+        pending_layout_breaks_.clear();
+    }
 
     // drop empty measures (annotation.py:1401) — already skipped at emit time;
     // assign part indices in staffDef document order
@@ -39,6 +43,15 @@ void Extractor::WalkPageTree(const vrv::Object *obj, bool &sawScore)
         }
         else if (child->Is(vrv::MEASURE)) {
             HandleMeasure(vrv_cast<const vrv::Measure *>(child));
+        }
+        else if (child->Is(vrv::SB)) {
+            if (MetricSurfaceIncludesSystemBreaks(options_.surface)) {
+                const vrv::Sb *sb = vrv_cast<const vrv::Sb *>(child);
+                pending_layout_breaks_.push_back(PendingLayoutBreak{
+                    .kind = ExtraKind::kSystemBreak,
+                    .vrv_id = sb ? sb->GetID() : child->GetID(),
+                });
+            }
         }
         else {
             WalkPageTree(child, sawScore);
@@ -187,6 +200,30 @@ void Extractor::ApplyPendingSignatures(StaffState &state, std::vector<SymExtra> 
     state.pending = PendingSig();
 }
 
+SymExtra Extractor::MakeSystemBreakExtra(
+    const PendingLayoutBreak &layout_break, const vrv::Measure *measure) const
+{
+    SymExtra extra;
+    extra.vrv_id = layout_break.vrv_id;
+    if (extra.vrv_id.empty() && measure != nullptr && !measure->GetID().empty()) {
+        extra.vrv_id = measure->GetID() + ":systembreak";
+    }
+    extra.kind = ExtraKind::kSystemBreak;
+    extra.symbolic = "systembreak";
+    extra.offset = Fraction(0);
+    return extra;
+}
+
+void Extractor::ApplyPendingLayoutBreaks(
+    const vrv::Measure *measure, StaffState &state, std::vector<SymExtra> &extras)
+{
+    if (pending_layout_breaks_.empty() || state.part_idx != 0) return;
+    for (const PendingLayoutBreak &layout_break : pending_layout_breaks_) {
+        extras.push_back(MakeSystemBreakExtra(layout_break, measure));
+    }
+    pending_layout_breaks_.clear();
+}
+
 void Extractor::CollectStaffLayerEvents(const vrv::Staff *staff, std::vector<Event> &events,
     std::vector<SymExtra> &extras, StaffState &state)
 {
@@ -240,6 +277,7 @@ void Extractor::HandleMeasure(const vrv::Measure *measure)
         StartStaffMeasure(state);
         std::vector<Event> events;
         std::vector<SymExtra> extras;
+        ApplyPendingLayoutBreaks(measure, state, extras);
         ApplyPendingSignatures(state, extras);
         CollectStaffLayerEvents(staff, events, extras, state);
         RegisterEventLocations(n, events);

@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -91,12 +92,14 @@ enum class ExtraKind {
     kKeySig,
     kRepeat,
     kSlur,
+    kSystemBreak,
     kTimeSig
 };
 std::string_view ExtraKindName(ExtraKind kind);
 std::string_view ExtraKindEditHeader(ExtraKind kind);
 bool ExtraKindHasMetricOffset(ExtraKind kind);
 bool ExtraKindHasMetricDuration(ExtraKind kind);
+bool ExtraKindRenderedAsSvgSymbol(ExtraKind kind);
 std::size_t ExtraKindSortRank(ExtraKind kind);
 
 struct SymExtra {
@@ -164,7 +167,7 @@ struct SymbolCounts {
     long clef = 0;
     long keysig = 0;
     long timesig = 0;
-    long other_extras = 0; // slurs, dynamics, hairpins
+    long other_extras = 0; // slurs, dynamics, hairpins, layout extras
 
     long total() const;
 };

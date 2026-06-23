@@ -334,6 +334,25 @@ TEST_CASE("extras set distance and diff", "[engine]")
             = MakeMeasure({}, { MakeRepeat("heavy-light", "start", Fraction(4)) });
         CHECK(MeasureDiff(repeatOrig, repeatComp).cost == 0);
     }
+    SECTION("system break insert/delete costs one layout symbol")
+    {
+        const SymMeasure orig = MakeMeasure({}, { MakeSystemBreak() });
+        const SymMeasure comp = MakeMeasure({}, {});
+        const DiffResult r = MeasureDiff(orig, comp);
+        CHECK(r.cost == 1);
+        CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "extradel", 1 } });
+        CHECK(EditDistancesDict(r.ops) == std::map<std::string, long>{
+                                           { "bad kern syntax OMR-ED", 0 },
+                                           { "wrong system break OMR-ED", 1 } });
+    }
+    SECTION("system breaks match only at the same offset")
+    {
+        const SymMeasure orig = MakeMeasure({}, { MakeSystemBreak(Fraction(0)) });
+        const SymMeasure same = MakeMeasure({}, { MakeSystemBreak(Fraction(0)) });
+        const SymMeasure shifted = MakeMeasure({}, { MakeSystemBreak(Fraction(1)) });
+        CHECK(MeasureDiff(orig, same).cost == 0);
+        CHECK(MeasureDiff(orig, shifted).cost == 2);
+    }
 }
 
 TEST_CASE("are_different_enough tolerance", "[engine]")

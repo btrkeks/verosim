@@ -105,7 +105,7 @@ bool CountSymbolsFile(VrvBridge &bridge, const std::string &path,
         return false;
     }
 
-    const ExtractOptions extract_options{ .mode = options.mode,
+    const ExtractOptions extract_options{ .surface = options.surface,
         .typed_space_handling = options.typed_space_handling };
     ExtractResult result = ExtractSymScore(bridge.GetDoc(), SourceFormatFromBridge(bridge), extract_options);
     const SymbolCounts counts = CountSymbols(result.score);

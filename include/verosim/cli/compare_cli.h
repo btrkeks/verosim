@@ -13,7 +13,7 @@ class VrvBridge;
 
 struct CompareCliOptions {
     bool emit_ops = false; // include the per-edit operation list (large)
-    MetricMode mode = MetricMode::kActive;
+    MetricSurface surface;
     NotePositionPolicy note_position_policy = NotePositionPolicy::kVisualEventOrder;
     TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
 };

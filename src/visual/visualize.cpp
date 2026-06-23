@@ -110,7 +110,7 @@ bool BuildVisualComparison(const std::string &pred_path, const std::string &gt_p
 
     VrvBridge pred_bridge;
     VrvBridge gt_bridge;
-    const ExtractOptions extract_options{ .mode = options.mode,
+    const ExtractOptions extract_options{ .surface = options.surface,
         .typed_space_handling = options.typed_space_handling };
 
     LoadedVisualScore pred;

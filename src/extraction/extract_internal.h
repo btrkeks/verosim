@@ -30,6 +30,7 @@
 #include "rest.h"
 #include "score.h"
 #include "scoredef.h"
+#include "sb.h"
 #include "slur.h"
 #include "staff.h"
 #include "staffdef.h"
@@ -92,6 +93,11 @@ struct PendingSpan {
     Fraction start_abs;
 };
 
+struct PendingLayoutBreak {
+    ExtraKind kind = ExtraKind::kSystemBreak;
+    std::string vrv_id;
+};
+
 struct EmittedExtraLocation {
     int part_idx = -1;
     std::size_t measure_idx = 0;
@@ -144,6 +150,8 @@ private:
     StaffState &EnsureStaffPart(const std::string &staffN, bool warnIfImplicit);
     void StartStaffMeasure(StaffState &state);
     void ApplyPendingSignatures(StaffState &state, std::vector<SymExtra> &extras);
+    void ApplyPendingLayoutBreaks(const vrv::Measure *measure, StaffState &state,
+        std::vector<SymExtra> &extras);
     void CollectStaffLayerEvents(const vrv::Staff *staff, std::vector<Event> &events,
         std::vector<SymExtra> &extras, StaffState &state);
     Fraction MeasureSpan(const StaffState &state, const std::vector<Event> &events) const;
@@ -186,6 +194,8 @@ private:
         const std::optional<Fraction> &duration);
     SymExtra MakeSlurExtra(const vrv::Slur &slur, const Fraction &offset,
         const std::optional<Fraction> &duration);
+    SymExtra MakeSystemBreakExtra(
+        const PendingLayoutBreak &layout_break, const vrv::Measure *measure) const;
     std::vector<SymExtra> MakeBarlineExtras(vrv::data_BARRENDITION form,
         BarlineLocation location, const Fraction &offset, const std::string &id);
 
@@ -204,6 +214,7 @@ private:
     std::set<std::string> tie_start_ids_;
     std::map<std::string, EventLocation> event_locations_;
     std::vector<PendingSpan> pending_spans_;
+    std::vector<PendingLayoutBreak> pending_layout_breaks_;
     std::map<std::string, EmittedExtraLocation> emitted_extra_locations_;
 };
 

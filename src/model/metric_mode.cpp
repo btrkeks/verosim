@@ -18,6 +18,22 @@ std::optional<MetricMode> ParseMetricMode(std::string_view text)
     return std::nullopt;
 }
 
+std::string_view LayoutSurfaceName(LayoutSurface layout)
+{
+    switch (layout) {
+        case LayoutSurface::kNone: return "none";
+        case LayoutSurface::kSystemBreaks: return "system-breaks";
+    }
+    return "?";
+}
+
+std::optional<LayoutSurface> ParseLayoutSurface(std::string_view text)
+{
+    if (text == "none") return LayoutSurface::kNone;
+    if (text == "system-breaks") return LayoutSurface::kSystemBreaks;
+    return std::nullopt;
+}
+
 bool MetricModeIncludesDirections(MetricMode mode)
 {
     return mode == MetricMode::kExperimental;
@@ -26,6 +42,11 @@ bool MetricModeIncludesDirections(MetricMode mode)
 bool MetricModeIncludesBarlines(MetricMode)
 {
     return true;
+}
+
+bool MetricSurfaceIncludesSystemBreaks(const MetricSurface &surface)
+{
+    return surface.layout == LayoutSurface::kSystemBreaks;
 }
 
 } // namespace verosim

@@ -27,11 +27,13 @@ bool IsBarlineVisualExtraKind(ExtraKind kind)
 
 VisualTargetKind VisualTargetKindForExtra(ExtraKind kind)
 {
+    if (!ExtraKindRenderedAsSvgSymbol(kind)) return VisualTargetKind::kMeasure;
     return IsBarlineVisualExtraKind(kind) ? VisualTargetKind::kBarline : VisualTargetKind::kExtra;
 }
 
 std::string VisualFallbackIdForExtra(const SymExtra &extra)
 {
+    if (!ExtraKindRenderedAsSvgSymbol(extra.kind)) return extra.locator.measure_vrv_id;
     if (!IsBarlineVisualExtraKind(extra.kind)) return extra.vrv_id;
     constexpr std::string_view end_suffix = ":end";
     constexpr std::string_view start_suffix = ":start";
@@ -94,10 +96,12 @@ bool RefFromSide(const OpSide &side, ElementRef &ref)
             if (side.extra == nullptr) return false;
             ref.symbol = VisualSymbolRef{ .kind = VisualTargetKindForExtra(side.extra->kind),
                 .locator = side.extra->locator,
-                .primary_id = side.extra->vrv_id,
+                .primary_id = ExtraKindRenderedAsSvgSymbol(side.extra->kind)
+                    ? side.extra->vrv_id
+                    : side.extra->locator.measure_vrv_id,
                 .fallback_id = VisualFallbackIdForExtra(*side.extra),
                 .extra_kind = side.extra->kind,
-                .has_extra_kind = true,
+                .has_extra_kind = ExtraKindRenderedAsSvgSymbol(side.extra->kind),
                 .barline_boundary = side.extra->visual_barline_boundary };
             return true;
         case OpSide::Kind::kMeasure:

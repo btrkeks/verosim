@@ -8,6 +8,55 @@ namespace verosim {
 
 namespace {
 
+enum class SymbolCountBucket {
+    kBarline,
+    kClef,
+    kKeySig,
+    kTimeSig,
+    kOtherExtras,
+};
+
+struct ExtraKindTraits {
+    ExtraKind kind;
+    std::string_view name;
+    std::string_view edit_header;
+    bool has_metric_offset;
+    bool has_metric_duration;
+    SymbolCountBucket count_bucket;
+    bool rendered_as_svg_symbol;
+};
+
+constexpr std::array<ExtraKindTraits, 10> kExtraKindTraits = { {
+    { ExtraKind::kBarline, "barline", "wrong barline OMR-ED", false, false,
+        SymbolCountBucket::kBarline, true },
+    { ExtraKind::kClef, "clef", "wrong clef OMR-ED", true, true,
+        SymbolCountBucket::kClef, true },
+    { ExtraKind::kCrescendo, "crescendo", "wrong crescendo OMR-ED", true, true,
+        SymbolCountBucket::kOtherExtras, true },
+    { ExtraKind::kDiminuendo, "diminuendo", "wrong diminuendo OMR-ED", true, true,
+        SymbolCountBucket::kOtherExtras, true },
+    { ExtraKind::kDynamic, "dynamic", "wrong dynamic OMR-ED", true, true,
+        SymbolCountBucket::kOtherExtras, true },
+    { ExtraKind::kKeySig, "keysig", "wrong keysig OMR-ED", true, true,
+        SymbolCountBucket::kKeySig, true },
+    { ExtraKind::kRepeat, "repeat", "wrong barline OMR-ED", false, false,
+        SymbolCountBucket::kBarline, true },
+    { ExtraKind::kSlur, "slur", "wrong slur OMR-ED", true, true,
+        SymbolCountBucket::kOtherExtras, true },
+    { ExtraKind::kSystemBreak, "systembreak", "wrong system break OMR-ED", true, false,
+        SymbolCountBucket::kOtherExtras, false },
+    { ExtraKind::kTimeSig, "timesig", "wrong timesig OMR-ED", true, true,
+        SymbolCountBucket::kTimeSig, true },
+} };
+
+const ExtraKindTraits *FindExtraKindTraits(ExtraKind kind)
+{
+    for (const ExtraKindTraits &traits : kExtraKindTraits) {
+        if (traits.kind == kind) return &traits;
+    }
+    return nullptr;
+}
+
 // AnnNote.__str__ encodes head as str(int) or str(Fraction); our Fraction
 // prints "2" / "1/2" identically.
 void AppendBeamCode(std::string &out, BeamValue b)
@@ -56,57 +105,46 @@ std::string_view TupletValueName(TupletValue value)
 
 std::string_view ExtraKindName(ExtraKind kind)
 {
-    switch (kind) {
-        case ExtraKind::kBarline: return "barline";
-        case ExtraKind::kClef: return "clef";
-        case ExtraKind::kCrescendo: return "crescendo";
-        case ExtraKind::kDiminuendo: return "diminuendo";
-        case ExtraKind::kDynamic: return "dynamic";
-        case ExtraKind::kKeySig: return "keysig";
-        case ExtraKind::kRepeat: return "repeat";
-        case ExtraKind::kSlur: return "slur";
-        case ExtraKind::kTimeSig: return "timesig";
-    }
+    if (const ExtraKindTraits *traits = FindExtraKindTraits(kind)) return traits->name;
     return "?";
 }
 
 std::size_t ExtraKindSortRank(ExtraKind kind)
 {
-    constexpr std::array<std::string_view, 9> kOrderedNames = {
-        "barline", "clef", "crescendo", "diminuendo", "dynamic", "keysig", "repeat", "slur",
-        "timesig"
-    };
-    const std::string_view name = ExtraKindName(kind);
-    for (std::size_t i = 0; i < kOrderedNames.size(); ++i) {
-        if (name == kOrderedNames[i]) return i;
+    for (std::size_t i = 0; i < kExtraKindTraits.size(); ++i) {
+        if (kExtraKindTraits[i].kind == kind) return i;
     }
-    return kOrderedNames.size();
+    return kExtraKindTraits.size();
 }
 
 std::string_view ExtraKindEditHeader(ExtraKind kind)
 {
-    switch (kind) {
-        case ExtraKind::kBarline:
-        case ExtraKind::kRepeat: return "wrong barline OMR-ED";
-        case ExtraKind::kClef: return "wrong clef OMR-ED";
-        case ExtraKind::kKeySig: return "wrong keysig OMR-ED";
-        case ExtraKind::kTimeSig: return "wrong timesig OMR-ED";
-        case ExtraKind::kCrescendo: return "wrong crescendo OMR-ED";
-        case ExtraKind::kDiminuendo: return "wrong diminuendo OMR-ED";
-        case ExtraKind::kDynamic: return "wrong dynamic OMR-ED";
-        case ExtraKind::kSlur: return "wrong slur OMR-ED";
-    }
+    if (const ExtraKindTraits *traits = FindExtraKindTraits(kind)) return traits->edit_header;
     return "wrong direction OMR-ED";
 }
 
 bool ExtraKindHasMetricOffset(ExtraKind kind)
 {
-    return kind != ExtraKind::kBarline && kind != ExtraKind::kRepeat;
+    if (const ExtraKindTraits *traits = FindExtraKindTraits(kind)) {
+        return traits->has_metric_offset;
+    }
+    return true;
 }
 
 bool ExtraKindHasMetricDuration(ExtraKind kind)
 {
-    return kind != ExtraKind::kBarline && kind != ExtraKind::kRepeat;
+    if (const ExtraKindTraits *traits = FindExtraKindTraits(kind)) {
+        return traits->has_metric_duration;
+    }
+    return true;
+}
+
+bool ExtraKindRenderedAsSvgSymbol(ExtraKind kind)
+{
+    if (const ExtraKindTraits *traits = FindExtraKindTraits(kind)) {
+        return traits->rendered_as_svg_symbol;
+    }
+    return true;
 }
 
 int SymNote::notation_size() const
@@ -295,16 +333,13 @@ SymbolCounts CountSymbols(const SymScore &score)
             }
             for (const SymExtra &extra : measure.extras) {
                 long body = extra.notation_size();
-                switch (extra.kind) {
-                    case ExtraKind::kBarline:
-                    case ExtraKind::kRepeat: c.barline += body; break;
-                    case ExtraKind::kClef: c.clef += body; break;
-                    case ExtraKind::kCrescendo:
-                    case ExtraKind::kDiminuendo:
-                    case ExtraKind::kDynamic:
-                    case ExtraKind::kSlur: c.other_extras += body; break;
-                    case ExtraKind::kKeySig: c.keysig += body; break;
-                    case ExtraKind::kTimeSig: c.timesig += body; break;
+                const ExtraKindTraits *traits = FindExtraKindTraits(extra.kind);
+                switch (traits ? traits->count_bucket : SymbolCountBucket::kOtherExtras) {
+                    case SymbolCountBucket::kBarline: c.barline += body; break;
+                    case SymbolCountBucket::kClef: c.clef += body; break;
+                    case SymbolCountBucket::kKeySig: c.keysig += body; break;
+                    case SymbolCountBucket::kTimeSig: c.timesig += body; break;
+                    case SymbolCountBucket::kOtherExtras: c.other_extras += body; break;
                 }
             }
         }

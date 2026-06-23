@@ -28,26 +28,31 @@ Overloaded(Ts...) -> Overloaded<Ts...>;
 void PrintUsage(std::ostream &os)
 {
     os << "usage: verosim <pred> <gt> [--ops] [--mode active|experimental]\n"
+          "                                      [--layout none|system-breaks]\n"
           "                                      [--note-position visual|musical]\n"
           "                                      [--typed-space-handling preserve|suppress-straddle-filler]\n"
           "                                      compare two scores, OMR-NED as JSON\n"
           "                                      (--ops includes the per-edit operation list)\n"
           "       verosim --visualize <pred> <gt> --out <html> [--mode active|experimental]\n"
+          "                                      [--layout none|system-breaks]\n"
           "                                      [--note-position visual|musical]\n"
           "                                      [--typed-space-handling preserve|suppress-straddle-filler]\n"
           "                                      compare and write a side-by-side SVG HTML report\n"
           "       verosim --visualize <pred> <gt> --out-dir <dir> --output-format svg\n"
-          "                                      [--mode active|experimental]\n"
+          "                                      [--mode active|experimental] [--layout none|system-breaks]\n"
           "                                      compare and write raw annotated SVG pages\n"
           "       verosim --pairs <tsv> [--base-dir <dir>] [--ops] [--mode active|experimental]\n"
+          "                                      [--layout none|system-breaks]\n"
           "                                      compare every pred<TAB>gt pair in <tsv>\n"
           "                                      (JSONL, one record per pair, always exits 0)\n"
           "       verosim --batch <tsv> [--base-dir <dir>] [--jobs N] [--ops] [--mode active|experimental]\n"
+          "                                      [--layout none|system-breaks]\n"
           "                                      parallel JSONL batch compare, one Toolkit per worker\n"
           "       verosim --batch-jsonl <jsonl> [--pred-field prediction] [--gt-field target]\n"
           "                                      [--id-field sample_id] [--group-field val_set]\n"
           "                                      [--dedupe-key fields] [--format kern]\n"
           "                                      [--failure-score N] [--mode active|experimental]\n"
+          "                                      [--layout none|system-breaks]\n"
           "                                      [--summary-json path] [--jobs N] [--ops]\n"
           "                                      compare in-memory kern strings from JSONL records\n"
           "       verosim --dump-tree <file> [--typed-space-handling preserve|suppress-straddle-filler]\n"
@@ -59,9 +64,11 @@ void PrintUsage(std::ostream &os)
           "                                      check every file in <list> (one path per line,\n"
           "                                      '#' comments; always exits 0 - failures are data)\n"
           "       verosim --count-symbols [--per-measure] [--mode active|experimental]\n"
+          "                                      [--layout none|system-breaks]\n"
           "                                      [--typed-space-handling preserve|suppress-straddle-filler] <file>\n"
           "                                      symbol counts as JSON\n"
           "       verosim --count-symbols --files-from <list> [--base-dir <dir>] [--mode active|experimental]\n"
+          "                                      [--layout none|system-breaks]\n"
           "                                      [--typed-space-handling preserve|suppress-straddle-filler]\n"
           "                                      counts for every file in <list>, JSONL, exits 0\n"
           "Supported inputs: MusicXML, .mxl, Humdrum/kern, MEI, ... (Verovio autodetect)\n";
@@ -192,19 +199,19 @@ int CheckListMain(const std::string &listPath, const std::string &baseDir,
 }
 
 int CountSymbolsOneMain(
-    const std::string &path, bool perMeasure, verosim::MetricMode mode,
+    const std::string &path, bool perMeasure, verosim::MetricSurface surface,
     verosim::TypedSpaceHandling typedSpaceHandling)
 {
     verosim::VrvBridgeConfig config;
     config.typed_space_handling = typedSpaceHandling;
     verosim::VrvBridge bridge(config);
-    const verosim::CountSymbolsOptions options{ .per_measure = perMeasure, .mode = mode,
+    const verosim::CountSymbolsOptions options{ .per_measure = perMeasure, .surface = surface,
         .typed_space_handling = typedSpaceHandling };
     return verosim::CountSymbolsFile(bridge, path, options, std::cout) ? 0 : 1;
 }
 
 int CountSymbolsListMain(const std::string &listPath, const std::string &baseDir,
-    verosim::MetricMode mode, verosim::TypedSpaceHandling typedSpaceHandling)
+    verosim::MetricSurface surface, verosim::TypedSpaceHandling typedSpaceHandling)
 {
     std::vector<std::string> files;
     try {
@@ -217,7 +224,7 @@ int CountSymbolsListMain(const std::string &listPath, const std::string &baseDir
     verosim::VrvBridgeConfig config;
     config.typed_space_handling = typedSpaceHandling;
     verosim::VrvBridge bridge(config);
-    const verosim::CountSymbolsOptions options{ .per_measure = false, .mode = mode,
+    const verosim::CountSymbolsOptions options{ .per_measure = false, .surface = surface,
         .typed_space_handling = typedSpaceHandling };
     for (const std::string &line : files) {
         const std::string path = verosim::JoinBaseDir(baseDir, line);
@@ -275,11 +282,11 @@ int main(int argc, char **argv)
                 },
                 [](const verosim::CountSymbolsCommand &cmd) {
                     if (cmd.input_kind == verosim::CountSymbolsCommand::InputKind::kFile) {
-                        return CountSymbolsOneMain(cmd.path, cmd.per_measure, cmd.mode,
+                        return CountSymbolsOneMain(cmd.path, cmd.per_measure, cmd.surface,
                             cmd.typed_space_handling);
                     }
                     return CountSymbolsListMain(
-                        cmd.list_path, cmd.base_dir, cmd.mode, cmd.typed_space_handling);
+                        cmd.list_path, cmd.base_dir, cmd.surface, cmd.typed_space_handling);
                 },
             },
             *command);

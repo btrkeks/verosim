@@ -12,7 +12,7 @@ class VrvBridge;
 
 struct CountSymbolsOptions {
     bool per_measure = false; // include per-part/measure/note triage detail
-    MetricMode mode = MetricMode::kActive;
+    MetricSurface surface;
     TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
 };
 

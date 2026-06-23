@@ -25,7 +25,7 @@ struct ExtractResult {
 };
 
 struct ExtractOptions {
-    MetricMode mode = MetricMode::kActive;
+    MetricSurface surface;
     TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
 };
 

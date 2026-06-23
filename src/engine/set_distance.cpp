@@ -342,6 +342,7 @@ DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,
             case ExtraKind::kBarline:
             case ExtraKind::kRepeat:
             case ExtraKind::kSlur:
+            case ExtraKind::kSystemBreak:
                 return true;
             case ExtraKind::kKeySig:
             case ExtraKind::kTimeSig: return InfodictsEqual(oe.infodict, ce.infodict);
@@ -537,6 +538,7 @@ long ExtrasSetDistanceCost(const SymMeasure &orig, const SymMeasure &comp,
             case ExtraKind::kBarline:
             case ExtraKind::kRepeat:
             case ExtraKind::kSlur:
+            case ExtraKind::kSystemBreak:
                 return true;
             case ExtraKind::kKeySig:
             case ExtraKind::kTimeSig: return InfodictsEqual(oe.infodict, ce.infodict);

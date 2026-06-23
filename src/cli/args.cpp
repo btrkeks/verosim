@@ -35,7 +35,8 @@ std::optional<std::string> FirstCommandFlag(const std::vector<std::string> &args
             ++i;
         }
         else if (args[i] == "--mode" || args[i] == "--detail"
-            || args[i] == "--note-position" || args[i] == "--typed-space-handling") {
+            || args[i] == "--layout" || args[i] == "--note-position"
+            || args[i] == "--typed-space-handling") {
             i += 2;
         }
         else {
@@ -104,6 +105,29 @@ bool StripModeOptions(std::vector<std::string> &args, MetricMode &mode, std::str
     return true;
 }
 
+bool StripLayoutOptions(
+    std::vector<std::string> &args, LayoutSurface &layout, std::string &error)
+{
+    for (std::size_t i = 0; i < args.size();) {
+        if (args[i] != "--layout") {
+            ++i;
+            continue;
+        }
+        if (MissingValue(args, i)) {
+            error = "--layout requires none or system-breaks";
+            return false;
+        }
+        const std::optional<LayoutSurface> parsed = ParseLayoutSurface(args[i + 1]);
+        if (!parsed.has_value()) {
+            error = "unknown layout surface " + args[i + 1];
+            return false;
+        }
+        layout = *parsed;
+        EraseArgs(args, i, 2);
+    }
+    return true;
+}
+
 bool StripComparisonOptionsForCommand(std::vector<std::string> &args, CompareCliOptions &options,
     bool allow_ops, std::string &error)
 {
@@ -131,7 +155,9 @@ bool StripComparisonOptionsForCommand(std::vector<std::string> &args, CompareCli
         }
         else {
             const std::size_t before = args.size();
-            if (!StripModeOptions(args, options.mode, error)) return false;
+            if (!StripModeOptions(args, options.surface.mode, error)) return false;
+            if (args.size() != before) continue;
+            if (!StripLayoutOptions(args, options.surface.layout, error)) return false;
             if (args.size() != before) continue;
             if (!StripTypedSpaceOptions(args, options.typed_space_handling, error)) return false;
             if (args.size() != before) continue;
@@ -144,7 +170,8 @@ bool StripComparisonOptionsForCommand(std::vector<std::string> &args, CompareCli
 bool StripCountOptions(std::vector<std::string> &args, CountSymbolsCommand &command,
     std::string &error)
 {
-    if (!StripModeOptions(args, command.mode, error)) return false;
+    if (!StripModeOptions(args, command.surface.mode, error)) return false;
+    if (!StripLayoutOptions(args, command.surface.layout, error)) return false;
     return StripTypedSpaceOptions(args, command.typed_space_handling, error);
 }
 

@@ -104,6 +104,16 @@ inline SymExtra MakeKeySig(const std::string &sharps, Fraction offset = Fraction
     return extra;
 }
 
+inline SymExtra MakeSystemBreak(Fraction offset = Fraction(0))
+{
+    SymExtra extra;
+    extra.vrv_id = "systembreak";
+    extra.kind = ExtraKind::kSystemBreak;
+    extra.symbolic = "systembreak";
+    extra.offset = offset;
+    return extra;
+}
+
 inline SymMeasure MakeMeasure(std::vector<SymNote> notes, std::vector<SymExtra> extras = {})
 {
     SymMeasure measure;

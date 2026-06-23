@@ -348,6 +348,28 @@ TEST_CASE("VisualPlanBuilder maps barline and repeat extras to barline marks", "
     CHECK_FALSE(plan.marks[2].target.barline_boundary);
 }
 
+TEST_CASE("VisualPlanBuilder maps system breaks to following-measure marks", "[visual]")
+{
+    SymExtra system_break = MakeSystemBreak();
+    system_break.vrv_id = "sb-before-m2";
+    system_break.locator = TestLocator(0, 1);
+    system_break.locator.measure_vrv_id = "measure-m2";
+
+    const VisualPlan plan = BuildVisualPlan({
+        EditOp{ .name = OpName::kExtraIns,
+            .a = OpSide::None(),
+            .b = OpSide::Extra(&system_break),
+            .cost = 1 },
+    });
+
+    REQUIRE(plan.marks.size() == 1);
+    CHECK(plan.marks[0].target.kind == VisualTargetKind::kMeasure);
+    CHECK(plan.marks[0].target.primary_id == "measure-m2");
+    CHECK(plan.marks[0].target.fallback_id == "measure-m2");
+    CHECK_FALSE(plan.marks[0].target.has_extra_kind);
+    CHECK(plan.marks[0].category == "wrong system break OMR-ED");
+}
+
 TEST_CASE("SvgAnnotator marks exact IDs and spanning class IDs", "[visual]")
 {
     const VisualMark note_mark{ .side = VisualSide::kGt,
@@ -941,6 +963,64 @@ TEST_CASE("BuildVisualComparison marks time signature extras", "[visual]")
     CHECK(report.gt.pages[0].svg.find("class=\"meterSig verosim-mark") != std::string::npos);
     CHECK(report.pred.pages[0].svg.find("wrong timesig OMR-ED") != std::string::npos);
     CHECK(report.gt.pages[0].svg.find("wrong timesig OMR-ED") != std::string::npos);
+}
+
+TEST_CASE("BuildVisualComparison marks system breaks on the following measure", "[visual]")
+{
+    const auto mei = [](bool system_break) {
+        std::ostringstream out;
+        out << R"mei(<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music><body><mdiv><score>
+    <scoreDef><staffGrp>
+      <staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="4" meter.unit="4"/>
+    </staffGrp></scoreDef>
+    <section>
+      <measure n="1" xml:id="m1">
+        <staff n="1"><layer n="1"><note dur="1" oct="4" pname="c"/></layer></staff>
+      </measure>
+)mei";
+        if (system_break) out << "      <sb xml:id=\"sb_before_m2\"/>\n";
+        out << R"mei(      <measure n="2" xml:id="m2">
+        <staff n="1"><layer n="1"><note dur="1" oct="4" pname="d"/></layer></staff>
+      </measure>
+    </section>
+  </score></mdiv></body></music>
+</mei>
+)mei";
+        return out.str();
+    };
+    const std::filesystem::path pred = std::filesystem::temp_directory_path()
+        / "verosim-system-break-visual-pred.mei";
+    const std::filesystem::path gt = std::filesystem::temp_directory_path()
+        / "verosim-system-break-visual-gt.mei";
+    WriteFile(pred, mei(false));
+    WriteFile(gt, mei(true));
+
+    std::string error;
+    VisualReport report;
+    REQUIRE(BuildVisualComparison(pred.string(), gt.string(),
+        CompareCliOptions{ .surface = MetricSurface{ .layout = LayoutSurface::kSystemBreaks } },
+        report, error));
+    CHECK(error.empty());
+    CHECK(report.unresolved_marks.empty());
+    CHECK(report.distance == 1);
+    REQUIRE(report.gt.pages.size() >= 1);
+
+    bool found_marked_measure = false;
+    bool found_category = false;
+    for (const RenderedPage &page : report.gt.pages) {
+        found_marked_measure
+            = found_marked_measure || page.svg.find("class=\"measure verosim-mark")
+                != std::string::npos;
+        found_category
+            = found_category || page.svg.find("wrong system break OMR-ED") != std::string::npos;
+    }
+    CHECK(found_marked_measure);
+    CHECK(found_category);
+
+    std::filesystem::remove(pred);
+    std::filesystem::remove(gt);
 }
 
 TEST_CASE("BuildVisualComparison marks terminal barline edits as barlines", "[visual]")

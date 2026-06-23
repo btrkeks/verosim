@@ -76,7 +76,7 @@ std::vector<SymExtra> Extractor::MakeBarlineExtras(vrv::data_BARRENDITION form,
     BarlineLocation location, const Fraction &offset, const std::string &id)
 {
     std::vector<SymExtra> extras;
-    if (!MetricModeIncludesBarlines(options_.mode)) return extras;
+    if (!MetricModeIncludesBarlines(options_.surface.mode)) return extras;
     const bool boundary = IsBoundaryLocation(location);
 
     switch (form) {
@@ -107,7 +107,7 @@ std::vector<SymExtra> Extractor::MakeBarlineExtras(vrv::data_BARRENDITION form,
 void Extractor::CollectMeasureBarlines(const vrv::Measure *measure, const std::string &staffN,
     const Fraction &measureSpan, std::vector<SymExtra> &extras)
 {
-    if (!MetricModeIncludesBarlines(options_.mode)) return;
+    if (!MetricModeIncludesBarlines(options_.surface.mode)) return;
 
     const int staffNumber = staffN.empty() ? 0 : std::stoi(staffN);
     const vrv::data_BARRENDITION left = measure->HasLeft()

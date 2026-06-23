@@ -50,6 +50,16 @@ ExtractResult ExtractData(
     return ExtractSymScore(bridge.GetDoc(), sourceFormat);
 }
 
+ExtractResult ExtractData(const std::string &data, vrv::FileFormat inputFormat,
+    SourceFormat sourceFormat, const ExtractOptions &options)
+{
+    VrvBridgeConfig config;
+    config.typed_space_handling = options.typed_space_handling;
+    VrvBridge bridge(config);
+    REQUIRE(bridge.LoadScoreData(data, inputFormat));
+    return ExtractSymScore(bridge.GetDoc(), sourceFormat, options);
+}
+
 ExtractResult ExtractKernData(const std::string &data)
 {
     return ExtractData(data, vrv::HUMDRUM, SourceFormat::kKern);
@@ -58,6 +68,11 @@ ExtractResult ExtractKernData(const std::string &data)
 ExtractResult ExtractMeiData(const std::string &data)
 {
     return ExtractData(data, vrv::MEI, SourceFormat::kOther);
+}
+
+ExtractResult ExtractMeiData(const std::string &data, const ExtractOptions &options)
+{
+    return ExtractData(data, vrv::MEI, SourceFormat::kOther, options);
 }
 
 std::vector<const SymExtra *> ExtrasOfKind(const SymMeasure &measure, ExtraKind kind)
@@ -338,6 +353,104 @@ TEST_CASE("tiny.xml: MusicXML side", "[extract]")
     CHECK(m2.notes[0].pitches[0].accid == "sharp");
     CHECK(m2.notes[2].pitches[0].accid == "None");
     CHECK(m2.notes[2].pitches[0].sounding_alter == 1); // within-measure carry
+}
+
+TEST_CASE("system breaks are an opt-in layout surface", "[extract]")
+{
+    const char *mei = R"mei(<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef>
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="4" meter.unit="4"/>
+              <staffDef n="2" lines="5" clef.shape="F" clef.line="4" meter.count="4" meter.unit="4"/>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="1" xml:id="m1">
+              <staff n="1"><layer n="1"><note dur="1" oct="4" pname="c"/></layer></staff>
+              <staff n="2"><layer n="1"><note dur="1" oct="3" pname="c"/></layer></staff>
+            </measure>
+            <sb xml:id="sb_before_m2"/>
+            <measure n="2" xml:id="m2">
+              <staff n="1"><layer n="1"><note dur="1" oct="4" pname="d"/></layer></staff>
+              <staff n="2"><layer n="1"><note dur="1" oct="3" pname="d"/></layer></staff>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>)mei";
+
+    const ExtractResult default_result = ExtractMeiData(mei);
+    REQUIRE(default_result.score.parts.size() == 2);
+    REQUIRE(default_result.score.parts[0].bar_list.size() == 2);
+    CHECK(ExtrasOfKind(default_result.score.parts[0].bar_list[1], ExtraKind::kSystemBreak).empty());
+    CHECK(ExtrasOfKind(default_result.score.parts[1].bar_list[1], ExtraKind::kSystemBreak).empty());
+
+    const ExtractOptions options{ .surface = MetricSurface{
+        .layout = LayoutSurface::kSystemBreaks } };
+    const ExtractResult result = ExtractMeiData(mei, options);
+    REQUIRE(result.score.parts.size() == 2);
+    REQUIRE(result.score.parts[0].bar_list.size() == 2);
+    REQUIRE(result.score.parts[1].bar_list.size() == 2);
+    const std::vector<const SymExtra *> breaks
+        = ExtrasOfKind(result.score.parts[0].bar_list[1], ExtraKind::kSystemBreak);
+    REQUIRE(breaks.size() == 1);
+    CHECK(breaks[0]->vrv_id == "sb_before_m2");
+    CHECK(breaks[0]->offset == Fraction(0));
+    CHECK(breaks[0]->symbolic == "systembreak");
+    CHECK(breaks[0]->notation_size() == 1);
+    CHECK(breaks[0]->str() == "systembreak@0:systembreak");
+    CHECK(breaks[0]->locator.part_idx == 0);
+    CHECK(breaks[0]->locator.measure_idx == 1);
+    CHECK(breaks[0]->locator.measure_vrv_id == result.score.parts[0].bar_list[1].vrv_id);
+    CHECK(ExtrasOfKind(result.score.parts[1].bar_list[1], ExtraKind::kSystemBreak).empty());
+    CHECK(CountSymbols(result.score).other_extras
+        == CountSymbols(default_result.score).other_extras + 1);
+    CHECK(result.score.notation_size() == default_result.score.notation_size() + 1);
+}
+
+TEST_CASE("MusicXML new-system print emits a system break in layout mode", "[extract]")
+{
+    const char *musicxml = R"xml(<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="4.0">
+  <part-list>
+    <score-part id="P1"><part-name>Music</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <key><fifths>0</fifths></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><type>whole</type></note>
+    </measure>
+    <measure number="2">
+      <print new-system="yes"/>
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>4</duration><type>whole</type></note>
+    </measure>
+  </part>
+</score-partwise>)xml";
+
+    const ExtractOptions options{ .surface = MetricSurface{
+        .layout = LayoutSurface::kSystemBreaks } };
+    const ExtractResult result
+        = ExtractData(musicxml, vrv::MUSICXML, SourceFormat::kMusicXml, options);
+    REQUIRE(result.score.parts.size() == 1);
+    REQUIRE(result.score.parts[0].bar_list.size() == 2);
+    const std::vector<const SymExtra *> breaks
+        = ExtrasOfKind(result.score.parts[0].bar_list[1], ExtraKind::kSystemBreak);
+    REQUIRE(breaks.size() == 1);
+    CHECK(breaks[0]->offset == Fraction(0));
+    CHECK(breaks[0]->symbolic == "systembreak");
 }
 
 TEST_CASE("tie_chain.krn: sounding alter carries across barlines via ties", "[extract]")
@@ -692,7 +805,7 @@ TEST_CASE("repair_space_beamspan.mei: repair spaces and beamSpan controls", "[ex
 
 TEST_CASE("repair_space_beamspan.mei: preserve mode keeps typed space duration", "[extract]")
 {
-    const ExtractOptions options{ .mode = MetricMode::kActive,
+    const ExtractOptions options{ .surface = MetricSurface{ .mode = MetricMode::kActive },
         .typed_space_handling = TypedSpaceHandling::kPreserve };
     const ExtractResult result = ExtractFixture("repair_space_beamspan.mei", SourceFormat::kOther, options);
     CHECK(result.warnings.empty());
@@ -941,7 +1054,8 @@ TEST_CASE("regular layer barline at a partial-measure end is ignored", "[extract
 TEST_CASE("mei_controls.mei: timestamp controls use active meter and staff resolution", "[extract]")
 {
     const ExtractResult result = ExtractFixture(
-        "mei_controls.mei", SourceFormat::kOther, ExtractOptions{ .mode = MetricMode::kExperimental });
+        "mei_controls.mei", SourceFormat::kOther,
+        ExtractOptions{ .surface = MetricSurface{ .mode = MetricMode::kExperimental } });
     CHECK(result.warnings.empty());
     REQUIRE(result.score.parts.size() == 2);
     REQUIRE(result.score.parts[0].bar_list.size() == 2);
