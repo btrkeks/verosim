@@ -42,34 +42,63 @@ set(VEROVIO_INCLUDE_DIRS
     ${VEROVIO_ROOT}/libmei/dist
     ${VEROVIO_ROOT}/libmei/addons)
 
-add_library(verosim_core STATIC
-    src/extraction/vrv_bridge.cpp
-    src/extraction/extract.cpp
-    src/extraction/event_extraction.cpp
-    src/extraction/barline_extraction.cpp
-    src/extraction/pitch_context.cpp
-    src/extraction/meter_context.cpp
-    src/extraction/control_extraction.cpp
-    src/extraction/signature_extraction.cpp
-    src/extraction/score_normalizer.cpp
-    src/extraction/typed_space_policy.cpp
-    src/extraction/effective_pitch.cpp
-    src/extraction/notation_rules.cpp
+function(verosim_target_defaults target)
+    target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+endfunction()
+
+add_library(verosim_support INTERFACE)
+target_include_directories(verosim_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+add_library(verosim_model STATIC
     src/model/metric_mode.cpp
-    src/model/sym_score.cpp
+    src/model/sym_score.cpp)
+verosim_target_defaults(verosim_model)
+
+add_library(verosim_engine STATIC
     src/engine/interner.cpp
     src/engine/myers.cpp
     src/engine/note_diff.cpp
     src/engine/set_distance.cpp
     src/engine/block_diff.cpp
-    src/engine/compare.cpp
-    src/cli/args.cpp
-    src/cli/list_io.cpp
-    src/cli/batch.cpp
-    src/cli/check.cpp
-    src/cli/compare_cli.cpp
-    src/cli/count_symbols.cpp
-    src/cli/dump_tree.cpp
+    src/engine/compare.cpp)
+verosim_target_defaults(verosim_engine)
+target_link_libraries(verosim_engine PUBLIC verosim_model)
+
+add_library(verosim_verovio STATIC
+    src/extraction/vrv_bridge.cpp
+    src/extraction/score_normalizer.cpp
+    src/extraction/typed_space_policy.cpp)
+verosim_target_defaults(verosim_verovio)
+target_include_directories(verosim_verovio PUBLIC ${VEROVIO_INCLUDE_DIRS})
+target_link_libraries(verosim_verovio PUBLIC verovio)
+# Toolkit needs the font resources from the vendored data dir even though we
+# never render (LoadData refuses to run without them, toolkit.cpp:516-522).
+target_compile_definitions(verosim_verovio PRIVATE
+    VEROSIM_VRV_DATA_DIR="${VEROVIO_ROOT}/data")
+
+add_library(verosim_extraction STATIC
+    src/extraction/extract.cpp
+    src/extraction/event_extraction.cpp
+    src/extraction/measure_emission.cpp
+    src/extraction/barline_extraction.cpp
+    src/extraction/pitch_context.cpp
+    src/extraction/meter_context.cpp
+    src/extraction/control_extraction.cpp
+    src/extraction/signature_extraction.cpp
+    src/extraction/effective_pitch.cpp
+    src/extraction/notation_rules.cpp)
+verosim_target_defaults(verosim_extraction)
+target_link_libraries(verosim_extraction PUBLIC verosim_model verosim_verovio)
+
+add_library(verosim_app STATIC
+    src/app/score_pipeline.cpp)
+verosim_target_defaults(verosim_app)
+target_link_libraries(verosim_app PUBLIC
+    verosim_engine
+    verosim_extraction
+    verosim_verovio)
+
+add_library(verosim_visual STATIC
     src/visual/html_report.cpp
     src/visual/score_renderer.cpp
     src/visual/svg_annotator.cpp
@@ -80,12 +109,28 @@ add_library(verosim_core STATIC
     src/visual/visual_plan.cpp
     src/visual/visual_resolver.cpp
     src/visual/visualize.cpp)
-target_include_directories(verosim_core PUBLIC include ${VEROVIO_INCLUDE_DIRS})
-target_link_libraries(verosim_core PUBLIC verovio)
-# Toolkit needs the font resources from the vendored data dir even though we
-# never render (LoadData refuses to run without them, toolkit.cpp:516-522).
-target_compile_definitions(verosim_core PUBLIC
-    VEROSIM_VRV_DATA_DIR="${VEROVIO_ROOT}/data")
+verosim_target_defaults(verosim_visual)
+target_link_libraries(verosim_visual PUBLIC
+    verosim_app
+    verosim_support)
+
+add_library(verosim_cli STATIC
+    src/cli/args.cpp
+    src/cli/list_io.cpp
+    src/cli/batch.cpp
+    src/cli/check.cpp
+    src/cli/compare_cli.cpp
+    src/cli/count_symbols.cpp
+    src/cli/dump_tree.cpp)
+verosim_target_defaults(verosim_cli)
+target_link_libraries(verosim_cli PUBLIC
+    verosim_app
+    verosim_support)
+
+add_library(verosim_core INTERFACE)
+target_link_libraries(verosim_core INTERFACE
+    verosim_cli
+    verosim_visual)
 
 add_executable(verosim src/cli/main.cpp)
 target_link_libraries(verosim PRIVATE verosim_core)

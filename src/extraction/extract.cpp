@@ -1,8 +1,8 @@
-#include "extract_internal.h"
+#include "extractor.h"
 
 #include <memory>
-#include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace verosim {
@@ -13,17 +13,15 @@ ExtractResult Extractor::Run()
 {
     bool sawScore = false;
     WalkPageTree(&doc_, sawScore);
-    if (!pending_layout_breaks_.empty()) {
+    if (!layout_.empty()) {
         Warn("layout system break not followed by a measure; dropping it");
-        pending_layout_breaks_.clear();
+        layout_.Clear();
     }
 
     // drop empty measures (annotation.py:1401) — already skipped at emit time;
     // assign part indices in staffDef document order
-    for (std::size_t i = 0; i < staff_order_.size(); ++i) {
-        result_.score.parts[i].part_idx = static_cast<int>(i);
-    }
-    return result_;
+    staves_.AssignPartIndices(output_.score());
+    return std::move(output_.result);
 }
 
 void Extractor::WalkPageTree(const vrv::Object *obj, bool &sawScore)
@@ -47,10 +45,7 @@ void Extractor::WalkPageTree(const vrv::Object *obj, bool &sawScore)
         else if (child->Is(vrv::SB)) {
             if (MetricSurfaceIncludesSystemBreaks(options_.surface)) {
                 const vrv::Sb *sb = vrv_cast<const vrv::Sb *>(child);
-                pending_layout_breaks_.push_back(PendingLayoutBreak{
-                    .kind = ExtraKind::kSystemBreak,
-                    .vrv_id = sb ? sb->GetID() : child->GetID(),
-                });
+                layout_.AddSystemBreak(sb ? sb->GetID() : child->GetID());
             }
         }
         else {
@@ -89,8 +84,8 @@ void Extractor::ApplyScoreDefChange(const vrv::ScoreDef *scoreDef)
         std::shared_ptr<const vrv::KeySig> sharedKeySig(std::move(keysig));
         std::shared_ptr<const vrv::Mensur> sharedMensur(std::move(mensur));
         std::shared_ptr<const vrv::MeterSig> sharedMeterSig(std::move(metersig));
-        for (const std::string &n : staff_order_) {
-            StaffState &state = staves_[n];
+        for (const std::string &n : staves_.OrderedNumbers()) {
+            StaffState &state = staves_.At(n);
             if (sharedClef) state.pending.clef = sharedClef;
             if (sharedKeySig) state.pending.keysig = sharedKeySig;
             if (sharedMensur) {
@@ -145,18 +140,10 @@ void Extractor::ApplyStaffDef(const vrv::StaffDef *staffDef, const vrv::ScoreDef
 
 StaffState &Extractor::EnsureStaffPart(const std::string &staffN, bool warnIfImplicit)
 {
-    auto found = staves_.find(staffN);
-    if (found != staves_.end()) return found->second;
-
-    if (warnIfImplicit) {
+    if (warnIfImplicit && !staves_.Contains(staffN)) {
         Warn("staff n=" + staffN + " has no staffDef; creating an implicit part");
     }
-    StaffState &state = staves_[staffN]; // default-construct
-    staff_order_.push_back(staffN);
-    result_.score.parts.emplace_back();
-    result_.score.parts.back().staff_n = staffN;
-    state.part_idx = static_cast<int>(result_.score.parts.size()) - 1;
-    return state;
+    return staves_.EnsurePart(staffN, output_.score());
 }
 
 void Extractor::StartStaffMeasure(StaffState &state)
@@ -217,11 +204,9 @@ SymExtra Extractor::MakeSystemBreakExtra(
 void Extractor::ApplyPendingLayoutBreaks(
     const vrv::Measure *measure, StaffState &state, std::vector<SymExtra> &extras)
 {
-    if (pending_layout_breaks_.empty() || state.part_idx != 0) return;
-    for (const PendingLayoutBreak &layout_break : pending_layout_breaks_) {
+    for (const PendingLayoutBreak &layout_break : layout_.TakeForPart(state.part_idx)) {
         extras.push_back(MakeSystemBreakExtra(layout_break, measure));
     }
-    pending_layout_breaks_.clear();
 }
 
 void Extractor::CollectStaffLayerEvents(const vrv::Staff *staff, std::vector<Event> &events,
@@ -249,24 +234,19 @@ void Extractor::FinishStaffMeasure(StaffState &state, const Fraction &measureSpa
 {
     state.score_offset = state.score_offset + measureSpan;
     ++state.measure_idx;
-    ResolvePendingSpans();
+    controls_.ResolvePendingSpans(output_.score());
 }
 
 void Extractor::HandleMeasure(const vrv::Measure *measure)
 {
     // tie control elements: @startid notes carry the sounding alter across
     // the barline (RegisterTieStart), @endid notes are tied-from-previous
-    const auto addRef = [](const std::string &ref, std::set<std::string> &ids) {
-        std::string id = ref;
-        if (!id.empty() && id[0] == '#') id.erase(0, 1);
-        if (!id.empty()) ids.insert(std::move(id));
-    };
     for (const vrv::Object *child : measure->GetChildren()) {
         if (!child->Is(vrv::TIE)) continue;
         const vrv::TimeSpanningInterface *interface = child->GetTimeSpanningInterface();
         if (!interface) continue;
-        if (interface->HasEndid()) addRef(interface->GetEndid(), tie_end_ids_);
-        if (interface->HasStartid()) addRef(interface->GetStartid(), tie_start_ids_);
+        if (interface->HasEndid()) ties_.AddEndRef(interface->GetEndid());
+        if (interface->HasStartid()) ties_.AddStartRef(interface->GetStartid());
     }
 
     for (const vrv::Object *child : measure->GetChildren()) {

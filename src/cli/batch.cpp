@@ -13,9 +13,9 @@
 #include <jsonxx.h>
 
 #include "verosim/cli/args.h"
-#include "verosim/cli/json_util.h"
 #include "verosim/cli/list_io.h"
 #include "verosim/extraction/vrv_bridge.h"
+#include "verosim/support/json_util.h"
 
 namespace verosim {
 

@@ -923,7 +923,7 @@ TEST_CASE("VisualizePairToHtml writes a mutation report", "[visual]")
         = std::filesystem::path(VEROSIM_MUTATIONS_DIR) / "cases" / "mono_accidental_sharp.krn";
 
     std::string error;
-    REQUIRE(VisualizePairToHtml(pred.string(), gt.string(), out.string(), CompareCliOptions{}, error));
+    REQUIRE(VisualizePairToHtml(pred.string(), gt.string(), out.string(), CompareRunOptions{}, error));
     CHECK(error.empty());
 
     const std::string html = ReadFile(out);
@@ -945,7 +945,7 @@ TEST_CASE("VisualizePairToHtml marks missing chord members by notehead group", "
     const std::filesystem::path gt = std::filesystem::path(VEROSIM_MUTATIONS_DIR) / "base" / "chords.krn";
 
     std::string error;
-    REQUIRE(VisualizePairToHtml(pred.string(), gt.string(), out.string(), CompareCliOptions{}, error));
+    REQUIRE(VisualizePairToHtml(pred.string(), gt.string(), out.string(), CompareRunOptions{}, error));
     CHECK(error.empty());
 
     const std::string html = ReadFile(out);
@@ -964,7 +964,7 @@ TEST_CASE("BuildVisualComparison marks time signature extras", "[visual]")
 
     std::string error;
     VisualReport report;
-    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareCliOptions{}, report, error));
+    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareRunOptions{}, report, error));
     CHECK(error.empty());
     CHECK(report.unresolved_marks.empty());
     REQUIRE(report.pred.pages.size() == 1);
@@ -1011,7 +1011,7 @@ TEST_CASE("BuildVisualComparison marks system breaks on the following measure", 
     std::string error;
     VisualReport report;
     REQUIRE(BuildVisualComparison(pred.string(), gt.string(),
-        CompareCliOptions{ .surface = MetricSurface{ .layout = LayoutSurface::kSystemBreaks } },
+        CompareRunOptions{ .surface = MetricSurface{ .layout = LayoutSurface::kSystemBreaks } },
         report, error));
     CHECK(error.empty());
     CHECK(report.unresolved_marks.empty());
@@ -1042,7 +1042,7 @@ TEST_CASE("BuildVisualComparison marks terminal barline edits as barlines", "[vi
 
     std::string error;
     VisualReport report;
-    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareCliOptions{}, report, error));
+    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareRunOptions{}, report, error));
     CHECK(error.empty());
     CHECK(report.unresolved_marks.empty());
     REQUIRE(report.pred.pages.size() == 1);
@@ -1086,7 +1086,7 @@ TEST_CASE("BuildVisualComparison resolves rptboth repeat marks to one rendered b
 
     std::string error;
     VisualReport report;
-    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareCliOptions{}, report, error));
+    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareRunOptions{}, report, error));
     CHECK(error.empty());
     CHECK(report.unresolved_marks.empty());
     REQUIRE(report.pred.pages.size() == 1);
@@ -1134,7 +1134,7 @@ TEST_CASE("BuildVisualComparison resolves multi-staff barline edits to a spannin
 
     std::string error;
     VisualReport report;
-    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareCliOptions{}, report, error));
+    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareRunOptions{}, report, error));
     CHECK(error.empty());
     CHECK(report.unresolved_marks.empty());
     REQUIRE(report.pred.pages.size() == 1);
@@ -1160,7 +1160,7 @@ TEST_CASE("WriteSvgAssetBundle writes annotated SVG pages and manifest", "[visua
 
     std::string error;
     VisualReport report;
-    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareCliOptions{}, report, error));
+    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), CompareRunOptions{}, report, error));
     CHECK(error.empty());
 
     SvgAssetBundle bundle;

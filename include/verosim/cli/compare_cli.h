@@ -3,9 +3,7 @@
 #include <iosfwd>
 #include <string>
 
-#include "verosim/engine/compare.h"
-#include "verosim/extraction/typed_space_policy.h"
-#include "verosim/model/metric_mode.h"
+#include "verosim/app/compare_options.h"
 
 namespace verosim {
 
@@ -17,6 +15,13 @@ struct CompareCliOptions {
     NotePositionPolicy note_position_policy = NotePositionPolicy::kVisualEventOrder;
     TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
 };
+
+inline CompareRunOptions RunOptionsForCli(const CompareCliOptions &options)
+{
+    return CompareRunOptions{ .surface = options.surface,
+        .note_position_policy = options.note_position_policy,
+        .typed_space_handling = options.typed_space_handling };
+}
 
 // Loads pred and gt, extracts both, runs the comparison engine, and writes
 // one JSON object (newline-terminated) whose fields join 1:1 against the

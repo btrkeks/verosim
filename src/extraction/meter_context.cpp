@@ -1,4 +1,4 @@
-#include "extract_internal.h"
+#include "extract_detail.h"
 
 #include <cstdint>
 #include <string>

@@ -4,20 +4,14 @@
 #include <ostream>
 #include <vector>
 
-#include "verosim/cli/json_util.h"
+#include "verosim/app/score_pipeline.h"
 #include "verosim/engine/compare.h"
-#include "verosim/extraction/extract.h"
-#include "verosim/extraction/source_format_util.h"
 #include "verosim/extraction/vrv_bridge.h"
+#include "verosim/support/json_util.h"
 
 namespace verosim {
 
 namespace {
-
-CompareOptions EngineCompareOptions(const CompareCliOptions &options)
-{
-    return CompareOptions{ .note_position_policy = options.note_position_policy };
-}
 
 // Mirrors oracle.py:_serialize_op_side {type, repr, ...}: enough identity for
 // op-level triage diffs against the stored oracle edit_ops. The note repr is
@@ -78,58 +72,6 @@ void WriteEditOps(const std::vector<EditOp> &ops, std::ostream &out)
     out << "]";
 }
 
-struct LoadedScore {
-    SymScore score;
-    std::vector<std::string> warnings;
-    std::string error;
-    bool ok = false;
-};
-
-LoadedScore LoadAndExtract(
-    VrvBridge &bridge, const std::string &path, const ExtractOptions &options)
-{
-    LoadedScore loaded;
-    // Verovio throws on some adversarial inputs (the PERF-10K sweep's known
-    // failure modes, e.g. vector::_M_default_append) — a pair must fail as a
-    // record, never abort a --pairs run.
-    try {
-        bridge.set_typed_space_handling(options.typed_space_handling);
-        if (!bridge.LoadScoreFile(path)) {
-            loaded.error = "failed to load " + path;
-            return loaded;
-        }
-        ExtractResult result = ExtractSymScore(bridge.GetDoc(), SourceFormatFromBridge(bridge), options);
-        loaded.score = std::move(result.score);
-        loaded.warnings = std::move(result.warnings);
-        loaded.ok = true;
-    }
-    catch (const std::exception &e) {
-        loaded.error = "exception loading " + path + ": " + e.what();
-    }
-    return loaded;
-}
-
-LoadedScore LoadAndExtractData(VrvBridge &bridge, const std::string &data, const std::string &label,
-    const ExtractOptions &options)
-{
-    LoadedScore loaded;
-    try {
-        bridge.set_typed_space_handling(options.typed_space_handling);
-        if (!bridge.LoadScoreData(data, vrv::HUMDRUM)) {
-            loaded.error = "failed to load " + label;
-            return loaded;
-        }
-        ExtractResult result = ExtractSymScore(bridge.GetDoc(), SourceFormatFromBridge(bridge), options);
-        loaded.score = std::move(result.score);
-        loaded.warnings = std::move(result.warnings);
-        loaded.ok = true;
-    }
-    catch (const std::exception &e) {
-        loaded.error = "exception loading " + label + ": " + e.what();
-    }
-    return loaded;
-}
-
 bool WriteComparisonJson(const LoadedScore &pred, const LoadedScore &gt,
     const CompareCliOptions &options, const std::string &json_prefix,
     const std::chrono::steady_clock::time_point &start, std::ostream &out)
@@ -144,19 +86,17 @@ bool WriteComparisonJson(const LoadedScore &pred, const LoadedScore &gt,
         return false;
     }
 
-    const CompareResult result = CompareScores(pred.score, gt.score, EngineCompareOptions(options));
-    const long n_pred = pred.score.notation_size();
-    const long n_gt = gt.score.notation_size();
-    const std::map<std::string, long> dict = EditDistancesDict(result.op_list);
+    const CompareRunOptions run_options = RunOptionsForCli(options);
+    const ScoreComparison comparison = CompareLoadedScores(pred.score, gt.score, run_options);
     const double runtime
         = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 
-    out << field_sep << "\"ok\":true,\"error\":null,\"distance\":" << result.cost << ",\"n_pred\":" << n_pred
-        << ",\"n_gt\":" << n_gt << ",\"omr_ned\":";
-    WriteDouble(OmrNed(result.cost, n_pred, n_gt), out);
+    out << field_sep << "\"ok\":true,\"error\":null,\"distance\":" << comparison.diff.cost
+        << ",\"n_pred\":" << comparison.n_pred << ",\"n_gt\":" << comparison.n_gt << ",\"omr_ned\":";
+    WriteDouble(comparison.omr_ned, out);
     out << ",\"edit_distances_dict\":{";
     bool first = true;
-    for (const auto &[name, value] : dict) {
+    for (const auto &[name, value] : comparison.edit_distances) {
         if (!first) out << ",";
         first = false;
         WriteJsonString(name, out);
@@ -165,11 +105,11 @@ bool WriteComparisonJson(const LoadedScore &pred, const LoadedScore &gt,
     out << "}";
     if (options.emit_ops) {
         out << ",\"edit_ops\":";
-        WriteEditOps(result.op_list, out);
+        WriteEditOps(comparison.diff.op_list, out);
     }
     std::vector<std::string> warnings;
-    for (const std::string &w : pred.warnings) warnings.push_back("pred: " + w);
-    for (const std::string &w : gt.warnings) warnings.push_back("gt: " + w);
+    AppendPrefixedWarnings(warnings, "pred: ", pred.warnings);
+    AppendPrefixedWarnings(warnings, "gt: ", gt.warnings);
     out << ",\"warnings\":";
     WriteJsonStringArray(warnings, out);
     out << ",\"runtime_s\":";
@@ -187,10 +127,10 @@ bool ComparePairToJson(VrvBridge &bridge, const std::string &pred_path,
 
     // One bridge, two loads: SymScore is self-contained, so the first
     // extraction survives the second load.
-    const ExtractOptions extract_options{ .surface = options.surface,
-        .typed_space_handling = options.typed_space_handling };
-    const LoadedScore pred = LoadAndExtract(bridge, pred_path, extract_options);
-    const LoadedScore gt = pred.ok ? LoadAndExtract(bridge, gt_path, extract_options) : LoadedScore{};
+    const ExtractOptions extract_options = ExtractOptionsForRun(RunOptionsForCli(options));
+    const LoadedScore pred = LoadAndExtractScoreFile(bridge, pred_path, extract_options);
+    const LoadedScore gt
+        = pred.ok ? LoadAndExtractScoreFile(bridge, gt_path, extract_options) : LoadedScore{};
 
     std::ostringstream prefix;
     prefix << "{\"pair\":{\"pred\":";
@@ -206,10 +146,9 @@ bool CompareScoreDataToJson(VrvBridge &bridge, const std::string &pred_data,
     std::ostream &out)
 {
     const auto start = std::chrono::steady_clock::now();
-    const ExtractOptions extract_options{ .surface = options.surface,
-        .typed_space_handling = options.typed_space_handling };
-    const LoadedScore pred = LoadAndExtractData(bridge, pred_data, "prediction", extract_options);
-    const LoadedScore gt = pred.ok ? LoadAndExtractData(bridge, gt_data, "target", extract_options)
+    const ExtractOptions extract_options = ExtractOptionsForRun(RunOptionsForCli(options));
+    const LoadedScore pred = LoadAndExtractKernData(bridge, pred_data, "prediction", extract_options);
+    const LoadedScore gt = pred.ok ? LoadAndExtractKernData(bridge, gt_data, "target", extract_options)
                                    : LoadedScore{};
     return WriteComparisonJson(pred, gt, options, json_prefix, start, out);
 }

@@ -1,13 +1,9 @@
 #include "verosim/visual/visualize.h"
 
-#include <chrono>
-#include <map>
 #include <string>
 #include <vector>
 
-#include "verosim/engine/compare.h"
-#include "verosim/extraction/extract.h"
-#include "verosim/extraction/source_format_util.h"
+#include "verosim/app/score_pipeline.h"
 #include "verosim/extraction/vrv_bridge.h"
 #include "verosim/visual/html_report.h"
 #include "verosim/visual/score_renderer.h"
@@ -17,38 +13,6 @@
 
 namespace verosim {
 namespace {
-
-CompareOptions EngineCompareOptions(const CompareCliOptions &options)
-{
-    return CompareOptions{ .note_position_policy = options.note_position_policy };
-}
-
-struct LoadedVisualScore {
-    SymScore score;
-    std::vector<std::string> warnings;
-    bool ok = false;
-};
-
-bool LoadAndExtractVisualScore(VrvBridge &bridge, const std::string &path,
-    const ExtractOptions &options, LoadedVisualScore &loaded, std::string &error)
-{
-    try {
-        bridge.set_typed_space_handling(options.typed_space_handling);
-        if (!bridge.LoadScoreFile(path)) {
-            error = "failed to load " + path;
-            return false;
-        }
-        ExtractResult result = ExtractSymScore(bridge.GetDoc(), SourceFormatFromBridge(bridge), options);
-        loaded.score = std::move(result.score);
-        loaded.warnings = std::move(result.warnings);
-        loaded.ok = true;
-        return true;
-    }
-    catch (const std::exception &e) {
-        error = "exception loading " + path + ": " + e.what();
-        return false;
-    }
-}
 
 std::vector<VisualMark> MarksForSide(const std::vector<VisualMark> &marks, VisualSide side)
 {
@@ -95,34 +59,30 @@ AnnotatedPages AnnotatePages(const RenderedScore &rendered, const std::vector<Vi
     return annotated;
 }
 
-void PrefixWarnings(
-    std::vector<std::string> &out, const std::string &prefix, const std::vector<std::string> &warnings)
-{
-    for (const std::string &warning : warnings) out.push_back(prefix + warning);
-}
-
 } // namespace
 
 bool BuildVisualComparison(const std::string &pred_path, const std::string &gt_path,
-    const CompareCliOptions &options, VisualReport &report, std::string &error)
+    const CompareRunOptions &options, VisualReport &report, std::string &error)
 {
     report = VisualReport{};
 
     VrvBridge pred_bridge;
     VrvBridge gt_bridge;
-    const ExtractOptions extract_options{ .surface = options.surface,
-        .typed_space_handling = options.typed_space_handling };
+    const ExtractOptions extract_options = ExtractOptionsForRun(options);
 
-    LoadedVisualScore pred;
-    LoadedVisualScore gt;
-    if (!LoadAndExtractVisualScore(pred_bridge, pred_path, extract_options, pred, error)) return false;
-    if (!LoadAndExtractVisualScore(gt_bridge, gt_path, extract_options, gt, error)) return false;
+    const LoadedScore pred = LoadAndExtractScoreFile(pred_bridge, pred_path, extract_options);
+    if (!pred.ok) {
+        error = pred.error;
+        return false;
+    }
+    const LoadedScore gt = LoadAndExtractScoreFile(gt_bridge, gt_path, extract_options);
+    if (!gt.ok) {
+        error = gt.error;
+        return false;
+    }
 
-    const CompareResult compare = CompareScores(pred.score, gt.score, EngineCompareOptions(options));
-    const long n_pred = pred.score.notation_size();
-    const long n_gt = gt.score.notation_size();
-    const std::map<std::string, long> edit_distances = EditDistancesDict(compare.op_list);
-    const VisualPlan plan = BuildVisualPlan(compare.op_list);
+    const ScoreComparison comparison = CompareLoadedScores(pred.score, gt.score, options);
+    const VisualPlan plan = BuildVisualPlan(comparison.diff.op_list);
 
     RenderedScore pred_rendered;
     RenderedScore gt_rendered;
@@ -142,26 +102,26 @@ bool BuildVisualComparison(const std::string &pred_path, const std::string &gt_p
     report.gt_path = gt_path;
     report.pred = VisualizedScore{ .title = "Prediction", .pages = pred_pages.pages };
     report.gt = VisualizedScore{ .title = "Ground Truth", .pages = gt_pages.pages };
-    report.distance = compare.cost;
-    report.n_pred = n_pred;
-    report.n_gt = n_gt;
-    report.omr_ned = OmrNed(compare.cost, n_pred, n_gt);
-    report.edit_distances = edit_distances;
+    report.distance = comparison.diff.cost;
+    report.n_pred = comparison.n_pred;
+    report.n_gt = comparison.n_gt;
+    report.omr_ned = comparison.omr_ned;
+    report.edit_distances = comparison.edit_distances;
     report.unresolved_marks = pred_pages.unresolved;
     report.unresolved_marks.insert(
         report.unresolved_marks.end(), gt_pages.unresolved.begin(), gt_pages.unresolved.end());
-    PrefixWarnings(report.warnings, "pred: ", pred.warnings);
-    PrefixWarnings(report.warnings, "gt: ", gt.warnings);
-    PrefixWarnings(report.warnings, "pred render: ", pred_rendered.warnings);
-    PrefixWarnings(report.warnings, "gt render: ", gt_rendered.warnings);
-    PrefixWarnings(report.warnings, "", pred_pages.warnings);
-    PrefixWarnings(report.warnings, "", gt_pages.warnings);
+    AppendPrefixedWarnings(report.warnings, "pred: ", pred.warnings);
+    AppendPrefixedWarnings(report.warnings, "gt: ", gt.warnings);
+    AppendPrefixedWarnings(report.warnings, "pred render: ", pred_rendered.warnings);
+    AppendPrefixedWarnings(report.warnings, "gt render: ", gt_rendered.warnings);
+    AppendPrefixedWarnings(report.warnings, "", pred_pages.warnings);
+    AppendPrefixedWarnings(report.warnings, "", gt_pages.warnings);
 
     return true;
 }
 
 bool VisualizePairToHtml(const std::string &pred_path, const std::string &gt_path,
-    const std::string &out_path, const CompareCliOptions &options, std::string &error)
+    const std::string &out_path, const CompareRunOptions &options, std::string &error)
 {
     VisualReport report;
     if (!BuildVisualComparison(pred_path, gt_path, options, report, error)) return false;

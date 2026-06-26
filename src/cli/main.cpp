@@ -146,8 +146,10 @@ int VisualizeMain(
     const verosim::VisualizeArgs &args, const verosim::CompareCliOptions &options)
 {
     std::string error;
+    const verosim::CompareRunOptions runOptions = verosim::RunOptionsForCli(options);
     if (args.output_kind == verosim::VisualizeArgs::OutputKind::kHtml) {
-        if (!verosim::VisualizePairToHtml(args.pred_path, args.gt_path, args.out_path, options, error)) {
+        if (!verosim::VisualizePairToHtml(
+                args.pred_path, args.gt_path, args.out_path, runOptions, error)) {
             std::cerr << "verosim: " << error << '\n';
             return 1;
         }
@@ -156,7 +158,7 @@ int VisualizeMain(
 
     verosim::VisualReport report;
     verosim::SvgAssetBundle bundle;
-    if (!verosim::BuildVisualComparison(args.pred_path, args.gt_path, options, report, error)
+    if (!verosim::BuildVisualComparison(args.pred_path, args.gt_path, runOptions, report, error)
         || !verosim::WriteSvgAssetBundle(report, args.out_dir, bundle, error)) {
         std::cerr << "verosim: " << error << '\n';
         return 1;

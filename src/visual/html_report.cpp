@@ -4,7 +4,7 @@
 #include <ostream>
 #include <sstream>
 
-#include "verosim/cli/json_util.h"
+#include "verosim/support/json_util.h"
 #include "verosim/visual/visual_mark.h"
 
 namespace verosim {

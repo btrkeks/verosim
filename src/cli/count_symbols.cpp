@@ -1,12 +1,10 @@
 #include "verosim/cli/count_symbols.h"
 
 #include <cassert>
-#include <exception>
 
-#include "verosim/cli/json_util.h"
-#include "verosim/extraction/extract.h"
-#include "verosim/extraction/source_format_util.h"
+#include "verosim/app/score_pipeline.h"
 #include "verosim/extraction/vrv_bridge.h"
+#include "verosim/support/json_util.h"
 
 namespace verosim {
 
@@ -88,46 +86,37 @@ bool CountSymbolsFile(VrvBridge &bridge, const std::string &path,
     os << "{\"path\":";
     WriteJsonString(path, os);
 
-    bool loaded = false;
-    std::string error;
-    try {
-        bridge.set_typed_space_handling(options.typed_space_handling);
-        loaded = bridge.LoadScoreFile(path);
-        if (!loaded) error = "load failed";
-    }
-    catch (const std::exception &e) {
-        error = std::string("exception: ") + e.what();
-    }
-    if (!loaded) {
+    const ExtractOptions extract_options{ .surface = options.surface,
+        .typed_space_handling = options.typed_space_handling };
+    const LoadedScore loaded = LoadAndExtractScoreFile(bridge, path, extract_options);
+    if (!loaded.ok) {
         os << ",\"ok\":false,\"error\":";
-        WriteJsonString(error, os);
+        WriteJsonString(loaded.error, os);
         os << "}\n";
         return false;
     }
 
-    const ExtractOptions extract_options{ .surface = options.surface,
-        .typed_space_handling = options.typed_space_handling };
-    ExtractResult result = ExtractSymScore(bridge.GetDoc(), SourceFormatFromBridge(bridge), extract_options);
-    const SymbolCounts counts = CountSymbols(result.score);
-    const int total = result.score.notation_size();
+    const SymScore &score = loaded.score;
+    const SymbolCounts counts = CountSymbols(score);
+    const int total = score.notation_size();
     // the per-category split must tile the notation size exactly
     assert(counts.total() == total);
 
     long nMeasures = 0;
     long nNotes = 0;
-    for (const SymPart &part : result.score.parts) {
+    for (const SymPart &part : score.parts) {
         nMeasures += static_cast<long>(part.bar_list.size());
         for (const SymMeasure &measure : part.bar_list) {
             nNotes += static_cast<long>(measure.notes.size());
         }
     }
 
-    os << ",\"ok\":true,\"total\":" << total << ",\"n_parts\":" << result.score.parts.size()
+    os << ",\"ok\":true,\"total\":" << total << ",\"n_parts\":" << score.parts.size()
        << ",\"n_measures\":" << nMeasures << ",\"n_notes\":" << nNotes << ",\"categories\":";
     WriteCategories(counts, os);
     os << ",\"warnings\":";
-    WriteJsonStringArray(result.warnings, os);
-    if (options.per_measure) WritePerMeasure(result.score, os);
+    WriteJsonStringArray(loaded.warnings, os);
+    if (options.per_measure) WritePerMeasure(score, os);
     os << "}\n";
     return true;
 }

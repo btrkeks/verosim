@@ -1,4 +1,4 @@
-#include "extract_internal.h"
+#include "extractor.h"
 
 #include <string>
 
@@ -113,12 +113,12 @@ SymNote Extractor::MakeSymNote(const Event &ev, const vrv::Note *note,
     // tie: control element (@endid/@startid, possibly registered by the
     // PREVIOUS measure's <tie>) or @tie attribute (MEI input; neither
     // importer emits it). erase() consumes the one-shot control-element refs.
-    bool tied = tie_end_ids_.erase(note->GetID()) > 0;
+    bool tied = ties_.ConsumeEndId(note->GetID());
     if (note->HasTie()
         && (note->GetTie() == vrv::TIE_m || note->GetTie() == vrv::TIE_t)) {
         tied = true;
     }
-    bool tieStart = tie_start_ids_.erase(note->GetID()) > 0;
+    bool tieStart = ties_.ConsumeStartId(note->GetID());
     if (note->HasTie()
         && (note->GetTie() == vrv::TIE_i || note->GetTie() == vrv::TIE_m)) {
         tieStart = true;
