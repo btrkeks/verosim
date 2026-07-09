@@ -508,6 +508,43 @@ TEST_CASE("JSONL batch scores in-memory kern records and writes summary", "[cli]
     std::filesystem::remove(summary);
 }
 
+TEST_CASE("JSONL batch scores Humdrum records in parallel", "[cli]")
+{
+    const std::filesystem::path input = std::filesystem::temp_directory_path()
+        / std::filesystem::path("verosim-validation-jsonl-parallel.jsonl");
+    const std::string kern = "**kern\\n*clefG2\\n*M4/4\\n=1\\n4c\\n*-\\n";
+    {
+        std::ofstream out(input);
+        for (int i = 0; i < 200; ++i) {
+            out << "{\"sample_id\":" << i << ",\"prediction\":\"" << kern
+                << "\",\"target\":\"" << kern << "\"}\n";
+        }
+    }
+
+    BatchJsonlArgs args;
+    args.jsonl_path = input.string();
+    args.jobs = 8;
+
+    std::ostringstream output;
+    std::string error;
+    REQUIRE(CompareJsonlBatchToJson(args, CompareCliOptions{}, output, error));
+    CHECK(error.empty());
+
+    std::istringstream lines(output.str());
+    std::string line;
+    int count = 0;
+    while (std::getline(lines, line)) {
+        jsonxx::Object record;
+        REQUIRE(record.parse(line));
+        CHECK(record.get<jsonxx::Boolean>("ok"));
+        CHECK(record.get<jsonxx::Number>("id") == static_cast<double>(count));
+        ++count;
+    }
+    CHECK(count == 200);
+
+    std::filesystem::remove(input);
+}
+
 TEST_CASE("JSONL batch reports malformed input records as data failures", "[cli]")
 {
     const std::filesystem::path input = std::filesystem::temp_directory_path()
