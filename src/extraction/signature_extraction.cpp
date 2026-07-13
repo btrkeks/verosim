@@ -166,6 +166,28 @@ SymExtra Extractor::MakeSlurExtra(const vrv::Slur &slur, const Fraction &offset,
     return extra;
 }
 
+SymExtra Extractor::MakeArpeggioExtra(
+    const vrv::Arpeg &arpeggio, const Fraction &offset, int spanLength)
+{
+    SymExtra extra;
+    extra.vrv_id = arpeggio.GetID();
+    extra.kind = ExtraKind::kArpeggio;
+    extra.offset = offset;
+    // converter21 derives the music21 type jointly from MEI @arrow and @order.
+    const bool hasArrow = arpeggio.GetArrow() == vrv::BOOLEAN_true;
+    switch (arpeggio.GetOrder()) {
+        case vrv::arpegLog_ORDER_up: extra.symbolic = hasArrow ? "up" : "normal"; break;
+        case vrv::arpegLog_ORDER_down: extra.symbolic = "down"; break;
+        case vrv::arpegLog_ORDER_nonarp: extra.symbolic = "non-arpeggio"; break;
+        case vrv::arpegLog_ORDER_NONE:
+        default: extra.symbolic = hasArrow ? "up" : "normal"; break;
+    }
+    if (spanLength > 1) {
+        extra.infodict.emplace_back("arpeggiospanlength", std::to_string(spanLength));
+    }
+    return extra;
+}
+
 std::optional<SymExtra> Extractor::MakeOttavaExtra(const vrv::Octave &octave,
     const Fraction &offset, const std::optional<Fraction> &duration)
 {

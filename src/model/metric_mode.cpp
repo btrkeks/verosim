@@ -49,6 +49,11 @@ bool MetricModeIncludesOttavas(MetricMode mode)
     return mode == MetricMode::kExperimental;
 }
 
+bool MetricModeIncludesArpeggios(MetricMode mode)
+{
+    return mode == MetricMode::kExperimental;
+}
+
 bool MetricSurfaceIncludesSystemBreaks(const MetricSurface &surface)
 {
     return surface.layout == LayoutSurface::kSystemBreaks;

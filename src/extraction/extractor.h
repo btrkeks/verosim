@@ -77,6 +77,8 @@ private:
         const std::optional<Fraction> &duration);
     SymExtra MakeSlurExtra(const vrv::Slur &slur, const Fraction &offset,
         const std::optional<Fraction> &duration);
+    SymExtra MakeArpeggioExtra(
+        const vrv::Arpeg &arpeggio, const Fraction &offset, int spanLength);
     std::optional<SymExtra> MakeOttavaExtra(const vrv::Octave &octave, const Fraction &offset,
         const std::optional<Fraction> &duration);
     SymExtra MakeSystemBreakExtra(

@@ -442,6 +442,7 @@ TEST_CASE("SvgSymbolIndex resolves structural measures notes accidentals and ext
       </g>
       <g id="random-meter-id" class="meterSig"/>
       <g id="random-octave-id" class="octave"/>
+      <g id="random-arpeggio-id" class="arpeg"/>
     </g>
     <g id="right-barline-id" class="barLine"/>
   </g>
@@ -520,6 +521,16 @@ TEST_CASE("SvgSymbolIndex resolves structural measures notes accidentals and ext
     REQUIRE(ottava.has_value());
     CHECK(ottava->kind == SvgSelectorKind::kId);
     CHECK(ottava->value == "random-octave-id");
+
+    const std::optional<SvgSelector> arpeggio = index.Resolve(VisualSymbolRef{
+        .kind = VisualTargetKind::kExtra,
+        .locator = loc,
+        .primary_id = "missing-arpeggio",
+        .extra_kind = ExtraKind::kArpeggio,
+        .has_extra_kind = true });
+    REQUIRE(arpeggio.has_value());
+    CHECK(arpeggio->kind == SvgSelectorKind::kId);
+    CHECK(arpeggio->value == "random-arpeggio-id");
 
     SymbolLocator left_barline_loc = loc;
     left_barline_loc.part_idx = 4;
