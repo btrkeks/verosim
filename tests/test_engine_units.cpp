@@ -353,6 +353,47 @@ TEST_CASE("extras set distance and diff", "[engine]")
         CHECK(MeasureDiff(orig, same).cost == 0);
         CHECK(MeasureDiff(orig, shifted).cost == 2);
     }
+    SECTION("arpeggio insert/delete costs type plus span length")
+    {
+        const SymMeasure orig = MakeMeasure({}, { MakeArpeggio("normal", 2) });
+        const SymMeasure comp = MakeMeasure({}, {});
+        CHECK_FALSE(orig.extras[0].duration.has_value());
+        CHECK(CountSymbols(MakeScore({ { orig } })).other_extras == 2);
+        const DiffResult r = MeasureDiff(orig, comp);
+        CHECK(r.cost == 2);
+        CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "extradel", 1 } });
+        CHECK(EditDistancesDict(r.ops) == std::map<std::string, long>{
+                                           { "bad kern syntax OMR-ED", 0 },
+                                           { "wrong multi-staff arpeggio OMR-ED", 2 } });
+    }
+    SECTION("arpeggio symbolic and span-length edits match Python costs")
+    {
+        const SymMeasure orig = MakeMeasure({}, { MakeArpeggio("normal", 2) });
+        const SymMeasure changedType = MakeMeasure({}, { MakeArpeggio("up", 2) });
+        const SymMeasure changedSpan = MakeMeasure({}, { MakeArpeggio("normal", 3) });
+
+        const DiffResult typeResult = MeasureDiff(orig, changedType);
+        CHECK(typeResult.cost == 2);
+        CHECK(OpMultiset(typeResult.ops)
+            == std::map<std::string, int>{ { "extrasymboledit", 1 } });
+
+        const DiffResult spanResult = MeasureDiff(orig, changedSpan);
+        CHECK(spanResult.cost == 2);
+        CHECK(OpMultiset(spanResult.ops)
+            == std::map<std::string, int>{ { "extrainfoedit", 1 } });
+        CHECK(EditDistancesDict(spanResult.ops) == std::map<std::string, long>{
+                                                     { "bad kern syntax OMR-ED", 0 },
+                                                     { "wrong multi-staff arpeggio OMR-ED", 2 } });
+    }
+    SECTION("arpeggios match only at the same offset")
+    {
+        const SymMeasure orig = MakeMeasure({}, { MakeArpeggio("normal", 2, Fraction(0)) });
+        const SymMeasure shifted = MakeMeasure({}, { MakeArpeggio("normal", 2, Fraction(1)) });
+        const DiffResult r = MeasureDiff(orig, shifted);
+        CHECK(r.cost == 4);
+        CHECK(OpMultiset(r.ops) == std::map<std::string, int>{ { "extradel", 1 },
+                                      { "extrains", 1 } });
+    }
     SECTION("ottava insert/delete costs type plus duration")
     {
         const SymMeasure orig = MakeMeasure({}, { MakeOttava("8va", Fraction(0), Fraction(2)) });

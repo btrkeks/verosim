@@ -85,6 +85,7 @@ bool IsBarlineLike(const std::string &classes)
 
 std::optional<ExtraKind> ExtraKindFromClasses(const std::string &classes)
 {
+    if (HasClassToken(classes, "arpeg")) return ExtraKind::kArpeggio;
     if (HasClassToken(classes, "clef")) return ExtraKind::kClef;
     if (HasClassToken(classes, "keySig")) return ExtraKind::kKeySig;
     if (HasClassToken(classes, "meterSig")) return ExtraKind::kTimeSig;

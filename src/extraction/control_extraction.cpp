@@ -1,5 +1,6 @@
 #include "extractor.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <utility>
@@ -34,6 +35,80 @@ bool HasStaffIdent(const vrv::Object *obj)
 }
 
 } // namespace extract_detail
+
+namespace {
+
+const vrv::Object *ArpeggioCarrier(const vrv::Object *target)
+{
+    if (!target || (!target->Is(vrv::NOTE) && !target->Is(vrv::CHORD))) return nullptr;
+    if (target->Is(vrv::NOTE)) {
+        if (const vrv::Object *chord = target->GetFirstAncestor(vrv::CHORD)) return chord;
+    }
+    return target;
+}
+
+std::optional<int> HighestDiatonicPitch(const vrv::Object *carrier)
+{
+    std::optional<int> highest;
+    const auto consider_note = [&](const vrv::Note *note) {
+        const char step = StepFromPname(note->GetPname());
+        if (step == 0) return;
+        const int pitch = note->GetOct() * 7 + DiatonicIndex(step);
+        if (!highest || pitch > *highest) highest = pitch;
+    };
+
+    if (carrier->Is(vrv::NOTE)) {
+        consider_note(vrv_cast<const vrv::Note *>(carrier));
+    }
+    else if (carrier->Is(vrv::CHORD)) {
+        for (const vrv::Object *child : carrier->GetChildren()) {
+            if (child->Is(vrv::NOTE)) consider_note(vrv_cast<const vrv::Note *>(child));
+        }
+    }
+    return highest;
+}
+
+struct ArpeggioPrimary {
+    const vrv::Object *carrier = nullptr;
+    int span_length = 0;
+};
+
+std::optional<ArpeggioPrimary> FindArpeggioPrimary(const vrv::Arpeg &arpeggio)
+{
+    std::vector<const vrv::Object *> targets;
+    const auto add_target = [&](const vrv::Object *target) {
+        if (!target || (!target->Is(vrv::NOTE) && !target->Is(vrv::CHORD))) return;
+        if (std::find(targets.begin(), targets.end(), target) == targets.end()) {
+            targets.push_back(target);
+        }
+    };
+
+    add_target(arpeggio.GetStart());
+    for (const vrv::Object *target : arpeggio.GetRefs()) add_target(target);
+    if (targets.size() <= 1) return std::nullopt;
+
+    std::vector<const vrv::Object *> carriers;
+    for (const vrv::Object *target : targets) {
+        const vrv::Object *carrier = ArpeggioCarrier(target);
+        if (carrier && std::find(carriers.begin(), carriers.end(), carrier) == carriers.end()) {
+            carriers.push_back(carrier);
+        }
+    }
+
+    const vrv::Object *primary = nullptr;
+    std::optional<int> highest_pitch;
+    for (const vrv::Object *carrier : carriers) {
+        const std::optional<int> pitch = HighestDiatonicPitch(carrier);
+        if (pitch && (!highest_pitch || *pitch > *highest_pitch)) {
+            primary = carrier;
+            highest_pitch = pitch;
+        }
+    }
+    if (!primary) return std::nullopt;
+    return ArpeggioPrimary{ primary, static_cast<int>(carriers.size()) };
+}
+
+} // namespace
 
 void Extractor::RegisterEventLocations(const std::string &staffN, const std::vector<Event> &events)
 {
@@ -129,6 +204,29 @@ void Extractor::CollectControlExtras(const vrv::Measure *measure, const std::str
     };
 
     for (const vrv::Object *obj : measure->GetChildren()) {
+        if (obj->Is(vrv::ARPEG)) {
+            if (!MetricModeIncludesArpeggios(options_.surface.mode)) continue;
+            const vrv::Arpeg *arpeggio = vrv_cast<const vrv::Arpeg *>(obj);
+            const std::optional<ArpeggioPrimary> primary = FindArpeggioPrimary(*arpeggio);
+            if (!primary) continue;
+
+            const vrv::Object *staff_obj = primary->carrier->GetFirstAncestor(vrv::STAFF);
+            if (!staff_obj) {
+                Warn("arpeggio <" + arpeggio->GetID() + "> lacks a primary staff");
+                continue;
+            }
+            const vrv::Staff *staff = vrv_cast<const vrv::Staff *>(staff_obj);
+            if (std::to_string(staff->GetN()) != staffN) continue;
+
+            const EventLocation *event = controls_.FindEvent(primary->carrier->GetID());
+            if (!event || event->staff_n != staffN) {
+                Warn("arpeggio <" + arpeggio->GetID() + "> lacks a resolvable primary offset");
+                continue;
+            }
+            extras.push_back(MakeArpeggioExtra(
+                *arpeggio, event->abs_offset - start_abs, primary->span_length));
+            continue;
+        }
         if (!StaffMatches(obj, staffN)) continue;
         const vrv::TimePointInterface *timePoint = obj->GetTimePointInterface();
         if (!HasStaffIdent(obj) && (!timePoint || !timePoint->HasStartid())

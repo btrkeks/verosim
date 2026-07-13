@@ -4,6 +4,7 @@
 // extraction headers forward-declare Verovio where they can.
 #include "accid.h"
 #include "artic.h"
+#include "arpeg.h"
 #include "barline.h"
 #include "beam.h"
 #include "beamspan.h"

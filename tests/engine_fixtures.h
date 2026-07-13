@@ -126,6 +126,18 @@ inline SymExtra MakeOttava(
     return extra;
 }
 
+inline SymExtra MakeArpeggio(
+    const std::string &symbolic, int spanLength = 2, Fraction offset = Fraction(0))
+{
+    SymExtra extra;
+    extra.vrv_id = "arpeggio";
+    extra.kind = ExtraKind::kArpeggio;
+    extra.symbolic = symbolic;
+    extra.infodict = { { "arpeggiospanlength", std::to_string(spanLength) } };
+    extra.offset = offset;
+    return extra;
+}
+
 inline SymMeasure MakeMeasure(std::vector<SymNote> notes, std::vector<SymExtra> extras = {})
 {
     SymMeasure measure;

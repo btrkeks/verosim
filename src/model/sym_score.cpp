@@ -26,7 +26,9 @@ struct ExtraKindTraits {
     bool rendered_as_svg_symbol;
 };
 
-constexpr std::array<ExtraKindTraits, 11> kExtraKindTraits = { {
+constexpr std::array<ExtraKindTraits, 12> kExtraKindTraits = { {
+    { ExtraKind::kArpeggio, "arpeggio", "wrong multi-staff arpeggio OMR-ED", true, false,
+        SymbolCountBucket::kOtherExtras, true },
     { ExtraKind::kBarline, "barline", "wrong barline OMR-ED", false, false,
         SymbolCountBucket::kBarline, true },
     { ExtraKind::kClef, "clef", "wrong clef OMR-ED", true, true,

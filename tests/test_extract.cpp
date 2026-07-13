@@ -1130,6 +1130,23 @@ TEST_CASE("mei_controls.mei: timestamp controls use active meter and staff resol
     REQUIRE(cross_octave->duration.has_value());
     CHECK(*cross_octave->duration == Fraction(4));
 
+    const std::vector<const SymExtra *> arpeggios
+        = ExtrasOfKind(staff1_m1, ExtraKind::kArpeggio);
+    REQUIRE(arpeggios.size() == 4);
+    CHECK(ExtrasOfKind(staff2_m1, ExtraKind::kArpeggio).empty());
+    const std::vector<std::string> arpeggioSymbolics{ "normal", "up", "down", "non-arpeggio" };
+    const std::vector<Fraction> arpeggioOffsets{
+        Fraction(0), Fraction(1, 2), Fraction(1), Fraction(2) };
+    for (std::size_t i = 0; i < arpeggios.size(); ++i) {
+        CHECK(arpeggios[i]->symbolic == arpeggioSymbolics[i]);
+        CHECK(arpeggios[i]->offset == arpeggioOffsets[i]);
+        CHECK_FALSE(arpeggios[i]->duration.has_value());
+        REQUIRE(arpeggios[i]->infodict.size() == 1);
+        CHECK(arpeggios[i]->infodict[0].first == "arpeggiospanlength");
+        CHECK(arpeggios[i]->infodict[0].second == "2");
+        CHECK(arpeggios[i]->notation_size() == 2);
+    }
+
     long ottava_symbols = 0;
     for (const SymPart &part : result.score.parts) {
         for (const SymMeasure &measure : part.bar_list) {
@@ -1141,7 +1158,7 @@ TEST_CASE("mei_controls.mei: timestamp controls use active meter and staff resol
     CHECK(ottava_symbols == 6);
 }
 
-TEST_CASE("mei_controls.mei: active mode extracts slurs but skips directions and ottavas", "[extract]")
+TEST_CASE("mei_controls.mei: active mode skips experimental controls", "[extract]")
 {
     const ExtractResult result = ExtractFixture("mei_controls.mei", SourceFormat::kOther);
     CHECK(result.warnings.empty());
@@ -1151,10 +1168,96 @@ TEST_CASE("mei_controls.mei: active mode extracts slurs but skips directions and
     CHECK(ExtrasOfKind(staff1_m1, ExtraKind::kDynamic).empty());
     CHECK(ExtrasOfKind(staff1_m1, ExtraKind::kCrescendo).empty());
     CHECK(ExtrasOfKind(staff1_m1, ExtraKind::kOttava).empty());
+    CHECK(ExtrasOfKind(staff1_m1, ExtraKind::kArpeggio).empty());
     CHECK(ExtrasOfKind(staff2_m1, ExtraKind::kDynamic).empty());
     CHECK(ExtrasOfKind(staff2_m1, ExtraKind::kOttava).empty());
+    CHECK(ExtrasOfKind(staff2_m1, ExtraKind::kArpeggio).empty());
     CHECK(ExtrasOfKind(staff1_m1, ExtraKind::kSlur).size() == 1);
     CHECK(ExtrasOfKind(staff2_m1, ExtraKind::kSlur).size() == 1);
+}
+
+TEST_CASE("arpeggios follow Python's Arpeggios-bit spanner behavior", "[extract]")
+{
+    const std::string multiStaff = R"kern(**kern	**kern
+*clefG2	*clefF4
+*M4/4	*M4/4
+=1	=1
+4c::	4CC::
+=2	=2
+*-	*-
+)kern";
+    const ExtractResult active = ExtractKernData(multiStaff);
+    const ExtractResult experimental = ExtractData(multiStaff, vrv::HUMDRUM, SourceFormat::kKern,
+        ExtractOptions{ .surface = MetricSurface{ .mode = MetricMode::kExperimental } });
+    CHECK(active.warnings.empty());
+    CHECK(experimental.warnings.empty());
+
+    std::vector<const SymExtra *> found;
+    for (const SymPart &part : experimental.score.parts) {
+        for (const SymMeasure &measure : part.bar_list) {
+            const std::vector<const SymExtra *> inMeasure
+                = ExtrasOfKind(measure, ExtraKind::kArpeggio);
+            found.insert(found.end(), inMeasure.begin(), inMeasure.end());
+        }
+    }
+    REQUIRE(found.size() == 1);
+    CHECK(found[0]->symbolic == "normal");
+    CHECK(found[0]->offset == Fraction(0));
+    CHECK_FALSE(found[0]->duration.has_value());
+    REQUIRE(found[0]->infodict.size() == 1);
+    CHECK(found[0]->infodict[0].second == "2");
+    CHECK(CountSymbols(experimental.score).other_extras
+        == CountSymbols(active.score).other_extras + 2);
+
+    const std::string singleChord = R"kern(**kern
+*clefG2
+*M4/4
+=1
+4c: 4e: 4g:
+=2
+*-
+)kern";
+    const ExtractResult single = ExtractData(singleChord, vrv::HUMDRUM, SourceFormat::kKern,
+        ExtractOptions{ .surface = MetricSurface{ .mode = MetricMode::kExperimental } });
+    CHECK(single.warnings.empty());
+    REQUIRE(single.score.parts.size() == 1);
+    REQUIRE(single.score.parts[0].bar_list.size() == 1);
+    CHECK(ExtrasOfKind(single.score.parts[0].bar_list[0], ExtraKind::kArpeggio).empty());
+
+    const std::string noteRefsInChord = R"mei(<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music><body><mdiv><score>
+    <scoreDef meter.count="4" meter.unit="4">
+      <staffGrp><staffDef n="1" lines="5" clef.shape="G" clef.line="2"/></staffGrp>
+    </scoreDef>
+    <section><measure n="1">
+      <staff n="1"><layer n="1">
+        <chord xml:id="c1" dur="4">
+          <note xml:id="n1" pname="c" oct="4"/>
+          <note xml:id="n2" pname="e" oct="4"/>
+        </chord>
+        <chord xml:id="c2" dur="4">
+          <note pname="d" oct="4"/>
+          <note pname="f" oct="4"/>
+        </chord>
+      </layer></staff>
+      <arpeg xml:id="note_refs" plist="#n1 #n2"/>
+      <arpeg xml:id="single_chord_ref" plist="#c2"/>
+    </measure></section>
+  </score></mdiv></body></music>
+</mei>)mei";
+    const ExtractResult noteRefs = ExtractMeiData(noteRefsInChord,
+        ExtractOptions{ .surface = MetricSurface{ .mode = MetricMode::kExperimental } });
+    CHECK(noteRefs.warnings.empty());
+    REQUIRE(noteRefs.score.parts.size() == 1);
+    REQUIRE(noteRefs.score.parts[0].bar_list.size() == 1);
+    const std::vector<const SymExtra *> noteRefArpeggios
+        = ExtrasOfKind(noteRefs.score.parts[0].bar_list[0], ExtraKind::kArpeggio);
+    REQUIRE(noteRefArpeggios.size() == 1);
+    CHECK(noteRefArpeggios[0]->vrv_id == "note_refs");
+    CHECK(noteRefArpeggios[0]->symbolic == "normal");
+    CHECK(noteRefArpeggios[0]->infodict.empty());
+    CHECK(noteRefArpeggios[0]->notation_size() == 1);
 }
 
 TEST_CASE("unsupported octave displacement warns and is skipped", "[extract]")

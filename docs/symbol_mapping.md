@@ -49,12 +49,13 @@ measure             → staff@n → layer@n → events; control elements (tie @s
 | measure `@left`/`@right`; layer `barLine` | SymExtra kind=barline or repeat; metric offset/duration are `None` | 1 for a non-regular visible barline; repeat barlines add 1 for repeat direction. Invisible barlines and regular boundary barlines are ignored. |
 | `slur` control | SymExtra kind=slur with offset and duration | 1 duration symbol |
 | `octave` control (experimental) | SymExtra kind=ottava, symbolic `8va`/`8vb`/`15ma`/`15mb`, with offset and duration | 2 (symbolic ottava text + duration symbol). `22ma`/`22mb` is skipped with a warning until the Python reference supports it. |
+| multi-note/multi-staff `arpeg` control (experimental) | SymExtra kind=arpeggio on the highest diatonic carrier, symbolic `normal`/`up`/`down`/`non-arpeggio`, with offset but no duration | 2 (symbolic type + `arpeggiospanlength`). A single chord's arpeggio is an expression in musicdiff and is not included by the `Arpeggios` bit alone. |
 | `mNum`, `stem`, `flag`, `dots`, `label`, `instrDef`, `pgHead`, `grpSym`, `mdiv`, milestones | ignored | 0 |
 
 Experimental mode additionally includes selected direction controls
-(`dynam`, `hairpin`) and ottavas (`octave`). Directions use musicdiff's broader
-Directions bit, while ottavas use musicdiff's separate Ottavas bit; the harness
-reports both separately from the active gate.
+(`dynam`, `hairpin`), ottavas (`octave`), and multi-carrier arpeggios (`arpeg`).
+Directions use musicdiff's broader Directions bit, while ottavas and arpeggios
+use their separate `Ottavas` and `Arpeggios` bits.
 
 ## Accidentals / effective pitch (D13)
 

@@ -84,6 +84,7 @@ struct SymNote {
 // kind strings are musicdiff's; enum order == lexicographic order of the
 // kind strings, so sorting by (kind, offset) matches annotation.py:1255.
 enum class ExtraKind {
+    kArpeggio,
     kBarline,
     kClef,
     kCrescendo,

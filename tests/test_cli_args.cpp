@@ -27,6 +27,8 @@ TEST_CASE("MetricMode helpers map the public mode names", "[cli]")
     CHECK(MetricModeIncludesDirections(MetricMode::kExperimental));
     CHECK_FALSE(MetricModeIncludesOttavas(MetricMode::kActive));
     CHECK(MetricModeIncludesOttavas(MetricMode::kExperimental));
+    CHECK_FALSE(MetricModeIncludesArpeggios(MetricMode::kActive));
+    CHECK(MetricModeIncludesArpeggios(MetricMode::kExperimental));
 
     REQUIRE(ParseLayoutSurface("none") == LayoutSurface::kNone);
     REQUIRE(ParseLayoutSurface("system-breaks") == LayoutSurface::kSystemBreaks);

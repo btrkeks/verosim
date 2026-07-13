@@ -36,6 +36,10 @@
               <octave xml:id="octave_8va_staff1" staff="1" startid="#s1n2" endid="#s1n4" dis="8" dis.place="above"/>
               <octave xml:id="octave_8vb_staff2" staff="2" startid="#s2n1" endid="#s2n3" dis="8" dis.place="below"/>
               <octave xml:id="octave_cross_measure" staff="1" startid="#s1n4" endid="#m2n3" dis="15" dis.place="above"/>
+              <arpeg xml:id="arpeggio_normal" plist="#s2n1 #s1n1" order="up"/>
+              <arpeg xml:id="arpeggio_up" plist="#s2n2 #s1n2" arrow="true"/>
+              <arpeg xml:id="arpeggio_down" plist="#s2n3 #s1n3" order="down"/>
+              <arpeg xml:id="arpeggio_nonarp" plist="#s2n4 #s1n4" arrow="true" order="nonarp"/>
             </measure>
             <measure n="2">
               <staff n="1">

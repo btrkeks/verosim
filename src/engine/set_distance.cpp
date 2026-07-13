@@ -336,6 +336,7 @@ DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,
         // therefore vacuous at v1, exactly like musicdiff.
         switch (oe.kind) {
             case ExtraKind::kClef: return oe.symbolic == ce.symbolic;
+            case ExtraKind::kArpeggio:
             case ExtraKind::kCrescendo:
             case ExtraKind::kDiminuendo:
             case ExtraKind::kDynamic:
@@ -533,6 +534,7 @@ long ExtrasSetDistanceCost(const SymMeasure &orig, const SymMeasure &comp,
         }
         switch (oe.kind) {
             case ExtraKind::kClef: return oe.symbolic == ce.symbolic;
+            case ExtraKind::kArpeggio:
             case ExtraKind::kCrescendo:
             case ExtraKind::kDiminuendo:
             case ExtraKind::kDynamic:

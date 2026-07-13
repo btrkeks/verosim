@@ -88,6 +88,8 @@ build/verosim --count-symbols --mode experimental score.mei
 Metric modes are `active` and `experimental`. The default is `active`: core
 notation plus ties, slurs, and articulations. `experimental` adds broader
 extras such as dynamics, hairpins, and ottavas and is intended for diagnostics.
+It also enables multi-note and multi-staff arpeggios, matching musicdiff's
+separate `Arpeggios` detail bit.
 `--mode active|experimental` is accepted by pair compare, `--pairs`, `--batch`,
 `--batch-jsonl`, `--visualize`, and `--count-symbols`.
 
