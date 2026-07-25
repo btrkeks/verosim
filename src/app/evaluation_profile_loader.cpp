@@ -97,6 +97,177 @@ std::string Prefix(const std::string &path, const std::string &message)
     return "evaluation profile " + path + ": " + message;
 }
 
+class StrictAsciiJsonValidator {
+public:
+    explicit StrictAsciiJsonValidator(std::string_view input)
+        : input_(input)
+    {
+    }
+
+    bool Parse()
+    {
+        SkipWhitespace();
+        if (!ParseValue()) return false;
+        SkipWhitespace();
+        return position_ == input_.size();
+    }
+
+private:
+    void SkipWhitespace()
+    {
+        while (position_ < input_.size()
+            && (input_[position_] == ' ' || input_[position_] == '\t'
+                || input_[position_] == '\r' || input_[position_] == '\n')) {
+            ++position_;
+        }
+    }
+
+    bool Consume(char expected)
+    {
+        if (position_ >= input_.size() || input_[position_] != expected) return false;
+        ++position_;
+        return true;
+    }
+
+    bool ConsumeLiteral(std::string_view literal)
+    {
+        if (input_.substr(position_, literal.size()) != literal) return false;
+        position_ += literal.size();
+        return true;
+    }
+
+    static int HexValue(char ch)
+    {
+        if (ch >= '0' && ch <= '9') return ch - '0';
+        if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
+        if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
+        return -1;
+    }
+
+    bool ParseString()
+    {
+        if (!Consume('"')) return false;
+        while (position_ < input_.size()) {
+            const unsigned char ch = static_cast<unsigned char>(input_[position_++]);
+            if (ch == '"') return true;
+            if (ch < 0x20 || ch >= 0x80) return false;
+            if (ch != '\\') continue;
+            if (position_ >= input_.size()) return false;
+            const char escape = input_[position_++];
+            if (escape == 'u') {
+                if (position_ + 4 > input_.size()) return false;
+                int codepoint = 0;
+                for (int i = 0; i < 4; ++i) {
+                    const int digit = HexValue(input_[position_++]);
+                    if (digit < 0) return false;
+                    codepoint = codepoint * 16 + digit;
+                }
+                if (codepoint >= 0x80) return false;
+            }
+            else if (std::string_view("\"\\/bfnrt").find(escape)
+                == std::string_view::npos) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    bool ParseNumber()
+    {
+        if (position_ < input_.size() && input_[position_] == '-') ++position_;
+        if (position_ >= input_.size()) return false;
+        if (input_[position_] == '0') {
+            ++position_;
+        }
+        else if (input_[position_] >= '1' && input_[position_] <= '9') {
+            do {
+                ++position_;
+            } while (position_ < input_.size() && input_[position_] >= '0'
+                && input_[position_] <= '9');
+        }
+        else {
+            return false;
+        }
+        if (position_ < input_.size() && input_[position_] == '.') {
+            ++position_;
+            if (position_ >= input_.size() || input_[position_] < '0'
+                || input_[position_] > '9') {
+                return false;
+            }
+            while (position_ < input_.size() && input_[position_] >= '0'
+                && input_[position_] <= '9') {
+                ++position_;
+            }
+        }
+        if (position_ < input_.size()
+            && (input_[position_] == 'e' || input_[position_] == 'E')) {
+            ++position_;
+            if (position_ < input_.size()
+                && (input_[position_] == '+' || input_[position_] == '-')) {
+                ++position_;
+            }
+            if (position_ >= input_.size() || input_[position_] < '0'
+                || input_[position_] > '9') {
+                return false;
+            }
+            while (position_ < input_.size() && input_[position_] >= '0'
+                && input_[position_] <= '9') {
+                ++position_;
+            }
+        }
+        return true;
+    }
+
+    bool ParseArray()
+    {
+        if (!Consume('[')) return false;
+        SkipWhitespace();
+        if (Consume(']')) return true;
+        for (;;) {
+            if (!ParseValue()) return false;
+            SkipWhitespace();
+            if (Consume(']')) return true;
+            if (!Consume(',')) return false;
+            SkipWhitespace();
+        }
+    }
+
+    bool ParseObject()
+    {
+        if (!Consume('{')) return false;
+        SkipWhitespace();
+        if (Consume('}')) return true;
+        for (;;) {
+            if (!ParseString()) return false;
+            SkipWhitespace();
+            if (!Consume(':')) return false;
+            SkipWhitespace();
+            if (!ParseValue()) return false;
+            SkipWhitespace();
+            if (Consume('}')) return true;
+            if (!Consume(',')) return false;
+            SkipWhitespace();
+        }
+    }
+
+    bool ParseValue()
+    {
+        if (position_ >= input_.size()) return false;
+        switch (input_[position_]) {
+            case '{': return ParseObject();
+            case '[': return ParseArray();
+            case '"': return ParseString();
+            case 't': return ConsumeLiteral("true");
+            case 'f': return ConsumeLiteral("false");
+            case 'n': return ConsumeLiteral("null");
+            default: return ParseNumber();
+        }
+    }
+
+    std::string_view input_;
+    std::size_t position_ = 0;
+};
+
 bool HasOnlyFields(const jsonxx::Object &object, std::string &error)
 {
     static constexpr std::array<std::string_view, 4> kFields
@@ -188,6 +359,12 @@ std::shared_ptr<const EvaluationProfile> LoadEvaluationProfileFile(
         return nullptr;
     }
     const std::string bytes = bytes_stream.str();
+
+    if (!StrictAsciiJsonValidator(bytes).Parse()) {
+        error = Prefix(path,
+            "invalid JSON (strict JSON syntax and ASCII schema strings are required)");
+        return nullptr;
+    }
 
     jsonxx::Object object;
     std::istringstream json_input(bytes);

@@ -267,8 +267,16 @@ TEST_CASE("profile loader validates exact v1 JSON and hashes exact bytes",
     REQUIRE(whitespace != nullptr);
     CHECK(whitespace->digest() != profile->digest());
 
+    const std::filesystem::path escaped_ascii_path
+        = WriteProfile("escaped-ascii", ValidProfileJson("test\\u002eprofile"));
+    const std::shared_ptr<const EvaluationProfile> escaped_ascii
+        = LoadEvaluationProfileFile(escaped_ascii_path.string(), error);
+    REQUIRE(escaped_ascii != nullptr);
+    CHECK(escaped_ascii->id() == "test.profile");
+
     std::filesystem::remove(path);
     std::filesystem::remove(whitespace_path);
+    std::filesystem::remove(escaped_ascii_path);
 }
 
 TEST_CASE("profile loader SHA-256 matches an independently hashed fixture",
@@ -297,6 +305,10 @@ TEST_CASE("profile loader rejects missing unknown duplicate and invalid features
         json.replace(position, marker.size(), "\"schema_version\":" + token);
         return json;
     };
+    std::string non_ascii_key = valid;
+    const std::size_t schema_key = non_ascii_key.find("\"schema\"");
+    REQUIRE(schema_key != std::string::npos);
+    non_ascii_key.replace(schema_key, 8, "\"\\u0173chema\"");
     const std::vector<std::pair<std::string, std::string>> cases = {
         { "unknown", valid.substr(0, valid.size() - 1) + ",\"unknown\":1}" },
         { "duplicate", "{\"schema\":\"verosim.evaluation-profile\",\"schema\":\"verosim.evaluation-profile\",\"schema_version\":1,\"id\":\"x\",\"features\":{}}" },
@@ -305,6 +317,12 @@ TEST_CASE("profile loader rejects missing unknown duplicate and invalid features
         { "version-plus", with_version("+1") },
         { "version-leading-zero", with_version("01") },
         { "version-rounded-decimal", with_version("1.0000000000000000000001") },
+        { "non-ascii-id", ValidProfileJson("\\u0141") },
+        { "malformed-unicode-id", ValidProfileJson("\\u00g1") },
+        { "non-ascii-key", non_ascii_key },
+        { "comment", "/* not strict JSON */" + valid },
+        { "trailing-comma", valid.substr(0, valid.size() - 1) + ",}" },
+        { "single-quoted-key", "{'schema':'verosim.evaluation-profile'}" },
         { "type", "{\"schema\":\"verosim.evaluation-profile\",\"schema_version\":1,\"id\":1,\"features\":{}}" },
     };
     for (const auto &[name, json] : cases) {
