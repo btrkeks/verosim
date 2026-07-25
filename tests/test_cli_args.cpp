@@ -710,6 +710,34 @@ TEST_CASE("JSONL batch reports malformed input records as data failures", "[cli]
     std::filesystem::remove(input);
 }
 
+TEST_CASE("no-profile early JSONL failures preserve legacy format provenance", "[cli]")
+{
+    const std::filesystem::path input = std::filesystem::temp_directory_path()
+        / "verosim-jsonl-legacy-early-format.jsonl";
+    {
+        std::ofstream out(input);
+        out << "{\"sample_id\":1,\"prediction\":\"**kern\\n4c\\n*-\\n\","
+               "\"prediction_format\":\"musicxml\"}\n";
+    }
+
+    BatchJsonlArgs args;
+    args.jsonl_path = input.string();
+    args.jobs = 1;
+    std::ostringstream output;
+    std::string error;
+    REQUIRE(CompareJsonlBatchToJson(args, CompareCliOptions{}, output, error));
+    CHECK(error.empty());
+
+    jsonxx::Object record;
+    REQUIRE(record.parse(output.str()));
+    CHECK_FALSE(record.get<jsonxx::Boolean>("ok"));
+    CHECK(record.get<jsonxx::String>("pred_format") == "kern");
+    CHECK(record.get<jsonxx::String>("gt_format") == "kern");
+    CHECK_FALSE(record.kv_map().contains("evaluation_profile"));
+
+    std::filesystem::remove(input);
+}
+
 TEST_CASE("profile-aware pair and JSONL batch outputs carry deterministic removal audits",
     "[cli][evaluation-profile]")
 {

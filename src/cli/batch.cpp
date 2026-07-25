@@ -28,6 +28,8 @@ struct JsonlScoreRecord {
     std::string gt;
     ScoreDataFormat pred_format = ScoreDataFormat::kKern;
     ScoreDataFormat gt_format = ScoreDataFormat::kKern;
+    ScoreDataFormat pred_audit_format = ScoreDataFormat::kKern;
+    ScoreDataFormat gt_audit_format = ScoreDataFormat::kKern;
     bool pred_auditable = false;
     bool gt_auditable = false;
     std::string prefix_json = "{";
@@ -146,9 +148,13 @@ std::string FailureRecordJson(VrvBridge &bridge, const JsonlScoreRecord &record,
     std::ostringstream out;
     out << record.prefix_json << (record.prefix_json == "{" ? "" : ",")
         << "\"pred_format\":";
-    WriteJsonString(ScoreDataFormatName(record.pred_format), out);
+    WriteJsonString(ScoreDataFormatName(options.evaluation_profile
+            ? record.pred_audit_format
+            : record.pred_format), out);
     out << ",\"gt_format\":";
-    WriteJsonString(ScoreDataFormatName(record.gt_format), out);
+    WriteJsonString(ScoreDataFormatName(options.evaluation_profile
+            ? record.gt_audit_format
+            : record.gt_format), out);
     out << ",\"pred_parser\":\"verovio\",\"gt_parser\":\"verovio\",\"ok\":false,\"error\":";
     WriteJsonString(record.early_error, out);
     out << ",\"distance\":null,\"n_pred\":null,\"n_gt\":null,\"omr_ned\":null,"
@@ -159,11 +165,11 @@ std::string FailureRecordJson(VrvBridge &bridge, const JsonlScoreRecord &record,
         LoadedScore gt;
         if (record.pred_auditable) {
             pred = LoadAndExtractScoreData(
-                bridge, record.pred, record.pred_format, pred_label, extract_options);
+                bridge, record.pred, record.pred_audit_format, pred_label, extract_options);
         }
         if (record.gt_auditable) {
             gt = LoadAndExtractScoreData(
-                bridge, record.gt, record.gt_format, gt_label, extract_options);
+                bridge, record.gt, record.gt_audit_format, gt_label, extract_options);
         }
         const EvaluationAudit audit = AuditAvailableScores(*options.evaluation_profile,
             pred.ok ? &pred.score : nullptr, gt.ok ? &gt.score : nullptr);
@@ -234,6 +240,8 @@ std::vector<JsonlScoreRecord> ReadJsonlScoreRecords(const BatchJsonlArgs &args, 
                 = MakeEarlyFailure("invalid JSON on line " + std::to_string(line_no));
             record.pred_format = args.pred_format;
             record.gt_format = args.gt_format;
+            record.pred_audit_format = args.pred_format;
+            record.gt_audit_format = args.gt_format;
             records.push_back(std::move(record));
             continue;
         }
@@ -248,6 +256,8 @@ std::vector<JsonlScoreRecord> ReadJsonlScoreRecords(const BatchJsonlArgs &args, 
         JsonlScoreRecord record;
         record.pred_format = args.pred_format;
         record.gt_format = args.gt_format;
+        record.pred_audit_format = args.pred_format;
+        record.gt_audit_format = args.gt_format;
         record.group = GroupValue(object, args.group_field);
         record.prefix_json = PrefixForObject(object, args, has_pred, has_gt);
         if (has_pred) record.pred = object.get<jsonxx::String>(args.pred_field);
@@ -255,10 +265,14 @@ std::vector<JsonlScoreRecord> ReadJsonlScoreRecords(const BatchJsonlArgs &args, 
 
         std::string pred_format_error;
         const bool pred_format_ok = ApplyFormatOverride(object,
-            args.pred_field + "_format", record.pred_format, pred_format_error);
+            args.pred_field + "_format", record.pred_audit_format, pred_format_error);
         std::string gt_format_error;
         const bool gt_format_ok = ApplyFormatOverride(
-            object, args.gt_field + "_format", record.gt_format, gt_format_error);
+            object, args.gt_field + "_format", record.gt_audit_format, gt_format_error);
+        if (has_pred && has_gt) {
+            if (pred_format_ok) record.pred_format = record.pred_audit_format;
+            if (gt_format_ok) record.gt_format = record.gt_audit_format;
+        }
         record.pred_auditable = has_pred && pred_format_ok;
         record.gt_auditable = has_gt && gt_format_ok;
         if (!has_pred) {
