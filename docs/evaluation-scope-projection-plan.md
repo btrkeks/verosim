@@ -119,13 +119,13 @@ Allowed phase statuses: `not started`, `in progress`, `complete`, `blocked`.
 |---|---|---|---|---|---|
 | P1 | Strict v1 taxonomy/profile loader/digest and pure canonical projector | none | focused schema/projection tests, phase autoreview | complete | `b746e76` |
 | P2 | Profile-aware extraction and comparison lifecycle with stable ownership/audit | P1 | pipeline/engine/cross-format/backcompat tests, phase autoreview | complete | `3d4d902` |
-| P3 | CLI, pairs, batch/JSONL, summary, HTML, and SVG propagation | P2 | CLI/visual tests and source-blind commands, phase autoreview | complete | pending commit |
-| P4 | User documentation and Transcoda integration handoff | P3 | documented examples/schema checked against executable behavior, phase autoreview if executable docs change | in progress | — |
-| F1 | Final verification/closeout and latest-main recheck | all phases | `make test`, behavior matrix, final branch autoreview, clean diff | not started | `HEAD when complete` |
+| P3 | CLI, pairs, batch/JSONL, summary, HTML, and SVG propagation | P2 | CLI/visual tests and source-blind commands, phase autoreview | complete | `c1d99d9` |
+| P4 | User documentation and Transcoda integration handoff | P3 | documented examples/schema checked against executable behavior, phase autoreview if executable docs change | complete | pending commit |
+| F1 | Final verification/closeout and latest-main recheck | all phases | `make test`, behavior matrix, final branch autoreview, clean diff | in progress | `HEAD when complete` |
 
 ## 4. Execution ledger (mutable)
 
-Current phase/status: `P4; in progress`
+Current phase/status: `F1; in progress`
 
 ### P1 — Strict taxonomy, loader, digest, and projector
 
@@ -147,7 +147,7 @@ Current phase/status: `P4; in progress`
 
 ### P3 — CLI, batch, summary, and visual propagation
 
-- Status/commit: `complete; commit pending`
+- Status/commit: `complete; c1d99d9`
 - Repro and diagnostic evidence: added option-placement/conflict tests; pair and parallel file-batch success/failure audits; mixed JSONL per-record and overall/by-group summary aggregation; exact fixture SHA-256; ignored-mark visual invariance; HTML and SVG audit propagation; no-profile absence assertions. A source-blind ignored accidental comparison returned distance 0 with the expected digest/count delta; a retained pitch mutation returned distance 4; a missing profile exited 2 before any JSON record; an explicit mode/profile conflict produced the expected diagnostic.
 - Implementation: shared `--evaluation-profile` parsing across all comparison commands; command-level idempotent loader preflight; registry-ordered audit serializer with null unavailable sides; deterministic per-record and batch-summary aggregation; immutable profile sharing across workers; conditional HTML/SVG audit output and projected visual marks.
 - Verification: `build/tests/verosim_tests '[evaluation-profile]'` — 16 cases, 241 assertions passed; CLI and full test executable compiled; source-blind pair, retained mutation, invalid-profile, and conflict commands behaved as specified.
@@ -156,8 +156,17 @@ Current phase/status: `P4; in progress`
 
 ### P4 — Documentation and Transcoda handoff
 
+- Status/commit: `complete; commit pending`
+- Repro and diagnostic evidence: documented CLI commands match the accepted pair/list/batch/mixed-JSONL/HTML/SVG option forms; schema example enumerates the immutable 32-key registry and uses only capability-valid dispositions; output shapes match source-blind pair JSON and tested summary/visual artifacts.
+- Implementation: added user guide for schema semantics, the full taxonomy, symmetric projection ordering, derived tie/accidental behavior, audit/digest/failure semantics, no-profile compatibility, and an external Transcoda-owned profile/CLI/reproducibility handoff; added concise README discovery and example.
+- Verification: documentation cross-checked against the v1 registry, parser, serializers, CLI usage, focused behavior output, and independent fixture digest; scoped documentation autoreview clean (`overall: patch is correct (0.99)`).
+- Diff/instrumentation disposition: only the evaluation-profile README hunk was staged; the separate concurrent build-resource README hunk remains unstaged and preserved.
+- Deviations: none
+
+### F1 — Final verification and closeout
+
 - Status/commit: `in progress; preceding commit pending`
-- Repro and diagnostic evidence: pending documentation/executable cross-check
+- Repro and diagnostic evidence: pending latest-main recheck and final matrix
 - Implementation: pending
 - Verification: pending
 - Diff/instrumentation disposition: pending

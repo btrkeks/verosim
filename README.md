@@ -115,8 +115,24 @@ content is not. Output records include the resolved `pred_format`, `gt_format`,
 `pred_parser`, and `gt_parser` provenance fields. The older `--format` option
 remains as a shorthand that sets both sides to the same format.
 
+Use `--evaluation-profile PATH` to compare both fully parsed scores on an
+explicit external notation scope. Profiles work with pair, list, parallel
+batch, mixed-format JSONL, HTML, and SVG-bundle comparison interfaces:
+
+```sh
+build/verosim pred.musicxml gt.krn \
+  --evaluation-profile profiles/benchmark-v1.json
+```
+
+The profile is the sole scope authority, so it cannot be combined with an
+explicit `--mode` or `--layout`. Without a profile, existing behavior and
+output fields are unchanged. See the evaluation-profile documentation for the
+strict versioned schema, feature taxonomy, audit output, semantic caveats, and
+downstream integration contract.
+
 ## Documentation
 
+- [Evaluation profiles](docs/evaluation_profiles.md)
 - [Validation summary](docs/validation.md)
 - [MEI to OMR-NED symbol mapping](docs/symbol_mapping.md)
 
