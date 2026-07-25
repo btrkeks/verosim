@@ -1,8 +1,8 @@
 # Evaluation-Scope Projection Delivery Plan
 
-Status: **in progress**
+Status: **complete**
 Mode/source: `supplied plan; delegated production implementation contract`
-Goal/council: `active goal; three agents, two passes`
+Goal/council: `completed goal; three agents, two passes`
 External plan review: `degraded: correctly preflighted single Fable attempt rejected at account usage limit`
 Base/branch: `local main @ 7e46cb82e416b7d63fc9a115405de0caea59f99c; feature/evaluation-scope-projection (plus prerequisite parallel-parser and arpeggio commits)`
 
@@ -120,12 +120,12 @@ Allowed phase statuses: `not started`, `in progress`, `complete`, `blocked`.
 | P1 | Strict v1 taxonomy/profile loader/digest and pure canonical projector | none | focused schema/projection tests, phase autoreview | complete | `b746e76` |
 | P2 | Profile-aware extraction and comparison lifecycle with stable ownership/audit | P1 | pipeline/engine/cross-format/backcompat tests, phase autoreview | complete | `3d4d902` |
 | P3 | CLI, pairs, batch/JSONL, summary, HTML, and SVG propagation | P2 | CLI/visual tests and source-blind commands, phase autoreview | complete | `c1d99d9` |
-| P4 | User documentation and Transcoda integration handoff | P3 | documented examples/schema checked against executable behavior, phase autoreview if executable docs change | complete | pending commit |
-| F1 | Final verification/closeout and latest-main recheck | all phases | `make test`, behavior matrix, final branch autoreview, clean diff | in progress | `HEAD when complete` |
+| P4 | User documentation and Transcoda integration handoff | P3 | documented examples/schema checked against executable behavior, phase autoreview if executable docs change | complete | `bc8e7c1` |
+| F1 | Final verification/closeout and latest-main recheck | all phases | `make test`, behavior matrix, final branch autoreview, clean diff | complete | `8b18658..b598d6b` plus this ledger closeout |
 
 ## 4. Execution ledger (mutable)
 
-Current phase/status: `F1; in progress`
+Current phase/status: `F1; complete`
 
 ### P1 — Strict taxonomy, loader, digest, and projector
 
@@ -156,7 +156,7 @@ Current phase/status: `F1; in progress`
 
 ### P4 — Documentation and Transcoda handoff
 
-- Status/commit: `complete; commit pending`
+- Status/commit: `complete; bc8e7c1`
 - Repro and diagnostic evidence: documented CLI commands match the accepted pair/list/batch/mixed-JSONL/HTML/SVG option forms; schema example enumerates the immutable 32-key registry and uses only capability-valid dispositions; output shapes match source-blind pair JSON and tested summary/visual artifacts.
 - Implementation: added user guide for schema semantics, the full taxonomy, symmetric projection ordering, derived tie/accidental behavior, audit/digest/failure semantics, no-profile compatibility, and an external Transcoda-owned profile/CLI/reproducibility handoff; added concise README discovery and example.
 - Verification: documentation cross-checked against the v1 registry, parser, serializers, CLI usage, focused behavior output, and independent fixture digest; scoped documentation autoreview clean (`overall: patch is correct (0.99)`).
@@ -165,12 +165,12 @@ Current phase/status: `F1; in progress`
 
 ### F1 — Final verification and closeout
 
-- Status/commit: `in progress; preceding commit pending`
-- Repro and diagnostic evidence: pending latest-main recheck and final matrix
-- Implementation: pending
-- Verification: pending
-- Diff/instrumentation disposition: pending
-- Deviations: none
+- Status/commit: `complete; 8b18658, f23dec1, b598d6b, and this ledger closeout`
+- Repro and diagnostic evidence: rechecked local `main` at `7e46cb82e416b7d63fc9a115405de0caea59f99c` immediately before closeout and confirmed it is the exact merge base. The final source-blind matrix preserved the no-profile self-comparison (`distance=0`, `n_pred=n_gt=17`, no audit), projected the same pair to `n_pred=n_gt=12` with five removals per side and digest `sha256:337e8cf26a507a277caf41bca2a84760caa1dd5fd1462808ab08e1c5c946077f`, and returned deterministic exit-2 diagnostics for a missing profile and explicit mode/profile conflict. Earlier mutation checks remained covered by the focused suite: ignored accidental/tie/slur/articulation changes are invariant while retained pitch/notehead changes remain sensitive.
+- Implementation: resolved final review findings by requiring `schema_version` to be the exact integer token `1`, validating profile artifacts as strict ASCII JSON before `jsonxx` decoding, auditing independently loadable sides for early mixed-JSONL failures, aggregating those counts, and preserving legacy no-profile failure provenance.
+- Verification: final `build/tests/verosim_tests '[evaluation-profile]'` passed 305 assertions in 17 cases. Final `make test JOBS=2` passed all 24 Python harness tests and all 134 CTest cases. `git diff --check` was clean. Final complete feature-range autoreview (`fac99a1..b598d6b`) reported no actionable findings and `overall: patch is correct (0.97)` after three prior P2 rounds were fixed and regression-tested.
+- Diff/instrumentation disposition: the first whole-branch autoreview attempt correctly refused the prerequisite Verovio gitlink because dependency contents cannot be bundled; the complete projection feature range was reviewed instead, while prerequisite commits retained their earlier focused review/test evidence. No temporary instrumentation remains. The only unstaged files are pre-existing concurrent user changes in `Makefile` and the unrelated build-resource hunk in `README.md`; both were preserved and excluded from feature commits.
+- Deviations: the external Fable planning review remained unavailable at its account usage limit, as recorded above; no implementation or verification gate was degraded.
 
 ## 5. Planning review decisions (mutable until freeze)
 
