@@ -117,19 +117,19 @@ Allowed phase statuses: `not started`, `in progress`, `complete`, `blocked`.
 
 | ID | Outcome | Depends on | Required gate | Status | Commit |
 |---|---|---|---|---|---|
-| P1 | Strict v1 taxonomy/profile loader/digest and pure canonical projector | none | focused schema/projection tests, phase autoreview | complete | pending commit |
-| P2 | Profile-aware extraction and comparison lifecycle with stable ownership/audit | P1 | pipeline/engine/cross-format/backcompat tests, phase autoreview | in progress | — |
-| P3 | CLI, pairs, batch/JSONL, summary, HTML, and SVG propagation | P2 | CLI/visual tests and source-blind commands, phase autoreview | not started | — |
+| P1 | Strict v1 taxonomy/profile loader/digest and pure canonical projector | none | focused schema/projection tests, phase autoreview | complete | `b746e76` |
+| P2 | Profile-aware extraction and comparison lifecycle with stable ownership/audit | P1 | pipeline/engine/cross-format/backcompat tests, phase autoreview | complete | pending commit |
+| P3 | CLI, pairs, batch/JSONL, summary, HTML, and SVG propagation | P2 | CLI/visual tests and source-blind commands, phase autoreview | in progress | — |
 | P4 | User documentation and Transcoda integration handoff | P3 | documented examples/schema checked against executable behavior, phase autoreview if executable docs change | not started | — |
 | F1 | Final verification/closeout and latest-main recheck | all phases | `make test`, behavior matrix, final branch autoreview, clean diff | not started | `HEAD when complete` |
 
 ## 4. Execution ledger (mutable)
 
-Current phase/status: `P2; in progress`
+Current phase/status: `P3; in progress`
 
 ### P1 — Strict taxonomy, loader, digest, and projector
 
-- Status/commit: `complete; commit pending`
+- Status/commit: `complete; b746e76`
 - Repro and diagnostic evidence: added focused tests first for the exact registry, note/extra projection, resolved tie/accidental state, size conservation, idempotence, strict profile validation, duplicate/unknown fields, and exact-byte digest sensitivity.
 - Implementation: immutable v1 feature registry and capability contract; strict external JSON loader; exact-byte SHA-256 digest; pure canonical `SymScore` projection with deterministic per-feature removal counts and empty-measure renormalization.
 - Verification: `build/tests/verosim_tests '[evaluation-profile]'` — 6 cases, 124 assertions passed; `git diff --check` clean.
@@ -137,6 +137,15 @@ Current phase/status: `P2; in progress`
 - Deviations: none
 
 ### P2 — Profile-aware extraction, comparison ownership, and audit
+
+- Status/commit: `complete; commit pending`
+- Repro and diagnostic evidence: added pipeline cases for ignored-mutation invariance, retained notehead sensitivity, projected denominators, profile-forced maximal extraction, move-stable edit pointers, no-profile characterization, and MusicXML/kern equivalence after projection. Initial failures exposed and corrected two fixture assumptions (measure-level pitch replacement ops and an intentionally unclosed slur).
+- Implementation: shared run options now carry an immutable profile; profile mode extracts the full currently supported surface, symmetrically projects both canonical scores, owns address-stable projected inputs, and computes matching, edit paths, sizes, OMR-NED, and category totals solely from them. Successful comparisons attach the shared profile identity and both removal-count sets.
+- Verification: `build/tests/verosim_tests '[evaluation-profile][pipeline]'` — 5 cases, 45 assertions passed; complete project compile succeeded.
+- Diff/instrumentation disposition: scoped phase autoreview clean (`overall: patch is correct (0.99)`); no temporary instrumentation retained.
+- Deviations: none
+
+### P3 — CLI, batch, summary, and visual propagation
 
 - Status/commit: `in progress; preceding commit pending`
 - Repro and diagnostic evidence: pending tests-first additions

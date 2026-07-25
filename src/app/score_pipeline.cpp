@@ -64,7 +64,11 @@ const char *ScoreDataFormatName(ScoreDataFormat format)
 
 ExtractOptions ExtractOptionsForRun(const CompareRunOptions &options)
 {
-    return ExtractOptions{ .surface = options.surface,
+    const MetricSurface surface = options.evaluation_profile
+        ? MetricSurface{ .mode = MetricMode::kExperimental,
+              .layout = LayoutSurface::kSystemBreaks }
+        : options.surface;
+    return ExtractOptions{ .surface = surface,
         .typed_space_handling = options.typed_space_handling };
 }
 
@@ -131,12 +135,37 @@ ScoreComparison CompareLoadedScores(
     const SymScore &pred, const SymScore &gt, const CompareRunOptions &options)
 {
     ScoreComparison comparison;
-    comparison.diff = CompareScores(pred, gt, EngineOptionsForRun(options));
-    comparison.n_pred = pred.notation_size();
-    comparison.n_gt = gt.notation_size();
+    const SymScore *comparison_pred = &pred;
+    const SymScore *comparison_gt = &gt;
+    if (options.evaluation_profile) {
+        ProjectionResult projected_pred = ProjectSymScore(pred, *options.evaluation_profile);
+        ProjectionResult projected_gt = ProjectSymScore(gt, *options.evaluation_profile);
+        EvaluationAudit audit = MakeEvaluationAudit(*options.evaluation_profile);
+        audit.pred_removed = projected_pred.removed;
+        audit.gt_removed = projected_gt.removed;
+        comparison.projected_scores = std::make_unique<ProjectedScorePair>(ProjectedScorePair{
+            .pred = std::move(projected_pred.score),
+            .gt = std::move(projected_gt.score),
+        });
+        comparison_pred = &comparison.projected_scores->pred;
+        comparison_gt = &comparison.projected_scores->gt;
+        comparison.evaluation_audit = std::move(audit);
+    }
+    comparison.diff
+        = CompareScores(*comparison_pred, *comparison_gt, EngineOptionsForRun(options));
+    comparison.n_pred = comparison_pred->notation_size();
+    comparison.n_gt = comparison_gt->notation_size();
     comparison.omr_ned = OmrNed(comparison.diff.cost, comparison.n_pred, comparison.n_gt);
     comparison.edit_distances = EditDistancesDict(comparison.diff.op_list);
     return comparison;
+}
+
+EvaluationAudit MakeEvaluationAudit(const EvaluationProfile &profile)
+{
+    EvaluationAudit audit;
+    audit.profile_id = profile.id();
+    audit.profile_digest = profile.digest();
+    return audit;
 }
 
 void AppendPrefixedWarnings(std::vector<std::string> &out, const std::string &prefix,

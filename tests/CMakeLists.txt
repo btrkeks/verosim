@@ -9,6 +9,7 @@ add_executable(verosim_tests
     test_engine_units.cpp
     test_engine_identity.cpp
     test_evaluation_profile.cpp
+    test_score_pipeline.cpp
     test_mutation_gate.cpp
     test_visual.cpp)
 target_link_libraries(verosim_tests PRIVATE verosim_core Catch2::Catch2WithMain)

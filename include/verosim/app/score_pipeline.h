@@ -1,10 +1,13 @@
 #pragma once
 
 #include <map>
+#include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "verosim/app/compare_options.h"
+#include "verosim/app/evaluation_audit.h"
 #include "verosim/app/score_format.h"
 #include "verosim/engine/compare.h"
 #include "verosim/extraction/extract.h"
@@ -23,12 +26,28 @@ struct LoadedScore {
     bool ok = false;
 };
 
+struct ProjectedScorePair {
+    SymScore pred;
+    SymScore gt;
+};
+
 struct ScoreComparison {
-    CompareResult diff; // ops point into the input scores passed to CompareLoadedScores
+    ScoreComparison() = default;
+    ScoreComparison(const ScoreComparison &) = delete;
+    ScoreComparison &operator=(const ScoreComparison &) = delete;
+    ScoreComparison(ScoreComparison &&) noexcept = default;
+    ScoreComparison &operator=(ScoreComparison &&) noexcept = default;
+
+    // In profile mode, owns the canonical projected inputs so pointers held by
+    // diff remain valid across return and moves. Null in the legacy path,
+    // where diff points into the caller-owned input scores as before.
+    std::unique_ptr<ProjectedScorePair> projected_scores;
+    CompareResult diff;
     long n_pred = 0;
     long n_gt = 0;
     double omr_ned = 0.0;
     std::map<std::string, long> edit_distances;
+    std::optional<EvaluationAudit> evaluation_audit;
 };
 
 ExtractOptions ExtractOptionsForRun(const CompareRunOptions &options);

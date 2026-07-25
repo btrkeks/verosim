@@ -1,7 +1,10 @@
 #pragma once
 
+#include <memory>
+
 #include "verosim/engine/compare.h"
 #include "verosim/extraction/typed_space_policy.h"
+#include "verosim/model/evaluation_profile.h"
 #include "verosim/model/metric_mode.h"
 
 namespace verosim {
@@ -13,6 +16,7 @@ struct CompareRunOptions {
     MetricSurface surface;
     NotePositionPolicy note_position_policy = NotePositionPolicy::kVisualEventOrder;
     TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
+    std::shared_ptr<const EvaluationProfile> evaluation_profile;
 };
 
 } // namespace verosim
