@@ -13,6 +13,7 @@
 #include <jsonxx.h>
 
 #include "verosim/app/evaluation_audit.h"
+#include "verosim/app/score_pipeline.h"
 #include "verosim/cli/args.h"
 #include "verosim/cli/list_io.h"
 #include "verosim/extraction/vrv_bridge.h"
@@ -27,6 +28,8 @@ struct JsonlScoreRecord {
     std::string gt;
     ScoreDataFormat pred_format = ScoreDataFormat::kKern;
     ScoreDataFormat gt_format = ScoreDataFormat::kKern;
+    bool pred_auditable = false;
+    bool gt_auditable = false;
     std::string prefix_json = "{";
     std::string group;
     std::string early_error;
@@ -136,8 +139,9 @@ JsonlScoreRecord MakeEarlyFailure(
     return record;
 }
 
-std::string FailureRecordJson(
-    const JsonlScoreRecord &record, const CompareCliOptions &options)
+std::string FailureRecordJson(VrvBridge &bridge, const JsonlScoreRecord &record,
+    const std::string &pred_label, const std::string &gt_label,
+    const CompareCliOptions &options)
 {
     std::ostringstream out;
     out << record.prefix_json << (record.prefix_json == "{" ? "" : ",")
@@ -150,7 +154,19 @@ std::string FailureRecordJson(
     out << ",\"distance\":null,\"n_pred\":null,\"n_gt\":null,\"omr_ned\":null,"
            "\"edit_distances_dict\":null";
     if (options.evaluation_profile) {
-        const EvaluationAudit audit = MakeEvaluationAudit(*options.evaluation_profile);
+        const ExtractOptions extract_options = ExtractOptionsForRun(RunOptionsForCli(options));
+        LoadedScore pred;
+        LoadedScore gt;
+        if (record.pred_auditable) {
+            pred = LoadAndExtractScoreData(
+                bridge, record.pred, record.pred_format, pred_label, extract_options);
+        }
+        if (record.gt_auditable) {
+            gt = LoadAndExtractScoreData(
+                bridge, record.gt, record.gt_format, gt_label, extract_options);
+        }
+        const EvaluationAudit audit = AuditAvailableScores(*options.evaluation_profile,
+            pred.ok ? &pred.score : nullptr, gt.ok ? &gt.score : nullptr);
         out << ",\"evaluation_profile\":";
         WriteEvaluationAuditJson(audit, out);
     }
@@ -234,22 +250,25 @@ std::vector<JsonlScoreRecord> ReadJsonlScoreRecords(const BatchJsonlArgs &args, 
         record.gt_format = args.gt_format;
         record.group = GroupValue(object, args.group_field);
         record.prefix_json = PrefixForObject(object, args, has_pred, has_gt);
+        if (has_pred) record.pred = object.get<jsonxx::String>(args.pred_field);
+        if (has_gt) record.gt = object.get<jsonxx::String>(args.gt_field);
+
+        std::string pred_format_error;
+        const bool pred_format_ok = ApplyFormatOverride(object,
+            args.pred_field + "_format", record.pred_format, pred_format_error);
+        std::string gt_format_error;
+        const bool gt_format_ok = ApplyFormatOverride(
+            object, args.gt_field + "_format", record.gt_format, gt_format_error);
+        record.pred_auditable = has_pred && pred_format_ok;
+        record.gt_auditable = has_gt && gt_format_ok;
         if (!has_pred) {
             record.early_error = "missing or non-string field " + args.pred_field;
         }
         else if (!has_gt) {
             record.early_error = "missing or non-string field " + args.gt_field;
         }
-        else {
-            record.pred = object.get<jsonxx::String>(args.pred_field);
-            record.gt = object.get<jsonxx::String>(args.gt_field);
-            ApplyFormatOverride(object, args.pred_field + "_format", record.pred_format,
-                record.early_error);
-            std::string gt_format_error;
-            ApplyFormatOverride(
-                object, args.gt_field + "_format", record.gt_format, gt_format_error);
-            if (record.early_error.empty()) record.early_error = std::move(gt_format_error);
-        }
+        else if (!pred_format_ok) record.early_error = std::move(pred_format_error);
+        else if (!gt_format_ok) record.early_error = std::move(gt_format_error);
         records.push_back(std::move(record));
     }
     return records;
@@ -419,7 +438,8 @@ bool CompareJsonlBatchToJson(
                 const std::size_t i = next.fetch_add(1);
                 if (i >= inputs.size()) break;
                 if (!inputs[i].early_error.empty()) {
-                    records[i] = FailureRecordJson(inputs[i], options);
+                    records[i] = FailureRecordJson(bridge, inputs[i], args.pred_field,
+                        args.gt_field, options);
                     continue;
                 }
                 std::ostringstream record;

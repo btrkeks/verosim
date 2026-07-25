@@ -836,3 +836,88 @@ TEST_CASE("profile-aware load failures audit each available side", "[cli][evalua
     std::filesystem::remove(pred);
     std::filesystem::remove(gt);
 }
+
+TEST_CASE("profile-aware early JSONL failures audit independently available sides",
+    "[cli][evaluation-profile]")
+{
+    const std::filesystem::path input = std::filesystem::temp_directory_path()
+        / "verosim-profile-early-failure.jsonl";
+    const std::filesystem::path summary = std::filesystem::temp_directory_path()
+        / "verosim-profile-early-failure-summary.json";
+    const std::string tied
+        = "**kern\\n*clefG2\\n*M4/4\\n=1\\n[2c\\n2c]\\n*-\\n";
+    {
+        std::ofstream out(input);
+        out << "{\"sample_id\":1,\"prediction\":\"" << tied << "\"}\n";
+        out << "{\"sample_id\":2,\"target\":\"" << tied << "\"}\n";
+        out << "{not json}\n";
+    }
+
+    CompareCliOptions options;
+    options.evaluation_profile = CliTestProfile({ EvaluationFeature::kTie });
+    BatchJsonlArgs args;
+    args.jsonl_path = input.string();
+    args.summary_json = summary.string();
+    args.jobs = 2;
+
+    std::ostringstream output;
+    std::string error;
+    REQUIRE(CompareJsonlBatchToJson(args, options, output, error));
+    CHECK(error.empty());
+
+    std::istringstream lines(output.str());
+    std::string line;
+    REQUIRE(std::getline(lines, line));
+    jsonxx::Object missing_gt;
+    REQUIRE(missing_gt.parse(line));
+    const jsonxx::Object &missing_gt_removed
+        = missing_gt.get<jsonxx::Object>("evaluation_profile")
+              .get<jsonxx::Object>("removed");
+    CHECK(missing_gt_removed.get<jsonxx::Object>("pred").get<jsonxx::Number>("total")
+        == 1.0);
+    CHECK(missing_gt_removed.has<jsonxx::Null>("gt"));
+
+    REQUIRE(std::getline(lines, line));
+    jsonxx::Object missing_pred;
+    REQUIRE(missing_pred.parse(line));
+    const jsonxx::Object &missing_pred_removed
+        = missing_pred.get<jsonxx::Object>("evaluation_profile")
+              .get<jsonxx::Object>("removed");
+    CHECK(missing_pred_removed.has<jsonxx::Null>("pred"));
+    CHECK(missing_pred_removed.get<jsonxx::Object>("gt").get<jsonxx::Number>("total")
+        == 1.0);
+
+    REQUIRE(std::getline(lines, line));
+    jsonxx::Object invalid_json;
+    REQUIRE(invalid_json.parse(line));
+    const jsonxx::Object &invalid_removed
+        = invalid_json.get<jsonxx::Object>("evaluation_profile")
+              .get<jsonxx::Object>("removed");
+    CHECK(invalid_removed.has<jsonxx::Null>("pred"));
+    CHECK(invalid_removed.has<jsonxx::Null>("gt"));
+
+    std::ifstream summary_in(summary);
+    std::ostringstream summary_text;
+    summary_text << summary_in.rdbuf();
+    jsonxx::Object summary_object;
+    REQUIRE(summary_object.parse(summary_text.str()));
+    const jsonxx::Object &overall_removed = summary_object.get<jsonxx::Object>("overall")
+                                               .get<jsonxx::Object>("removed");
+    CHECK(overall_removed.get<jsonxx::Object>("pred").get<jsonxx::Number>("available")
+        == 1.0);
+    CHECK(overall_removed.get<jsonxx::Object>("gt").get<jsonxx::Number>("available")
+        == 1.0);
+    CHECK(overall_removed.get<jsonxx::Object>("pred")
+            .get<jsonxx::Object>("counts")
+            .get<jsonxx::Object>("features")
+            .get<jsonxx::Number>("note.tie")
+        == 1.0);
+    CHECK(overall_removed.get<jsonxx::Object>("gt")
+            .get<jsonxx::Object>("counts")
+            .get<jsonxx::Object>("features")
+            .get<jsonxx::Number>("note.tie")
+        == 1.0);
+
+    std::filesystem::remove(input);
+    std::filesystem::remove(summary);
+}

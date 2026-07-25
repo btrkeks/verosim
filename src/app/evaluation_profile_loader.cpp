@@ -112,6 +112,64 @@ bool HasOnlyFields(const jsonxx::Object &object, std::string &error)
     return true;
 }
 
+bool HasExactSchemaVersionToken(std::string_view bytes)
+{
+    int object_depth = 0;
+    int array_depth = 0;
+    for (std::size_t i = 0; i < bytes.size();) {
+        const char ch = bytes[i];
+        if (ch == '"') {
+            const std::size_t start = i++;
+            bool escaped = false;
+            while (i < bytes.size()) {
+                const char string_ch = bytes[i++];
+                if (escaped) {
+                    escaped = false;
+                    continue;
+                }
+                if (string_ch == '\\') {
+                    escaped = true;
+                    continue;
+                }
+                if (string_ch == '"') break;
+            }
+            if (i > bytes.size() || bytes[i - 1] != '"') return false;
+            if (object_depth != 1 || array_depth != 0) continue;
+
+            jsonxx::Value key;
+            const std::string raw_key(bytes.substr(start, i - start));
+            if (!key.parse(raw_key) || !key.is<jsonxx::String>()
+                || key.get<jsonxx::String>() != "schema_version") {
+                continue;
+            }
+            while (i < bytes.size()
+                && (bytes[i] == ' ' || bytes[i] == '\t' || bytes[i] == '\r'
+                    || bytes[i] == '\n')) {
+                ++i;
+            }
+            if (i >= bytes.size() || bytes[i++] != ':') continue;
+            while (i < bytes.size()
+                && (bytes[i] == ' ' || bytes[i] == '\t' || bytes[i] == '\r'
+                    || bytes[i] == '\n')) {
+                ++i;
+            }
+            if (i >= bytes.size() || bytes[i++] != '1') return false;
+            while (i < bytes.size()
+                && (bytes[i] == ' ' || bytes[i] == '\t' || bytes[i] == '\r'
+                    || bytes[i] == '\n')) {
+                ++i;
+            }
+            return i < bytes.size() && (bytes[i] == ',' || bytes[i] == '}');
+        }
+        if (ch == '{') ++object_depth;
+        else if (ch == '}') --object_depth;
+        else if (ch == '[') ++array_depth;
+        else if (ch == ']') --array_depth;
+        ++i;
+    }
+    return false;
+}
+
 } // namespace
 
 std::shared_ptr<const EvaluationProfile> LoadEvaluationProfileFile(
@@ -156,10 +214,11 @@ std::shared_ptr<const EvaluationProfile> LoadEvaluationProfileFile(
                 + "' (expected '" + std::string(kEvaluationProfileSchema) + "')");
         return nullptr;
     }
-    if (!object.has<jsonxx::Number>("schema_version")
+    if (!HasExactSchemaVersionToken(bytes)
+        || !object.has<jsonxx::Number>("schema_version")
         || object.get<jsonxx::Number>("schema_version")
             != static_cast<double>(kEvaluationProfileSchemaVersion)) {
-        error = Prefix(path, "field 'schema_version' must be 1");
+        error = Prefix(path, "field 'schema_version' must be the exact JSON integer 1");
         return nullptr;
     }
     if (!object.has<jsonxx::String>("id")) {

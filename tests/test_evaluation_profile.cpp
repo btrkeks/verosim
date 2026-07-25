@@ -4,6 +4,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -288,13 +289,24 @@ TEST_CASE("profile loader rejects missing unknown duplicate and invalid features
     "[evaluation-profile]")
 {
     const std::string valid = ValidProfileJson();
-    const std::array<std::pair<std::string, std::string>, 5> cases = { {
+    auto with_version = [&](const std::string &token) {
+        std::string json = valid;
+        const std::string marker = "\"schema_version\":1";
+        const std::size_t position = json.find(marker);
+        REQUIRE(position != std::string::npos);
+        json.replace(position, marker.size(), "\"schema_version\":" + token);
+        return json;
+    };
+    const std::vector<std::pair<std::string, std::string>> cases = {
         { "unknown", valid.substr(0, valid.size() - 1) + ",\"unknown\":1}" },
         { "duplicate", "{\"schema\":\"verosim.evaluation-profile\",\"schema\":\"verosim.evaluation-profile\",\"schema_version\":1,\"id\":\"x\",\"features\":{}}" },
         { "missing", "{\"schema\":\"verosim.evaluation-profile\",\"schema_version\":1,\"id\":\"x\",\"features\":{}}" },
         { "version", "{\"schema\":\"verosim.evaluation-profile\",\"schema_version\":2,\"id\":\"x\",\"features\":{}}" },
+        { "version-plus", with_version("+1") },
+        { "version-leading-zero", with_version("01") },
+        { "version-rounded-decimal", with_version("1.0000000000000000000001") },
         { "type", "{\"schema\":\"verosim.evaluation-profile\",\"schema_version\":1,\"id\":1,\"features\":{}}" },
-    } };
+    };
     for (const auto &[name, json] : cases) {
         const std::filesystem::path path = WriteProfile(name, json);
         std::string error;
