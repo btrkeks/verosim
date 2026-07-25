@@ -12,6 +12,7 @@
 
 #include <jsonxx.h>
 
+#include "verosim/app/evaluation_audit.h"
 #include "verosim/cli/args.h"
 #include "verosim/cli/list_io.h"
 #include "verosim/extraction/vrv_bridge.h"
@@ -36,6 +37,10 @@ struct SummaryBucket {
     long scored = 0;
     long failures = 0;
     double total = 0.0;
+    long pred_audited = 0;
+    long gt_audited = 0;
+    EvaluationFeatureCounts pred_removed;
+    EvaluationFeatureCounts gt_removed;
 };
 
 void WriteJsonValue(const jsonxx::Value &value, std::ostream &out)
@@ -131,7 +136,8 @@ JsonlScoreRecord MakeEarlyFailure(
     return record;
 }
 
-std::string FailureRecordJson(const JsonlScoreRecord &record)
+std::string FailureRecordJson(
+    const JsonlScoreRecord &record, const CompareCliOptions &options)
 {
     std::ostringstream out;
     out << record.prefix_json << (record.prefix_json == "{" ? "" : ",")
@@ -142,7 +148,13 @@ std::string FailureRecordJson(const JsonlScoreRecord &record)
     out << ",\"pred_parser\":\"verovio\",\"gt_parser\":\"verovio\",\"ok\":false,\"error\":";
     WriteJsonString(record.early_error, out);
     out << ",\"distance\":null,\"n_pred\":null,\"n_gt\":null,\"omr_ned\":null,"
-           "\"edit_distances_dict\":null,\"warnings\":[],\"runtime_s\":0}\n";
+           "\"edit_distances_dict\":null";
+    if (options.evaluation_profile) {
+        const EvaluationAudit audit = MakeEvaluationAudit(*options.evaluation_profile);
+        out << ",\"evaluation_profile\":";
+        WriteEvaluationAuditJson(audit, out);
+    }
+    out << ",\"warnings\":[],\"runtime_s\":0}\n";
     return out.str();
 }
 
@@ -255,36 +267,87 @@ void AddSummaryRecord(
         contribution = static_cast<double>(object.get<jsonxx::Number>("omr_ned"));
     }
 
+    auto add_removed_side = [&](const jsonxx::Object &removed, const std::string &side,
+                                EvaluationFeatureCounts &counts, long &available) {
+        if (!removed.has<jsonxx::Object>(side)) return;
+        const jsonxx::Object &side_object = removed.get<jsonxx::Object>(side);
+        if (!side_object.has<jsonxx::Object>("features")) return;
+        const jsonxx::Object &features = side_object.get<jsonxx::Object>("features");
+        ++available;
+        for (const EvaluationFeatureSpec &spec : EvaluationFeatureRegistryV1()) {
+            const std::string key(spec.key);
+            if (features.has<jsonxx::Number>(key)) {
+                counts[spec.feature]
+                    += static_cast<long>(features.get<jsonxx::Number>(key));
+            }
+        }
+    };
+
     auto add = [&](SummaryBucket &bucket) {
         ++bucket.count;
         bucket.total += contribution;
         if (ok) ++bucket.scored;
         else ++bucket.failures;
+        if (parsed && object.has<jsonxx::Object>("evaluation_profile")) {
+            const jsonxx::Object &profile
+                = object.get<jsonxx::Object>("evaluation_profile");
+            if (profile.has<jsonxx::Object>("removed")) {
+                const jsonxx::Object &removed = profile.get<jsonxx::Object>("removed");
+                add_removed_side(
+                    removed, "pred", bucket.pred_removed, bucket.pred_audited);
+                add_removed_side(removed, "gt", bucket.gt_removed, bucket.gt_audited);
+            }
+        }
     };
     add(overall);
     add(by_group[source.group]);
 }
 
-void WriteSummaryBucket(const SummaryBucket &bucket, double failure_score, std::ostream &out)
+void WriteSummaryAuditSide(long available, const EvaluationFeatureCounts &counts,
+    std::ostream &out)
+{
+    out << "{\"available\":" << available << ",\"counts\":";
+    WriteEvaluationFeatureCountsJson(counts, out);
+    out << "}";
+}
+
+void WriteSummaryBucket(const SummaryBucket &bucket, double failure_score,
+    bool include_evaluation, std::ostream &out)
 {
     out << "{\"count\":" << bucket.count << ",\"scored\":" << bucket.scored
         << ",\"failures\":" << bucket.failures << ",\"omr_ned\":";
     WriteDouble(bucket.count == 0 ? 0.0 : bucket.total / static_cast<double>(bucket.count), out);
     out << ",\"failure_score\":";
     WriteDouble(failure_score, out);
+    if (include_evaluation) {
+        out << ",\"removed\":{\"pred\":";
+        WriteSummaryAuditSide(bucket.pred_audited, bucket.pred_removed, out);
+        out << ",\"gt\":";
+        WriteSummaryAuditSide(bucket.gt_audited, bucket.gt_removed, out);
+        out << "}";
+    }
     out << "}";
 }
 
 bool WriteSummaryJson(const std::string &path, const SummaryBucket &overall,
-    const std::map<std::string, SummaryBucket> &by_group, double failure_score, std::string &error)
+    const std::map<std::string, SummaryBucket> &by_group, double failure_score,
+    const CompareCliOptions &options, std::string &error)
 {
     std::ofstream out(path);
     if (!out) {
         error = "cannot write " + path;
         return false;
     }
-    out << "{\"overall\":";
-    WriteSummaryBucket(overall, failure_score, out);
+    out << "{";
+    if (options.evaluation_profile) {
+        out << "\"evaluation_profile\":";
+        WriteEvaluationProfileIdentityJson(
+            MakeEvaluationAudit(*options.evaluation_profile), out);
+        out << ",";
+    }
+    out << "\"overall\":";
+    WriteSummaryBucket(overall, failure_score,
+        options.evaluation_profile != nullptr, out);
     out << ",\"by_group\":{";
     bool first = true;
     for (const auto &[group, bucket] : by_group) {
@@ -292,7 +355,8 @@ bool WriteSummaryJson(const std::string &path, const SummaryBucket &overall,
         first = false;
         WriteJsonString(group, out);
         out << ":";
-        WriteSummaryBucket(bucket, failure_score, out);
+        WriteSummaryBucket(bucket, failure_score,
+            options.evaluation_profile != nullptr, out);
     }
     out << "}}\n";
     return true;
@@ -355,7 +419,7 @@ bool CompareJsonlBatchToJson(
                 const std::size_t i = next.fetch_add(1);
                 if (i >= inputs.size()) break;
                 if (!inputs[i].early_error.empty()) {
-                    records[i] = FailureRecordJson(inputs[i]);
+                    records[i] = FailureRecordJson(inputs[i], options);
                     continue;
                 }
                 std::ostringstream record;
@@ -377,7 +441,8 @@ bool CompareJsonlBatchToJson(
     }
 
     if (!args.summary_json.empty()) {
-        return WriteSummaryJson(args.summary_json, overall, by_group, args.failure_score, error);
+        return WriteSummaryJson(
+            args.summary_json, overall, by_group, args.failure_score, options, error);
     }
     return true;
 }

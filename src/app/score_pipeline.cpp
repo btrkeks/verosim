@@ -160,14 +160,6 @@ ScoreComparison CompareLoadedScores(
     return comparison;
 }
 
-EvaluationAudit MakeEvaluationAudit(const EvaluationProfile &profile)
-{
-    EvaluationAudit audit;
-    audit.profile_id = profile.id();
-    audit.profile_digest = profile.digest();
-    return audit;
-}
-
 void AppendPrefixedWarnings(std::vector<std::string> &out, const std::string &prefix,
     const std::vector<std::string> &warnings)
 {

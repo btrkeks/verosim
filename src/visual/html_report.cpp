@@ -245,6 +245,31 @@ void WriteWarnings(const VisualReport &report, std::ostream &out)
     out << "</div>\n";
 }
 
+void WriteEvaluationAudit(const VisualReport &report, std::ostream &out)
+{
+    if (!report.evaluation_audit.has_value()) return;
+    const EvaluationAudit &audit = *report.evaluation_audit;
+    out << "<section class=\"panel\"><h2>Evaluation profile</h2>"
+        << "<div class=\"paths\"><b>Schema</b><br>"
+        << HtmlEscape(audit.schema) << " v" << audit.schema_version
+        << "<br><br><b>ID</b><br>" << HtmlEscape(audit.profile_id)
+        << "<br><br><b>Digest</b><br>" << HtmlEscape(audit.profile_digest)
+        << "</div><h2>Removed symbols</h2>";
+    const EvaluationFeatureCounts empty;
+    const EvaluationFeatureCounts &pred
+        = audit.pred_removed.has_value() ? *audit.pred_removed : empty;
+    const EvaluationFeatureCounts &gt
+        = audit.gt_removed.has_value() ? *audit.gt_removed : empty;
+    out << "<div class=\"category\"><span>Total</span><b>pred "
+        << pred.total() << " / gt " << gt.total() << "</b></div>\n";
+    for (const EvaluationFeatureSpec &spec : EvaluationFeatureRegistryV1()) {
+        out << "<div class=\"category\"><span>" << HtmlEscape(std::string(spec.key))
+            << "</span><b>pred " << pred[spec.feature] << " / gt "
+            << gt[spec.feature] << "</b></div>\n";
+    }
+    out << "</section>\n";
+}
+
 void WriteScorePage(const VisualizedScore &score, std::size_t index, const std::string &extra_class,
     std::ostream &out)
 {
@@ -287,6 +312,8 @@ bool WriteHtmlReport(const VisualReport &report, const std::string &out_path, st
         << "</div></div><div class=\"panel\"><h2>Categories</h2>";
     WriteCategoryTable(report.edit_distances, out);
     out << "</div></section>\n";
+
+    WriteEvaluationAudit(report, out);
 
     WriteWarnings(report, out);
 

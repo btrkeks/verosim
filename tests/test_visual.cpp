@@ -1,15 +1,19 @@
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
+#include <jsonxx.h>
 
 #include "engine_fixtures.h"
 #include "verosim/engine/edit_op.h"
 #include "verosim/extraction/vrv_bridge.h"
+#include "verosim/visual/html_report.h"
 #include "verosim/visual/score_renderer.h"
 #include "verosim/visual/svg_annotator.h"
 #include "verosim/visual/svg_bundle.h"
@@ -23,6 +27,26 @@ using namespace verosim;
 using namespace verosim::test;
 
 namespace {
+
+std::shared_ptr<const EvaluationProfile> VisualTestProfile(
+    std::initializer_list<EvaluationFeature> ignored = {})
+{
+    EvaluationFeatureDispositions dispositions;
+    for (const EvaluationFeatureSpec &spec : EvaluationFeatureRegistryV1()) {
+        dispositions[EvaluationFeatureIndex(spec.feature)]
+            = spec.capability == EvaluationFeatureCapability::kKnownUnsupported
+            ? FeatureDisposition::kUnsupported
+            : FeatureDisposition::kScored;
+    }
+    for (const EvaluationFeature feature : ignored) {
+        dispositions[EvaluationFeatureIndex(feature)] = FeatureDisposition::kIgnored;
+    }
+    std::string error;
+    std::optional<EvaluationProfile> profile = MakeEvaluationProfileV1(
+        "test.visual", "sha256:visual", dispositions, error);
+    REQUIRE(profile.has_value());
+    return std::make_shared<const EvaluationProfile>(std::move(*profile));
+}
 
 std::string ReadFile(const std::filesystem::path &path)
 {
@@ -943,8 +967,64 @@ TEST_CASE("VisualizePairToHtml writes a mutation report", "[visual]")
     CHECK(html.find("id=\"accid-L6F1\" class=\"accid verosim-mark") != std::string::npos);
     CHECK(html.find("id=\"note-L6F1\" class=\"note verosim-mark") == std::string::npos);
     CHECK(html.find("verosim-kind-accidental") != std::string::npos);
+    CHECK(html.find("Evaluation profile") == std::string::npos);
 
     std::filesystem::remove(out);
+}
+
+TEST_CASE("profile-aware visualization suppresses ignored marks and audits HTML and SVG",
+    "[visual][evaluation-profile]")
+{
+    const std::filesystem::path pred
+        = std::filesystem::path(VEROSIM_MUTATIONS_DIR) / "base" / "mono.krn";
+    const std::filesystem::path gt = std::filesystem::path(VEROSIM_MUTATIONS_DIR)
+        / "cases" / "mono_accidental_sharp.krn";
+    const std::filesystem::path html_path = std::filesystem::temp_directory_path()
+        / "verosim-profile-visual.html";
+    const std::filesystem::path bundle_path = std::filesystem::temp_directory_path()
+        / "verosim-profile-visual-bundle";
+    std::filesystem::remove_all(bundle_path);
+
+    CompareRunOptions options;
+    options.evaluation_profile = VisualTestProfile({ EvaluationFeature::kAccidental });
+    VisualReport report;
+    std::string error;
+    REQUIRE(BuildVisualComparison(pred.string(), gt.string(), options, report, error));
+    CHECK(error.empty());
+    CHECK(report.distance == 0);
+    CHECK(report.unresolved_marks.empty());
+    REQUIRE(report.evaluation_audit.has_value());
+    CHECK(report.evaluation_audit->pred_removed->total() == 0);
+    CHECK((*report.evaluation_audit->gt_removed)[EvaluationFeature::kAccidental] == 1);
+    REQUIRE(report.pred.pages.size() == 1);
+    REQUIRE(report.gt.pages.size() == 1);
+    CHECK(report.pred.pages[0].svg.find("verosim-mark") == std::string::npos);
+    CHECK(report.gt.pages[0].svg.find("verosim-mark") == std::string::npos);
+
+    REQUIRE(WriteHtmlReport(report, html_path.string(), error));
+    const std::string html = ReadFile(html_path);
+    CHECK(html.find("Evaluation profile") != std::string::npos);
+    CHECK(html.find("test.visual") != std::string::npos);
+    CHECK(html.find("sha256:visual") != std::string::npos);
+    CHECK(html.find("note.accidental") != std::string::npos);
+    CHECK(html.find("pred 0 / gt 1") != std::string::npos);
+
+    SvgAssetBundle bundle;
+    REQUIRE(WriteSvgAssetBundle(report, bundle_path.string(), bundle, error));
+    const std::string manifest = ReadFile(bundle_path / "visualization.json");
+    jsonxx::Object manifest_object;
+    REQUIRE(manifest_object.parse(manifest));
+    const jsonxx::Object &profile
+        = manifest_object.get<jsonxx::Object>("evaluation_profile");
+    CHECK(profile.get<jsonxx::String>("id") == "test.visual");
+    CHECK(profile.get<jsonxx::Object>("removed")
+            .get<jsonxx::Object>("gt")
+            .get<jsonxx::Object>("features")
+            .get<jsonxx::Number>("note.accidental")
+        == 1.0);
+
+    std::filesystem::remove(html_path);
+    std::filesystem::remove_all(bundle_path);
 }
 
 TEST_CASE("VisualizePairToHtml marks missing chord members by notehead group", "[visual]")

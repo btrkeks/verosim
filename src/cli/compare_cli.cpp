@@ -5,6 +5,7 @@
 #include <sstream>
 #include <vector>
 
+#include "verosim/app/evaluation_profile_loader.h"
 #include "verosim/app/score_pipeline.h"
 #include "verosim/engine/compare.h"
 #include "verosim/extraction/vrv_bridge.h"
@@ -98,7 +99,14 @@ bool WriteComparisonJson(const LoadedScore &pred, const LoadedScore &gt,
         out << field_sep << "\"ok\":false,\"error\":";
         WriteJsonString(!pred.ok ? pred.error : gt.error, out);
         out << ",\"distance\":null,\"n_pred\":null,\"n_gt\":null,\"omr_ned\":null,"
-               "\"edit_distances_dict\":null,\"warnings\":[],\"runtime_s\":0}\n";
+               "\"edit_distances_dict\":null";
+        if (options.evaluation_profile) {
+            const EvaluationAudit audit = AuditAvailableScores(*options.evaluation_profile,
+                pred.ok ? &pred.score : nullptr, gt.ok ? &gt.score : nullptr);
+            out << ",\"evaluation_profile\":";
+            WriteEvaluationAuditJson(audit, out);
+        }
+        out << ",\"warnings\":[],\"runtime_s\":0}\n";
         return false;
     }
 
@@ -123,6 +131,10 @@ bool WriteComparisonJson(const LoadedScore &pred, const LoadedScore &gt,
         out << ",\"edit_ops\":";
         WriteEditOps(comparison.diff.op_list, out);
     }
+    if (comparison.evaluation_audit.has_value()) {
+        out << ",\"evaluation_profile\":";
+        WriteEvaluationAuditJson(*comparison.evaluation_audit, out);
+    }
     std::vector<std::string> warnings;
     AppendPrefixedWarnings(warnings, "pred: ", pred.warnings);
     AppendPrefixedWarnings(warnings, "gt: ", gt.warnings);
@@ -135,6 +147,16 @@ bool WriteComparisonJson(const LoadedScore &pred, const LoadedScore &gt,
 }
 
 } // namespace
+
+bool PrepareEvaluationProfile(CompareCliOptions &options, std::string &error)
+{
+    error.clear();
+    if (options.evaluation_profile_path.empty()) return true;
+    if (options.evaluation_profile) return true;
+    options.evaluation_profile
+        = LoadEvaluationProfileFile(options.evaluation_profile_path, error);
+    return options.evaluation_profile != nullptr;
+}
 
 bool ComparePairToJson(VrvBridge &bridge, const std::string &pred_path,
     const std::string &gt_path, const CompareCliOptions &options, std::ostream &out)

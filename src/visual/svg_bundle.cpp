@@ -98,8 +98,8 @@ bool WriteSidePages(const VisualizedScore &score, const std::filesystem::path &r
     return true;
 }
 
-bool WriteManifest(const SvgAssetBundle &bundle, const std::filesystem::path &manifest_path,
-    std::string &error)
+bool WriteManifest(const SvgAssetBundle &bundle, const VisualReport &report,
+    const std::filesystem::path &manifest_path, std::string &error)
 {
     std::ofstream out(manifest_path);
     if (!out) {
@@ -110,6 +110,10 @@ bool WriteManifest(const SvgAssetBundle &bundle, const std::filesystem::path &ma
     WriteManifestSide(bundle.prediction, out);
     out << ",\"ground_truth\":";
     WriteManifestSide(bundle.ground_truth, out);
+    if (report.evaluation_audit.has_value()) {
+        out << ",\"evaluation_profile\":";
+        WriteEvaluationAuditJson(*report.evaluation_audit, out);
+    }
     out << "}\n";
     if (!out) {
         error = "failed to write " + manifest_path.string();
@@ -132,7 +136,7 @@ bool WriteSvgAssetBundle(
 
         const std::filesystem::path manifest_path = root / "visualization.json";
         bundle.manifest_path = manifest_path.string();
-        return WriteManifest(bundle, manifest_path, error);
+        return WriteManifest(bundle, report, manifest_path, error);
     }
     catch (const std::exception &e) {
         error = "failed to write SVG asset bundle: " + std::string(e.what());

@@ -107,6 +107,7 @@ bool BuildVisualComparison(const std::string &pred_path, const std::string &gt_p
     report.n_gt = comparison.n_gt;
     report.omr_ned = comparison.omr_ned;
     report.edit_distances = comparison.edit_distances;
+    report.evaluation_audit = comparison.evaluation_audit;
     report.unresolved_marks = pred_pages.unresolved;
     report.unresolved_marks.insert(
         report.unresolved_marks.end(), gt_pages.unresolved.begin(), gt_pages.unresolved.end());

@@ -270,6 +270,20 @@ TEST_CASE("profile loader validates exact v1 JSON and hashes exact bytes",
     std::filesystem::remove(whitespace_path);
 }
 
+TEST_CASE("profile loader SHA-256 matches an independently hashed fixture",
+    "[evaluation-profile]")
+{
+    const std::filesystem::path path = std::filesystem::path(VEROSIM_TEST_FIXTURE_DIR)
+        / "evaluation_profile_ignore_projectable_v1.json";
+    std::string error;
+    const std::shared_ptr<const EvaluationProfile> profile
+        = LoadEvaluationProfileFile(path.string(), error);
+    REQUIRE(profile != nullptr);
+    CHECK(error.empty());
+    CHECK(profile->digest()
+        == "sha256:337e8cf26a507a277caf41bca2a84760caa1dd5fd1462808ab08e1c5c946077f");
+}
+
 TEST_CASE("profile loader rejects missing unknown duplicate and invalid features",
     "[evaluation-profile]")
 {

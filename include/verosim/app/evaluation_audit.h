@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <iosfwd>
 #include <string>
 
 #include "verosim/model/evaluation_profile.h"
@@ -20,5 +21,14 @@ struct EvaluationAudit {
 };
 
 EvaluationAudit MakeEvaluationAudit(const EvaluationProfile &profile);
+EvaluationAudit AuditAvailableScores(const EvaluationProfile &profile,
+    const SymScore *pred, const SymScore *gt);
+
+// Deterministic registry-order serializers shared by CLI, summary, and visual
+// outputs. The identity form omits per-side counts for batch summary headers.
+void WriteEvaluationFeatureCountsJson(
+    const std::optional<EvaluationFeatureCounts> &counts, std::ostream &out);
+void WriteEvaluationProfileIdentityJson(const EvaluationAudit &audit, std::ostream &out);
+void WriteEvaluationAuditJson(const EvaluationAudit &audit, std::ostream &out);
 
 } // namespace verosim

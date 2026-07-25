@@ -25,28 +25,57 @@ struct Overloaded : Ts... {
 template <class... Ts>
 Overloaded(Ts...) -> Overloaded<Ts...>;
 
+bool PrepareCommandEvaluationProfile(verosim::Command &command, std::string &error)
+{
+    return std::visit(
+        Overloaded{
+            [&](verosim::CompareCommand &cmd) {
+                return verosim::PrepareEvaluationProfile(cmd.options, error);
+            },
+            [&](verosim::PairsCommand &cmd) {
+                return verosim::PrepareEvaluationProfile(cmd.options, error);
+            },
+            [&](verosim::BatchCommand &cmd) {
+                return verosim::PrepareEvaluationProfile(cmd.options, error);
+            },
+            [&](verosim::BatchJsonlCommand &cmd) {
+                return verosim::PrepareEvaluationProfile(cmd.options, error);
+            },
+            [&](verosim::VisualizeCommand &cmd) {
+                return verosim::PrepareEvaluationProfile(cmd.options, error);
+            },
+            [](auto &) { return true; },
+        },
+        command);
+}
+
 void PrintUsage(std::ostream &os)
 {
     os << "usage: verosim <pred> <gt> [--ops] [--mode active|experimental]\n"
           "                                      [--layout none|system-breaks]\n"
           "                                      [--note-position visual|musical]\n"
           "                                      [--typed-space-handling preserve|suppress-straddle-filler]\n"
+          "                                      [--evaluation-profile PATH]\n"
           "                                      compare two scores, OMR-NED as JSON\n"
           "                                      (--ops includes the per-edit operation list)\n"
           "       verosim --visualize <pred> <gt> --out <html> [--mode active|experimental]\n"
           "                                      [--layout none|system-breaks]\n"
           "                                      [--note-position visual|musical]\n"
           "                                      [--typed-space-handling preserve|suppress-straddle-filler]\n"
+          "                                      [--evaluation-profile PATH]\n"
           "                                      compare and write a side-by-side SVG HTML report\n"
           "       verosim --visualize <pred> <gt> --out-dir <dir> --output-format svg\n"
           "                                      [--mode active|experimental] [--layout none|system-breaks]\n"
+          "                                      [--evaluation-profile PATH]\n"
           "                                      compare and write raw annotated SVG pages\n"
           "       verosim --pairs <tsv> [--base-dir <dir>] [--ops] [--mode active|experimental]\n"
           "                                      [--layout none|system-breaks]\n"
+          "                                      [--evaluation-profile PATH]\n"
           "                                      compare every pred<TAB>gt pair in <tsv>\n"
           "                                      (JSONL, one record per pair, always exits 0)\n"
           "       verosim --batch <tsv> [--base-dir <dir>] [--jobs N] [--ops] [--mode active|experimental]\n"
           "                                      [--layout none|system-breaks]\n"
+          "                                      [--evaluation-profile PATH]\n"
           "                                      parallel JSONL batch compare, one Toolkit per worker\n"
           "       verosim --batch-jsonl <jsonl> [--pred-field prediction] [--gt-field target]\n"
           "                                      [--id-field sample_id] [--group-field val_set]\n"
@@ -56,6 +85,7 @@ void PrintUsage(std::ostream &os)
           "                                      [--failure-score N] [--mode active|experimental]\n"
           "                                      [--layout none|system-breaks]\n"
           "                                      [--summary-json path] [--jobs N] [--ops]\n"
+          "                                      [--evaluation-profile PATH]\n"
           "                                      compare mixed-format score strings from JSONL records\n"
           "       verosim --dump-tree <file> [--typed-space-handling preserve|suppress-straddle-filler]\n"
           "                                      print the parsed Verovio object tree\n"
@@ -252,6 +282,11 @@ int main(int argc, char **argv)
     if (!command.has_value()) {
         if (!parseError.empty()) std::cerr << "verosim: " << parseError << '\n';
         PrintUsage(std::cerr);
+        return 2;
+    }
+    std::string profileError;
+    if (!PrepareCommandEvaluationProfile(*command, profileError)) {
+        std::cerr << "verosim: " << profileError << '\n';
         return 2;
     }
     try {

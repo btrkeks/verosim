@@ -2,6 +2,8 @@
 #include <vector>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
+#include <memory>
 #include <sstream>
 #include <variant>
 
@@ -11,9 +13,34 @@
 #include "verosim/cli/args.h"
 #include "verosim/cli/batch.h"
 #include "verosim/cli/list_io.h"
+#include "verosim/extraction/vrv_bridge.h"
 #include "verosim/model/metric_mode.h"
 
 using namespace verosim;
+
+namespace {
+
+std::shared_ptr<const EvaluationProfile> CliTestProfile(
+    std::initializer_list<EvaluationFeature> ignored = {})
+{
+    EvaluationFeatureDispositions dispositions;
+    for (const EvaluationFeatureSpec &spec : EvaluationFeatureRegistryV1()) {
+        dispositions[EvaluationFeatureIndex(spec.feature)]
+            = spec.capability == EvaluationFeatureCapability::kKnownUnsupported
+            ? FeatureDisposition::kUnsupported
+            : FeatureDisposition::kScored;
+    }
+    for (const EvaluationFeature feature : ignored) {
+        dispositions[EvaluationFeatureIndex(feature)] = FeatureDisposition::kIgnored;
+    }
+    std::string error;
+    std::optional<EvaluationProfile> profile = MakeEvaluationProfileV1(
+        "test.cli", "sha256:cli", dispositions, error);
+    REQUIRE(profile.has_value());
+    return std::make_shared<const EvaluationProfile>(std::move(*profile));
+}
+
+} // namespace
 
 TEST_CASE("MetricMode helpers map the public mode names", "[cli]")
 {
@@ -142,6 +169,48 @@ TEST_CASE("ParseCommand keeps compare options with compare-like commands", "[cli
     CHECK(visual->args.output_kind == VisualizeArgs::OutputKind::kHtml);
     CHECK(visual->options.surface.mode == MetricMode::kExperimental);
     CHECK(visual->options.surface.layout == LayoutSurface::kSystemBreaks);
+}
+
+TEST_CASE("ParseCommand propagates evaluation profiles and rejects competing scope options",
+    "[cli][evaluation-profile]")
+{
+    std::string error;
+    auto parsed = ParseCommand(
+        { "pred.krn", "gt.krn", "--evaluation-profile", "benchmark.json" }, error);
+    REQUIRE(parsed.has_value());
+    const auto *compare = std::get_if<CompareCommand>(&*parsed);
+    REQUIRE(compare != nullptr);
+    CHECK(compare->options.evaluation_profile_path == "benchmark.json");
+    CHECK_FALSE(compare->options.mode_was_set);
+    CHECK_FALSE(compare->options.layout_was_set);
+
+    error.clear();
+    parsed = ParseCommand({ "--evaluation-profile", "benchmark.json", "--batch-jsonl",
+        "scores.jsonl", "--jobs", "2" }, error);
+    REQUIRE(parsed.has_value());
+    const auto *batch = std::get_if<BatchJsonlCommand>(&*parsed);
+    REQUIRE(batch != nullptr);
+    CHECK(batch->options.evaluation_profile_path == "benchmark.json");
+
+    error.clear();
+    parsed = ParseCommand({ "--visualize", "pred.krn", "gt.krn", "--out", "report.html",
+        "--evaluation-profile", "benchmark.json" }, error);
+    REQUIRE(parsed.has_value());
+    const auto *visual = std::get_if<VisualizeCommand>(&*parsed);
+    REQUIRE(visual != nullptr);
+    CHECK(visual->options.evaluation_profile_path == "benchmark.json");
+
+    for (const std::vector<std::string> &args : {
+             std::vector<std::string>{ "pred", "gt", "--evaluation-profile", "p.json",
+                 "--mode", "active" },
+             std::vector<std::string>{ "pred", "gt", "--layout", "none",
+                 "--evaluation-profile", "p.json" },
+             std::vector<std::string>{ "pred", "gt", "--evaluation-profile", "a.json",
+                 "--evaluation-profile", "b.json" } }) {
+        error.clear();
+        CHECK_FALSE(ParseCommand(args, error).has_value());
+        CHECK_FALSE(error.empty());
+    }
 }
 
 TEST_CASE("ParseCommand accepts count-symbols mode placements", "[cli]")
@@ -639,4 +708,131 @@ TEST_CASE("JSONL batch reports malformed input records as data failures", "[cli]
     CHECK(error.find("cannot read") != std::string::npos);
 
     std::filesystem::remove(input);
+}
+
+TEST_CASE("profile-aware pair and JSONL batch outputs carry deterministic removal audits",
+    "[cli][evaluation-profile]")
+{
+    const std::filesystem::path input = std::filesystem::temp_directory_path()
+        / "verosim-profile-jsonl-test.jsonl";
+    const std::filesystem::path summary = std::filesystem::temp_directory_path()
+        / "verosim-profile-jsonl-summary.json";
+    const std::string plain = "**kern\\n*clefG2\\n*M4/4\\n=1\\n2c\\n2c\\n*-\\n";
+    const std::string tied = "**kern\\n*clefG2\\n*M4/4\\n=1\\n[2c\\n2c]\\n*-\\n";
+    {
+        std::ofstream out(input);
+        out << "{\"sample_id\":1,\"val_set\":\"a\",\"prediction\":\""
+            << tied << "\",\"target\":\"" << plain << "\"}\n";
+        out << "{\"sample_id\":2,\"val_set\":\"b\",\"prediction\":\""
+            << plain << "\",\"target\":\"" << tied << "\"}\n";
+    }
+
+    CompareCliOptions options;
+    options.evaluation_profile = CliTestProfile({ EvaluationFeature::kTie });
+    BatchJsonlArgs args;
+    args.jsonl_path = input.string();
+    args.summary_json = summary.string();
+    args.jobs = 2;
+
+    std::ostringstream output;
+    std::string error;
+    REQUIRE(CompareJsonlBatchToJson(args, options, output, error));
+    CHECK(error.empty());
+
+    std::istringstream lines(output.str());
+    std::string line;
+    REQUIRE(std::getline(lines, line));
+    jsonxx::Object first;
+    REQUIRE(first.parse(line));
+    CHECK(first.get<jsonxx::Boolean>("ok"));
+    CHECK(first.get<jsonxx::Number>("distance") == 0.0);
+    const jsonxx::Object &first_profile
+        = first.get<jsonxx::Object>("evaluation_profile");
+    CHECK(first_profile.get<jsonxx::String>("id") == "test.cli");
+    CHECK(first_profile.get<jsonxx::String>("digest") == "sha256:cli");
+    const jsonxx::Object &first_removed = first_profile.get<jsonxx::Object>("removed");
+    const jsonxx::Object &first_pred = first_removed.get<jsonxx::Object>("pred");
+    CHECK(first_pred.get<jsonxx::Number>("total") == 1.0);
+    CHECK(first_pred.get<jsonxx::Object>("features").get<jsonxx::Number>("note.tie")
+        == 1.0);
+
+    REQUIRE(std::getline(lines, line));
+    jsonxx::Object second;
+    REQUIRE(second.parse(line));
+    CHECK(second.get<jsonxx::Boolean>("ok"));
+    const jsonxx::Object &second_removed
+        = second.get<jsonxx::Object>("evaluation_profile").get<jsonxx::Object>("removed");
+    CHECK(second_removed.get<jsonxx::Object>("gt").get<jsonxx::Number>("total") == 1.0);
+
+    std::ifstream summary_in(summary);
+    std::ostringstream summary_text;
+    summary_text << summary_in.rdbuf();
+    jsonxx::Object summary_object;
+    REQUIRE(summary_object.parse(summary_text.str()));
+    CHECK(summary_object.get<jsonxx::Object>("evaluation_profile")
+            .get<jsonxx::String>("id")
+        == "test.cli");
+    const jsonxx::Object &overall_removed = summary_object.get<jsonxx::Object>("overall")
+                                               .get<jsonxx::Object>("removed");
+    CHECK(overall_removed.get<jsonxx::Object>("pred").get<jsonxx::Number>("available")
+        == 2.0);
+    CHECK(overall_removed.get<jsonxx::Object>("pred")
+            .get<jsonxx::Object>("counts")
+            .get<jsonxx::Number>("total")
+        == 1.0);
+    CHECK(summary_object.get<jsonxx::Object>("by_group")
+            .get<jsonxx::Object>("b")
+            .get<jsonxx::Object>("removed")
+            .get<jsonxx::Object>("gt")
+            .get<jsonxx::Object>("counts")
+            .get<jsonxx::Number>("total")
+        == 1.0);
+
+    std::filesystem::remove(input);
+    std::filesystem::remove(summary);
+}
+
+TEST_CASE("profile-aware load failures audit each available side", "[cli][evaluation-profile]")
+{
+    const std::filesystem::path pred = std::filesystem::temp_directory_path()
+        / "verosim-profile-failure-pred.krn";
+    const std::filesystem::path gt = std::filesystem::temp_directory_path()
+        / "verosim-profile-batch-gt.krn";
+    {
+        std::ofstream out(pred);
+        out << "**kern\n*clefG2\n*M4/4\n=1\n[2c\n2c]\n*-\n";
+    }
+    {
+        std::ofstream out(gt);
+        out << "**kern\n*clefG2\n*M4/4\n=1\n2c\n2c\n*-\n";
+    }
+    CompareCliOptions options;
+    options.evaluation_profile = CliTestProfile({ EvaluationFeature::kTie });
+    VrvBridge bridge;
+    std::ostringstream output;
+    CHECK_FALSE(ComparePairToJson(
+        bridge, pred.string(), pred.string() + ".missing", options, output));
+    jsonxx::Object record;
+    REQUIRE(record.parse(output.str()));
+    const jsonxx::Object &removed
+        = record.get<jsonxx::Object>("evaluation_profile").get<jsonxx::Object>("removed");
+    CHECK(removed.has<jsonxx::Object>("pred"));
+    CHECK(removed.get<jsonxx::Object>("pred").get<jsonxx::Number>("total") == 1.0);
+    CHECK(removed.has<jsonxx::Null>("gt"));
+
+    std::ostringstream batch_output;
+    CompareBatchToJson(
+        { PairRow{ pred.string(), gt.string() } }, "", 2, options, batch_output);
+    jsonxx::Object batch_record;
+    REQUIRE(batch_record.parse(batch_output.str()));
+    CHECK(batch_record.get<jsonxx::Boolean>("ok"));
+    CHECK(batch_record.get<jsonxx::Number>("distance") == 0.0);
+    CHECK(batch_record.get<jsonxx::Object>("evaluation_profile")
+            .get<jsonxx::Object>("removed")
+            .get<jsonxx::Object>("pred")
+            .get<jsonxx::Number>("total")
+        == 1.0);
+
+    std::filesystem::remove(pred);
+    std::filesystem::remove(gt);
 }

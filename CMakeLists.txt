@@ -92,6 +92,7 @@ verosim_target_defaults(verosim_extraction)
 target_link_libraries(verosim_extraction PUBLIC verosim_model verosim_verovio)
 
 add_library(verosim_app STATIC
+    src/app/evaluation_audit.cpp
     src/app/evaluation_profile_loader.cpp
     src/app/score_pipeline.cpp)
 verosim_target_defaults(verosim_app)

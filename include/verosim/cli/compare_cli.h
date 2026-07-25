@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iosfwd>
+#include <memory>
 #include <string>
 
 #include "verosim/app/compare_options.h"
@@ -15,14 +16,23 @@ struct CompareCliOptions {
     MetricSurface surface;
     NotePositionPolicy note_position_policy = NotePositionPolicy::kVisualEventOrder;
     TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
+    std::string evaluation_profile_path;
+    std::shared_ptr<const EvaluationProfile> evaluation_profile;
+    bool mode_was_set = false;
+    bool layout_was_set = false;
 };
 
 inline CompareRunOptions RunOptionsForCli(const CompareCliOptions &options)
 {
     return CompareRunOptions{ .surface = options.surface,
         .note_position_policy = options.note_position_policy,
-        .typed_space_handling = options.typed_space_handling };
+        .typed_space_handling = options.typed_space_handling,
+        .evaluation_profile = options.evaluation_profile };
 }
+
+// Loads the external profile exactly once at command preflight. With no
+// profile path this is a no-op that preserves the legacy execution path.
+bool PrepareEvaluationProfile(CompareCliOptions &options, std::string &error);
 
 // Loads pred and gt, extracts both, runs the comparison engine, and writes
 // one JSON object (newline-terminated) whose fields join 1:1 against the

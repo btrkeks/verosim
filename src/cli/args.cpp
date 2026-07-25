@@ -36,7 +36,8 @@ std::optional<std::string> FirstCommandFlag(const std::vector<std::string> &args
         }
         else if (args[i] == "--mode" || args[i] == "--detail"
             || args[i] == "--layout" || args[i] == "--note-position"
-            || args[i] == "--typed-space-handling") {
+            || args[i] == "--typed-space-handling"
+            || args[i] == "--evaluation-profile") {
             i += 2;
         }
         else {
@@ -79,7 +80,8 @@ bool StripTypedSpaceOptions(
     return true;
 }
 
-bool StripModeOptions(std::vector<std::string> &args, MetricMode &mode, std::string &error)
+bool StripModeOptions(std::vector<std::string> &args, MetricMode &mode, std::string &error,
+    bool *was_set = nullptr)
 {
     for (std::size_t i = 0; i < args.size();) {
         if (args[i] == "--detail") {
@@ -100,13 +102,15 @@ bool StripModeOptions(std::vector<std::string> &args, MetricMode &mode, std::str
             return false;
         }
         mode = *parsed;
+        if (was_set) *was_set = true;
         EraseArgs(args, i, 2);
     }
     return true;
 }
 
 bool StripLayoutOptions(
-    std::vector<std::string> &args, LayoutSurface &layout, std::string &error)
+    std::vector<std::string> &args, LayoutSurface &layout, std::string &error,
+    bool *was_set = nullptr)
 {
     for (std::size_t i = 0; i < args.size();) {
         if (args[i] != "--layout") {
@@ -123,6 +127,29 @@ bool StripLayoutOptions(
             return false;
         }
         layout = *parsed;
+        if (was_set) *was_set = true;
+        EraseArgs(args, i, 2);
+    }
+    return true;
+}
+
+bool StripEvaluationProfileOption(
+    std::vector<std::string> &args, CompareCliOptions &options, std::string &error)
+{
+    for (std::size_t i = 0; i < args.size();) {
+        if (args[i] != "--evaluation-profile") {
+            ++i;
+            continue;
+        }
+        if (MissingValue(args, i) || args[i + 1].empty() || args[i + 1][0] == '-') {
+            error = "--evaluation-profile requires a path";
+            return false;
+        }
+        if (!options.evaluation_profile_path.empty()) {
+            error = "--evaluation-profile may be specified only once";
+            return false;
+        }
+        options.evaluation_profile_path = args[i + 1];
         EraseArgs(args, i, 2);
     }
     return true;
@@ -131,6 +158,7 @@ bool StripLayoutOptions(
 bool StripComparisonOptionsForCommand(std::vector<std::string> &args, CompareCliOptions &options,
     bool allow_ops, std::string &error)
 {
+    if (!StripEvaluationProfileOption(args, options, error)) return false;
     for (std::size_t i = 0; i < args.size();) {
         if (args[i] == "--ops") {
             if (!allow_ops) {
@@ -155,14 +183,26 @@ bool StripComparisonOptionsForCommand(std::vector<std::string> &args, CompareCli
         }
         else {
             const std::size_t before = args.size();
-            if (!StripModeOptions(args, options.surface.mode, error)) return false;
+            if (!StripModeOptions(
+                    args, options.surface.mode, error, &options.mode_was_set)) {
+                return false;
+            }
             if (args.size() != before) continue;
-            if (!StripLayoutOptions(args, options.surface.layout, error)) return false;
+            if (!StripLayoutOptions(
+                    args, options.surface.layout, error, &options.layout_was_set)) {
+                return false;
+            }
             if (args.size() != before) continue;
             if (!StripTypedSpaceOptions(args, options.typed_space_handling, error)) return false;
             if (args.size() != before) continue;
             ++i;
         }
+    }
+    if (!options.evaluation_profile_path.empty()
+        && (options.mode_was_set || options.layout_was_set)) {
+        error = "--evaluation-profile cannot be combined with explicit --mode or --layout; "
+                "the profile selects the complete extraction surface";
+        return false;
     }
     return true;
 }

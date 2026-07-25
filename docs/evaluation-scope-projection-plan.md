@@ -118,14 +118,14 @@ Allowed phase statuses: `not started`, `in progress`, `complete`, `blocked`.
 | ID | Outcome | Depends on | Required gate | Status | Commit |
 |---|---|---|---|---|---|
 | P1 | Strict v1 taxonomy/profile loader/digest and pure canonical projector | none | focused schema/projection tests, phase autoreview | complete | `b746e76` |
-| P2 | Profile-aware extraction and comparison lifecycle with stable ownership/audit | P1 | pipeline/engine/cross-format/backcompat tests, phase autoreview | complete | pending commit |
-| P3 | CLI, pairs, batch/JSONL, summary, HTML, and SVG propagation | P2 | CLI/visual tests and source-blind commands, phase autoreview | in progress | — |
-| P4 | User documentation and Transcoda integration handoff | P3 | documented examples/schema checked against executable behavior, phase autoreview if executable docs change | not started | — |
+| P2 | Profile-aware extraction and comparison lifecycle with stable ownership/audit | P1 | pipeline/engine/cross-format/backcompat tests, phase autoreview | complete | `3d4d902` |
+| P3 | CLI, pairs, batch/JSONL, summary, HTML, and SVG propagation | P2 | CLI/visual tests and source-blind commands, phase autoreview | complete | pending commit |
+| P4 | User documentation and Transcoda integration handoff | P3 | documented examples/schema checked against executable behavior, phase autoreview if executable docs change | in progress | — |
 | F1 | Final verification/closeout and latest-main recheck | all phases | `make test`, behavior matrix, final branch autoreview, clean diff | not started | `HEAD when complete` |
 
 ## 4. Execution ledger (mutable)
 
-Current phase/status: `P3; in progress`
+Current phase/status: `P4; in progress`
 
 ### P1 — Strict taxonomy, loader, digest, and projector
 
@@ -138,7 +138,7 @@ Current phase/status: `P3; in progress`
 
 ### P2 — Profile-aware extraction, comparison ownership, and audit
 
-- Status/commit: `complete; commit pending`
+- Status/commit: `complete; 3d4d902`
 - Repro and diagnostic evidence: added pipeline cases for ignored-mutation invariance, retained notehead sensitivity, projected denominators, profile-forced maximal extraction, move-stable edit pointers, no-profile characterization, and MusicXML/kern equivalence after projection. Initial failures exposed and corrected two fixture assumptions (measure-level pitch replacement ops and an intentionally unclosed slur).
 - Implementation: shared run options now carry an immutable profile; profile mode extracts the full currently supported surface, symmetrically projects both canonical scores, owns address-stable projected inputs, and computes matching, edit paths, sizes, OMR-NED, and category totals solely from them. Successful comparisons attach the shared profile identity and both removal-count sets.
 - Verification: `build/tests/verosim_tests '[evaluation-profile][pipeline]'` — 5 cases, 45 assertions passed; complete project compile succeeded.
@@ -147,8 +147,17 @@ Current phase/status: `P3; in progress`
 
 ### P3 — CLI, batch, summary, and visual propagation
 
+- Status/commit: `complete; commit pending`
+- Repro and diagnostic evidence: added option-placement/conflict tests; pair and parallel file-batch success/failure audits; mixed JSONL per-record and overall/by-group summary aggregation; exact fixture SHA-256; ignored-mark visual invariance; HTML and SVG audit propagation; no-profile absence assertions. A source-blind ignored accidental comparison returned distance 0 with the expected digest/count delta; a retained pitch mutation returned distance 4; a missing profile exited 2 before any JSON record; an explicit mode/profile conflict produced the expected diagnostic.
+- Implementation: shared `--evaluation-profile` parsing across all comparison commands; command-level idempotent loader preflight; registry-ordered audit serializer with null unavailable sides; deterministic per-record and batch-summary aggregation; immutable profile sharing across workers; conditional HTML/SVG audit output and projected visual marks.
+- Verification: `build/tests/verosim_tests '[evaluation-profile]'` — 16 cases, 241 assertions passed; CLI and full test executable compiled; source-blind pair, retained mutation, invalid-profile, and conflict commands behaved as specified.
+- Diff/instrumentation disposition: scoped phase autoreview clean (`overall: patch is correct (0.99)`); test fixture digest independently checked with `sha256sum`; no temporary instrumentation retained.
+- Deviations: none
+
+### P4 — Documentation and Transcoda handoff
+
 - Status/commit: `in progress; preceding commit pending`
-- Repro and diagnostic evidence: pending tests-first additions
+- Repro and diagnostic evidence: pending documentation/executable cross-check
 - Implementation: pending
 - Verification: pending
 - Diff/instrumentation disposition: pending
@@ -177,3 +186,4 @@ Current phase/status: `P3; in progress`
 | 2026-07-25/planning | Original archived worktree was absent; recreated clean worktree and branch from local repository. | none | none |
 | 2026-07-25/planning | Rebase onto updated local main conflicted only where two independent test cases were adjacent; resolved by retaining both verbatim and rebase completed. | none | none |
 | 2026-07-25/P1 | Concurrent unstaged `Makefile`/`README.md` build-resource changes appeared with a separate timestamp while P1 was in progress. They are coherent but outside this feature. | none; preserved unmodified and excluded from feature commits/reviews | none |
+| 2026-07-25/P3 | Repeated abandoned/failed Ninja log writes caused `premature end of file` recovery and conservative full rebuilds. Process inspection found no stale compiler, and `ninja -t recompact` repaired the dependency log; the subsequent dry-run returned to a five-step incremental build. | verification latency only; compiled artifacts and focused results valid | none |
