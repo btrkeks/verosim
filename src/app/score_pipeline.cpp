@@ -18,7 +18,49 @@ SourceFormat SourceFormatFromBridge(const VrvBridge &bridge)
     }
 }
 
+vrv::FileFormat VrvFormat(ScoreDataFormat format)
+{
+    switch (format) {
+        case ScoreDataFormat::kKern: return vrv::HUMDRUM;
+        case ScoreDataFormat::kMusicXml: return vrv::MUSICXML;
+        case ScoreDataFormat::kMei: return vrv::MEI;
+        case ScoreDataFormat::kAuto: return vrv::UNKNOWN;
+    }
+    return vrv::UNKNOWN;
+}
+
+ScoreDataFormat ScoreFormatFromBridge(const VrvBridge &bridge, ScoreDataFormat fallback)
+{
+    switch (bridge.last_input_format()) {
+        case vrv::HUMDRUM: return ScoreDataFormat::kKern;
+        case vrv::MUSICXML:
+        case vrv::MUSICXMLHUM: return ScoreDataFormat::kMusicXml;
+        case vrv::MEI: return ScoreDataFormat::kMei;
+        default: return fallback;
+    }
+}
+
 } // namespace
+
+std::optional<ScoreDataFormat> ParseScoreDataFormat(const std::string &value)
+{
+    if (value == "kern" || value == "humdrum") return ScoreDataFormat::kKern;
+    if (value == "musicxml") return ScoreDataFormat::kMusicXml;
+    if (value == "mei") return ScoreDataFormat::kMei;
+    if (value == "auto") return ScoreDataFormat::kAuto;
+    return std::nullopt;
+}
+
+const char *ScoreDataFormatName(ScoreDataFormat format)
+{
+    switch (format) {
+        case ScoreDataFormat::kKern: return "kern";
+        case ScoreDataFormat::kMusicXml: return "musicxml";
+        case ScoreDataFormat::kMei: return "mei";
+        case ScoreDataFormat::kAuto: return "auto";
+    }
+    return "auto";
+}
 
 ExtractOptions ExtractOptionsForRun(const CompareRunOptions &options)
 {
@@ -58,13 +100,22 @@ LoadedScore LoadAndExtractScoreFile(
 LoadedScore LoadAndExtractKernData(VrvBridge &bridge, const std::string &data,
     const std::string &label, const ExtractOptions &options)
 {
+    return LoadAndExtractScoreData(bridge, data, ScoreDataFormat::kKern, label, options);
+}
+
+LoadedScore LoadAndExtractScoreData(VrvBridge &bridge, const std::string &data,
+    ScoreDataFormat format, const std::string &label, const ExtractOptions &options)
+{
     LoadedScore loaded;
+    loaded.format = format;
     try {
         bridge.set_typed_space_handling(options.typed_space_handling);
-        if (!bridge.LoadScoreData(data, vrv::HUMDRUM)) {
+        if (!bridge.LoadScoreData(data, VrvFormat(format))) {
+            loaded.format = ScoreFormatFromBridge(bridge, format);
             loaded.error = "failed to load " + label;
             return loaded;
         }
+        loaded.format = ScoreFormatFromBridge(bridge, format);
         ExtractResult result = ExtractSymScore(bridge.GetDoc(), SourceFormatFromBridge(bridge), options);
         loaded.score = std::move(result.score);
         loaded.warnings = std::move(result.warnings);

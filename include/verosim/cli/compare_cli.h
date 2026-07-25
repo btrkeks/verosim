@@ -4,6 +4,7 @@
 #include <string>
 
 #include "verosim/app/compare_options.h"
+#include "verosim/app/score_format.h"
 
 namespace verosim {
 
@@ -38,5 +39,12 @@ bool ComparePairToJson(VrvBridge &bridge, const std::string &pred_path,
 bool CompareScoreDataToJson(VrvBridge &bridge, const std::string &pred_data,
     const std::string &gt_data, const CompareCliOptions &options, const std::string &json_prefix,
     std::ostream &out);
+
+// Mixed-format form. Labels are used in load failures and normally match the
+// JSONL field names.
+bool CompareScoreDataToJson(VrvBridge &bridge, const std::string &pred_data,
+    const std::string &gt_data, ScoreDataFormat pred_format, ScoreDataFormat gt_format,
+    const std::string &pred_label, const std::string &gt_label, const CompareCliOptions &options,
+    const std::string &json_prefix, std::ostream &out);
 
 } // namespace verosim

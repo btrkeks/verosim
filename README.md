@@ -97,8 +97,21 @@ Typed Verovio spaces can be controlled with
 `type=straddle`/`type=filler` rhythm-repair spaces. Use `preserve` to keep those
 spaces as normal hidden-duration carriers.
 
-The exception is `--batch-jsonl`, which compares in-memory score strings from
-JSONL records and currently expects Humdrum/kern text (`--format kern`).
+`--batch-jsonl` compares score strings directly from JSONL records. Each side
+can use `kern`, `musicxml`, `mei`, or `auto` independently:
+
+```sh
+build/verosim --batch-jsonl validation.jsonl \
+  --pred-field prediction --gt-field target \
+  --pred-format musicxml --gt-format kern
+```
+
+Individual records can override those defaults with fields named after the
+score fields plus `_format` (by default `prediction_format` and
+`target_format`). Raw MusicXML XML is supported; compressed binary `.mxl`
+content is not. Output records include the resolved `pred_format`, `gt_format`,
+`pred_parser`, and `gt_parser` provenance fields. The older `--format` option
+remains as a shorthand that sets both sides to the same format.
 
 ## Documentation
 

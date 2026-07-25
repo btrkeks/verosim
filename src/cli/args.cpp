@@ -379,9 +379,21 @@ std::optional<BatchJsonlArgs> ParseBatchJsonlArgs(const std::vector<std::string>
             if (value.empty()) return std::nullopt;
             parsed.summary_json = value;
         }
+        else if (flag == "--pred-format") {
+            const std::optional<ScoreDataFormat> format = ParseScoreDataFormat(value);
+            if (!format.has_value()) return std::nullopt;
+            parsed.pred_format = *format;
+        }
+        else if (flag == "--gt-format") {
+            const std::optional<ScoreDataFormat> format = ParseScoreDataFormat(value);
+            if (!format.has_value()) return std::nullopt;
+            parsed.gt_format = *format;
+        }
         else if (flag == "--format") {
-            if (value != "kern" && value != "humdrum") return std::nullopt;
-            parsed.format = value;
+            const std::optional<ScoreDataFormat> format = ParseScoreDataFormat(value);
+            if (!format.has_value()) return std::nullopt;
+            parsed.pred_format = *format;
+            parsed.gt_format = *format;
         }
         else if (flag == "--failure-score") {
             try {

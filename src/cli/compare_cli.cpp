@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <ostream>
+#include <sstream>
 #include <vector>
 
 #include "verosim/app/score_pipeline.h"
@@ -70,6 +71,21 @@ void WriteEditOps(const std::vector<EditOp> &ops, std::ostream &out)
         out << "}";
     }
     out << "]";
+}
+
+std::string AppendDataProvenance(
+    const std::string &json_prefix, const LoadedScore &pred, const LoadedScore &gt)
+{
+    std::ostringstream out;
+    out << json_prefix << (json_prefix == "{" ? "" : ",") << "\"pred_format\":";
+    WriteJsonString(ScoreDataFormatName(pred.format), out);
+    out << ",\"gt_format\":";
+    WriteJsonString(ScoreDataFormatName(gt.format), out);
+    out << ",\"pred_parser\":";
+    WriteJsonString(pred.parser, out);
+    out << ",\"gt_parser\":";
+    WriteJsonString(gt.parser, out);
+    return out.str();
 }
 
 bool WriteComparisonJson(const LoadedScore &pred, const LoadedScore &gt,
@@ -145,12 +161,26 @@ bool CompareScoreDataToJson(VrvBridge &bridge, const std::string &pred_data,
     const std::string &gt_data, const CompareCliOptions &options, const std::string &json_prefix,
     std::ostream &out)
 {
+    return CompareScoreDataToJson(bridge, pred_data, gt_data, ScoreDataFormat::kKern,
+        ScoreDataFormat::kKern, "prediction", "target", options, json_prefix, out);
+}
+
+bool CompareScoreDataToJson(VrvBridge &bridge, const std::string &pred_data,
+    const std::string &gt_data, ScoreDataFormat pred_format, ScoreDataFormat gt_format,
+    const std::string &pred_label, const std::string &gt_label, const CompareCliOptions &options,
+    const std::string &json_prefix, std::ostream &out)
+{
     const auto start = std::chrono::steady_clock::now();
     const ExtractOptions extract_options = ExtractOptionsForRun(RunOptionsForCli(options));
-    const LoadedScore pred = LoadAndExtractKernData(bridge, pred_data, "prediction", extract_options);
-    const LoadedScore gt = pred.ok ? LoadAndExtractKernData(bridge, gt_data, "target", extract_options)
-                                   : LoadedScore{};
-    return WriteComparisonJson(pred, gt, options, json_prefix, start, out);
+    const LoadedScore pred
+        = LoadAndExtractScoreData(bridge, pred_data, pred_format, pred_label, extract_options);
+    LoadedScore gt;
+    gt.format = gt_format;
+    if (pred.ok) {
+        gt = LoadAndExtractScoreData(bridge, gt_data, gt_format, gt_label, extract_options);
+    }
+    return WriteComparisonJson(
+        pred, gt, options, AppendDataProvenance(json_prefix, pred, gt), start, out);
 }
 
 } // namespace verosim

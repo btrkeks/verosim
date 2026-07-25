@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "verosim/app/compare_options.h"
+#include "verosim/app/score_format.h"
 #include "verosim/engine/compare.h"
 #include "verosim/extraction/extract.h"
 #include "verosim/model/sym_score.h"
@@ -17,6 +18,8 @@ struct LoadedScore {
     SymScore score;
     std::vector<std::string> warnings;
     std::string error;
+    ScoreDataFormat format = ScoreDataFormat::kAuto;
+    std::string parser = "verovio";
     bool ok = false;
 };
 
@@ -35,6 +38,8 @@ LoadedScore LoadAndExtractScoreFile(
     VrvBridge &bridge, const std::string &path, const ExtractOptions &options);
 LoadedScore LoadAndExtractKernData(VrvBridge &bridge, const std::string &data,
     const std::string &label, const ExtractOptions &options);
+LoadedScore LoadAndExtractScoreData(VrvBridge &bridge, const std::string &data,
+    ScoreDataFormat format, const std::string &label, const ExtractOptions &options);
 
 ScoreComparison CompareLoadedScores(
     const SymScore &pred, const SymScore &gt, const CompareRunOptions &options);

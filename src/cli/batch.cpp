@@ -24,6 +24,8 @@ namespace {
 struct JsonlScoreRecord {
     std::string pred;
     std::string gt;
+    ScoreDataFormat pred_format = ScoreDataFormat::kKern;
+    ScoreDataFormat gt_format = ScoreDataFormat::kKern;
     std::string prefix_json = "{";
     std::string group;
     std::string early_error;
@@ -132,11 +134,35 @@ JsonlScoreRecord MakeEarlyFailure(
 std::string FailureRecordJson(const JsonlScoreRecord &record)
 {
     std::ostringstream out;
-    out << record.prefix_json << (record.prefix_json == "{" ? "" : ",") << "\"ok\":false,\"error\":";
+    out << record.prefix_json << (record.prefix_json == "{" ? "" : ",")
+        << "\"pred_format\":";
+    WriteJsonString(ScoreDataFormatName(record.pred_format), out);
+    out << ",\"gt_format\":";
+    WriteJsonString(ScoreDataFormatName(record.gt_format), out);
+    out << ",\"pred_parser\":\"verovio\",\"gt_parser\":\"verovio\",\"ok\":false,\"error\":";
     WriteJsonString(record.early_error, out);
     out << ",\"distance\":null,\"n_pred\":null,\"n_gt\":null,\"omr_ned\":null,"
            "\"edit_distances_dict\":null,\"warnings\":[],\"runtime_s\":0}\n";
     return out.str();
+}
+
+bool ApplyFormatOverride(const jsonxx::Object &object, const std::string &field,
+    ScoreDataFormat &format, std::string &error)
+{
+    const auto it = object.kv_map().find(field);
+    if (it == object.kv_map().end()) return true;
+    if (!it->second->is<jsonxx::String>()) {
+        error = "non-string format field " + field;
+        return false;
+    }
+    const std::string value = it->second->get<jsonxx::String>();
+    const std::optional<ScoreDataFormat> parsed = ParseScoreDataFormat(value);
+    if (!parsed.has_value()) {
+        error = "unsupported format " + value + " in field " + field;
+        return false;
+    }
+    format = *parsed;
+    return true;
 }
 
 std::string PrefixForObject(
@@ -176,7 +202,11 @@ std::vector<JsonlScoreRecord> ReadJsonlScoreRecords(const BatchJsonlArgs &args, 
         if (line.empty()) continue;
         jsonxx::Object object;
         if (!object.parse(line)) {
-            records.push_back(MakeEarlyFailure("invalid JSON on line " + std::to_string(line_no)));
+            JsonlScoreRecord record
+                = MakeEarlyFailure("invalid JSON on line " + std::to_string(line_no));
+            record.pred_format = args.pred_format;
+            record.gt_format = args.gt_format;
+            records.push_back(std::move(record));
             continue;
         }
         const std::string key = DedupeKey(object, dedupe_fields);
@@ -188,6 +218,8 @@ std::vector<JsonlScoreRecord> ReadJsonlScoreRecords(const BatchJsonlArgs &args, 
         bool has_pred = false;
         bool has_gt = false;
         JsonlScoreRecord record;
+        record.pred_format = args.pred_format;
+        record.gt_format = args.gt_format;
         record.group = GroupValue(object, args.group_field);
         record.prefix_json = PrefixForObject(object, args, has_pred, has_gt);
         if (!has_pred) {
@@ -199,6 +231,12 @@ std::vector<JsonlScoreRecord> ReadJsonlScoreRecords(const BatchJsonlArgs &args, 
         else {
             record.pred = object.get<jsonxx::String>(args.pred_field);
             record.gt = object.get<jsonxx::String>(args.gt_field);
+            ApplyFormatOverride(object, args.pred_field + "_format", record.pred_format,
+                record.early_error);
+            std::string gt_format_error;
+            ApplyFormatOverride(
+                object, args.gt_field + "_format", record.gt_format, gt_format_error);
+            if (record.early_error.empty()) record.early_error = std::move(gt_format_error);
         }
         records.push_back(std::move(record));
     }
@@ -322,7 +360,9 @@ bool CompareJsonlBatchToJson(
                 }
                 std::ostringstream record;
                 CompareScoreDataToJson(
-                    bridge, inputs[i].pred, inputs[i].gt, options, inputs[i].prefix_json, record);
+                    bridge, inputs[i].pred, inputs[i].gt, inputs[i].pred_format,
+                    inputs[i].gt_format, args.pred_field, args.gt_field, options,
+                    inputs[i].prefix_json, record);
                 records[i] = record.str();
             }
         }));

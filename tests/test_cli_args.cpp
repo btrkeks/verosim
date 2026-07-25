@@ -315,13 +315,16 @@ TEST_CASE("ParseBatchJsonlArgs accepts validation JSONL options", "[cli]")
     CHECK(defaults->gt_field == "target");
     CHECK(defaults->id_field == "sample_id");
     CHECK(defaults->group_field == "val_set");
+    CHECK(defaults->pred_format == ScoreDataFormat::kKern);
+    CHECK(defaults->gt_format == ScoreDataFormat::kKern);
     CHECK(defaults->failure_score == 100.0);
     CHECK(defaults->jobs == 0);
 
     const auto parsed = ParseBatchJsonlArgs({ "--batch-jsonl", "validation.jsonl",
         "--pred-field", "pred", "--gt-field", "gold", "--id-field", "id", "--group-field",
         "split", "--dedupe-key", "split,id", "--summary-json", "summary.json",
-        "--failure-score", "42.5", "--jobs", "3", "--format", "kern" });
+        "--failure-score", "42.5", "--jobs", "3", "--pred-format", "musicxml",
+        "--gt-format", "mei" });
     REQUIRE(parsed.has_value());
     CHECK(parsed->pred_field == "pred");
     CHECK(parsed->gt_field == "gold");
@@ -331,14 +334,20 @@ TEST_CASE("ParseBatchJsonlArgs accepts validation JSONL options", "[cli]")
     CHECK(parsed->summary_json == "summary.json");
     CHECK(parsed->failure_score == 42.5);
     CHECK(parsed->jobs == 3);
+    CHECK(parsed->pred_format == ScoreDataFormat::kMusicXml);
+    CHECK(parsed->gt_format == ScoreDataFormat::kMei);
 
     CHECK_FALSE(ParseBatchJsonlArgs({ "--batch-jsonl", "validation.jsonl", "--jobs" }).has_value());
     CHECK_FALSE(
         ParseBatchJsonlArgs({ "--batch-jsonl", "validation.jsonl", "--failure-score", "nan" })
             .has_value());
-    CHECK_FALSE(
-        ParseBatchJsonlArgs({ "--batch-jsonl", "validation.jsonl", "--format", "musicxml" })
-            .has_value());
+    const auto shared_format
+        = ParseBatchJsonlArgs({ "--batch-jsonl", "validation.jsonl", "--format", "musicxml" });
+    REQUIRE(shared_format.has_value());
+    CHECK(shared_format->pred_format == ScoreDataFormat::kMusicXml);
+    CHECK(shared_format->gt_format == ScoreDataFormat::kMusicXml);
+    CHECK_FALSE(ParseBatchJsonlArgs(
+        { "--batch-jsonl", "validation.jsonl", "--pred-format", "mxl" }).has_value());
 }
 
 TEST_CASE("ParseVisualizeArgs accepts the pair report form only", "[cli]")
@@ -506,6 +515,55 @@ TEST_CASE("JSONL batch scores in-memory kern records and writes summary", "[cli]
 
     std::filesystem::remove(input);
     std::filesystem::remove(summary);
+}
+
+TEST_CASE("JSONL batch compares mixed in-memory formats with record overrides", "[cli]")
+{
+    const std::filesystem::path input = std::filesystem::temp_directory_path()
+        / std::filesystem::path("verosim-mixed-format-jsonl-test.jsonl");
+    const std::string musicxml = R"json(<?xml version=\"1.0\"?><score-partwise version=\"4.0\"><part-list><score-part id=\"P1\"><part-name>Music</part-name></score-part></part-list><part id=\"P1\"><measure number=\"1\"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes><note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><type>whole</type></note></measure></part></score-partwise>)json";
+    const std::string kern = "**kern\\n*clefG2\\n*M4/4\\n=1\\n1c\\n*-\\n";
+    {
+        std::ofstream out(input);
+        out << "{\"sample_id\":1,\"prediction_format\":\"musicxml\","
+               "\"target_format\":\"auto\",\"prediction\":\""
+            << musicxml << "\",\"target\":\"" << kern << "\"}\n";
+        out << "{\"sample_id\":2,\"prediction_format\":\"mxl\","
+               "\"prediction\":\"binary\",\"target\":\""
+            << kern << "\"}\n";
+    }
+
+    BatchJsonlArgs args;
+    args.jsonl_path = input.string();
+    args.pred_format = ScoreDataFormat::kMei;
+    args.gt_format = ScoreDataFormat::kMusicXml;
+    args.jobs = 1;
+
+    std::ostringstream output;
+    std::string error;
+    REQUIRE(CompareJsonlBatchToJson(args, CompareCliOptions{}, output, error));
+    CHECK(error.empty());
+
+    std::istringstream lines(output.str());
+    std::string line;
+    REQUIRE(std::getline(lines, line));
+    jsonxx::Object mixed;
+    REQUIRE(mixed.parse(line));
+    CHECK(mixed.get<jsonxx::Boolean>("ok"));
+    CHECK(mixed.get<jsonxx::String>("pred_format") == "musicxml");
+    CHECK(mixed.get<jsonxx::String>("gt_format") == "kern");
+    CHECK(mixed.get<jsonxx::String>("pred_parser") == "verovio");
+    CHECK(mixed.get<jsonxx::String>("gt_parser") == "verovio");
+
+    REQUIRE(std::getline(lines, line));
+    jsonxx::Object excluded_mxl;
+    REQUIRE(excluded_mxl.parse(line));
+    CHECK_FALSE(excluded_mxl.get<jsonxx::Boolean>("ok"));
+    CHECK(excluded_mxl.get<jsonxx::String>("error").find("unsupported format mxl")
+        != std::string::npos);
+    CHECK_FALSE(std::getline(lines, line));
+
+    std::filesystem::remove(input);
 }
 
 TEST_CASE("JSONL batch reports malformed input records as data failures", "[cli]")

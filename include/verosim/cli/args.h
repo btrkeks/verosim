@@ -5,6 +5,7 @@
 #include <variant>
 #include <vector>
 
+#include "verosim/app/score_format.h"
 #include "verosim/cli/compare_cli.h"
 
 namespace verosim {
@@ -28,7 +29,8 @@ struct BatchJsonlArgs {
     std::string group_field = "val_set";
     std::string dedupe_key;
     std::string summary_json;
-    std::string format = "kern";
+    ScoreDataFormat pred_format = ScoreDataFormat::kKern;
+    ScoreDataFormat gt_format = ScoreDataFormat::kKern;
     double failure_score = 100.0;
     int jobs = 0;
 };
