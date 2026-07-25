@@ -50,6 +50,7 @@ add_library(verosim_support INTERFACE)
 target_include_directories(verosim_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 add_library(verosim_model STATIC
+    src/model/evaluation_profile.cpp
     src/model/metric_mode.cpp
     src/model/sym_score.cpp)
 verosim_target_defaults(verosim_model)
@@ -91,6 +92,7 @@ verosim_target_defaults(verosim_extraction)
 target_link_libraries(verosim_extraction PUBLIC verosim_model verosim_verovio)
 
 add_library(verosim_app STATIC
+    src/app/evaluation_profile_loader.cpp
     src/app/score_pipeline.cpp)
 verosim_target_defaults(verosim_app)
 target_link_libraries(verosim_app PUBLIC
