@@ -534,6 +534,32 @@ TEST_CASE("hidden notes and hidden chord members are not extracted", "[extract]"
     }
 }
 
+TEST_CASE("a tuplet that draws neither number nor bracket is not scored", "[extract]")
+{
+    for (const auto &[name, format] :
+        { std::pair { "hidden_tuplet.krn", SourceFormat::kKern },
+            std::pair { "hidden_tuplet.xml", SourceFormat::kMusicXml } }) {
+        INFO(name);
+        const ExtractResult result = ExtractFixture(name, format);
+        const std::vector<SymNote> &notes = result.score.parts[0].bar_list[0].notes;
+        REQUIRE(notes.size() == 9);
+        std::vector<std::vector<TupletValue>> tuplets;
+        std::vector<Fraction> offsets;
+        for (const SymNote &note : notes) {
+            tuplets.push_back(note.tuplets);
+            offsets.push_back(note.note_offset);
+        }
+        const std::vector<TupletValue> none;
+        const std::vector<std::vector<TupletValue>> expectedTuplets = { none, none, none,
+            { TupletValue::kStart }, { TupletValue::kContinue }, { TupletValue::kStop },
+            { TupletValue::kStart }, { TupletValue::kContinue }, { TupletValue::kStop } };
+        CHECK(tuplets == expectedTuplets);
+        const std::vector<Fraction> expectedOffsets = { Fraction(0), Fraction(1, 3), Fraction(2, 3),
+            Fraction(1), Fraction(4, 3), Fraction(5, 3), Fraction(2), Fraction(7, 3), Fraction(8, 3) };
+        CHECK(offsets == expectedOffsets);
+    }
+}
+
 TEST_CASE("tiny.xml: MusicXML side", "[extract]")
 {
     const ExtractResult result = Extract("tiny.xml", SourceFormat::kMusicXml);

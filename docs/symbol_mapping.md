@@ -43,7 +43,7 @@ measure             → staff@n → layer@n → events; control elements (tie @s
 | `space` (hidden, e.g. kern `4ryy`) | nothing (advances offset cursor) | 0 — musicdiff skips `hideObjectOnPrint` notes |
 | note, chord, chord member or rest with `@visible="false"` (kern `yy`, MusicXML `print-object="no"`) | nothing (advances offset cursor) | 0 |
 | `beam` (container) | per-note beam-type lists, then musicdiff `get_enhance_beamings` fixups | 1 per beam/flag entry |
-| `tuplet` (container, @num @numbase) | per-note tuplet-type entries + tuplet_info (num string on start, "" otherwise) | 2 per active tuplet per note (type + info) |
+| `tuplet` (container, @num @numbase) | per-note tuplet-type entries + tuplet_info (num string on start, "" otherwise) | 2 per active tuplet per note (type + info). A tuplet Verovio draws neither a number nor a bracket for (MusicXML `bracket="no" show-number="none"`, kern `*Xtuplet`) adds 0; its ratio still scales durations. |
 | `clef` (staffDef child or inline in layer) | SymExtra kind=clef, symbolic `{shape}{line}[{±8}]` | 1 |
 | `keySig` (@sig, staffDef child or scoreDef child) | SymExtra kind=keysig, infodict per accidental; sig=0 → `flats/sharps: none` | max(1, |accidentals|) |
 | `meterSig` (@count @unit @sym @form); modern `mensur` C/C\| from kern `*met(C)`/`*met(C\|)` | SymExtra kind=timesig | 2 (numerator+denominator), or 1 (@sym common/cut, modern mensur common/cut, or @form="num" = MusicXML single-number → numerator only). Hidden numeric meterSig updates meter context but is not scored as a visible symbol. If a staffDef has both a visible meterSig and mensur, Verovio renders the meterSig; scoreDef-level visible pairs can render both, so both are scored. |

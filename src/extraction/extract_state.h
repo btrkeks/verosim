@@ -31,7 +31,7 @@ struct Event {
     std::string grace_type;
     bool grace_slash = false;
     const vrv::Object *beam = nullptr; // innermost enclosing Beam; beamSpan is resolved later
-    std::vector<const vrv::Tuplet *> tuplets; // outermost first
+    std::vector<const vrv::Tuplet *> tuplets; // drawn ones only, outermost first
     std::vector<std::string> articulations;
 };
 

@@ -71,6 +71,13 @@ bool IsHiddenCarrier(const vrv::Object *obj)
     return visibility && visibility->GetVisible() == vrv::BOOLEAN_false;
 }
 
+// PrepareData adds a bracket or number part only where Verovio draws one,
+// including its inference that a tuplet filling one beam needs no bracket
+bool IsDrawnTuplet(const vrv::Tuplet *tuplet)
+{
+    return tuplet->GetFirst(vrv::TUPLET_BRACKET) || tuplet->GetFirst(vrv::TUPLET_NUM);
+}
+
 } // namespace
 
 void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &events,
@@ -172,7 +179,9 @@ Event Extractor::MakeCarrierEvent(const vrv::Object *obj, const Fraction &cursor
     ev.obj = obj;
     ev.offset = cursor;
     ev.beam = beam;
-    ev.tuplets = tupletStack;
+    for (const vrv::Tuplet *tuplet : tupletStack) {
+        if (IsDrawnTuplet(tuplet)) ev.tuplets.push_back(tuplet);
+    }
     ev.is_rest = obj->Is(vrv::REST) || obj->Is(vrv::MREST) || obj->Is(vrv::MULTIREST)
         || obj->Is(vrv::SPACE) || obj->Is(vrv::MSPACE);
     AppendArticulations(obj, ev.articulations);
