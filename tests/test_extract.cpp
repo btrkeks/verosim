@@ -480,6 +480,18 @@ TEST_CASE("MusicXML slurs and clefs stay in their measure when measure numbers r
     CHECK(result.warnings.empty());
 }
 
+TEST_CASE("a MusicXML clef change inside one voice's note lands at the other voice's onset", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("clef_mid_note.xml", SourceFormat::kMusicXml);
+    std::vector<std::pair<std::string, Fraction>> clefs;
+    for (const SymExtra *extra : ExtrasOfKind(result.score.parts[0].bar_list[0], ExtraKind::kClef)) {
+        clefs.emplace_back(extra->symbolic.value_or(""), extra->offset);
+    }
+    const std::vector<std::pair<std::string, Fraction>> expected
+        = { { "G2", Fraction(0) }, { "F4", Fraction(1, 4) } };
+    CHECK(clefs == expected);
+}
+
 TEST_CASE("a control element whose start lies outside its measure warns", "[extract]")
 {
     const ExtractResult result = ExtractMeiData(R"(<?xml version="1.0" encoding="UTF-8"?>
