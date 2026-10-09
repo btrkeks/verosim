@@ -66,8 +66,7 @@ namespace {
 bool IsHiddenCarrier(const vrv::Object *obj)
 {
     if (obj->Is(vrv::SPACE) || obj->Is(vrv::MSPACE)) return true;
-    // iohumdrum imports a whole-bar kern ryy as <mRest visible="false">
-    if (!obj->Is(vrv::REST) && !obj->Is(vrv::MREST) && !obj->Is(vrv::MULTIREST)) return false;
+    // kern yy and MusicXML print-object="no" import as @visible="false"
     const auto *visibility = dynamic_cast<const vrv::AttVisibility *>(obj);
     return visibility && visibility->GetVisible() == vrv::BOOLEAN_false;
 }

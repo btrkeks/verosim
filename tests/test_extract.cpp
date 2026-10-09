@@ -517,6 +517,23 @@ TEST_CASE("grace slash follows what Verovio draws in both formats", "[extract]")
     }
 }
 
+TEST_CASE("hidden notes and hidden chord members are not extracted", "[extract]")
+{
+    for (const auto &[name, format] :
+        { std::pair { "hidden_chord_notes.krn", SourceFormat::kKern },
+            std::pair { "hidden_chord_notes.xml", SourceFormat::kMusicXml } }) {
+        INFO(name);
+        const ExtractResult result = ExtractFixture(name, format);
+        std::vector<std::pair<std::string, Fraction>> notes;
+        for (const SymNote &note : result.score.parts[0].bar_list[0].notes) {
+            notes.emplace_back(note.pitches[0].step_octave, note.note_offset);
+        }
+        const std::vector<std::pair<std::string, Fraction>> expected
+            = { { "C5", Fraction(0) }, { "C4", Fraction(2) }, { "G4", Fraction(2) } };
+        CHECK(notes == expected);
+    }
+}
+
 TEST_CASE("tiny.xml: MusicXML side", "[extract]")
 {
     const ExtractResult result = Extract("tiny.xml", SourceFormat::kMusicXml);

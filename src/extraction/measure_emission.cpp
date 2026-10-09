@@ -428,9 +428,15 @@ std::vector<SymNote> Extractor::BuildSymNotes(const std::vector<Event> &events,
             const vrv::Chord *chord = vrv_cast<const vrv::Chord *>(ev.obj);
             const std::vector<const vrv::Note *> members = SortedChordMembers(chord);
             int idx = 0;
+            bool first = true;
             for (const vrv::Note *member : members) {
+                if (member->GetVisible() == vrv::BOOLEAN_false) {
+                    ++idx;
+                    continue;
+                }
                 SymNote sn = MakeSymNote(ev, member, chord, idx, state);
-                FillSharedNoteFields(sn, ev, beamings, tuplets, tupletInfo, i, idx == 0);
+                FillSharedNoteFields(sn, ev, beamings, tuplets, tupletInfo, i, first);
+                first = false;
                 sn.display_staff_offset = DisplayStaffOffset(member, chord, homeStaffN);
                 ++idx;
                 notes.push_back(std::move(sn));

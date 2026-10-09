@@ -41,6 +41,7 @@ measure             → staff@n → layer@n → events; control elements (tie @s
 | note/chord/rest articulations (`@artic`, `artic`) | sorted SymNote articulation names | 1 per articulation |
 | `tie` control or note `@tie` | `SymPitch.tie` on the tie-start pitch | 1 on each tie start |
 | `space` (hidden, e.g. kern `4ryy`) | nothing (advances offset cursor) | 0 — musicdiff skips `hideObjectOnPrint` notes |
+| note, chord, chord member or rest with `@visible="false"` (kern `yy`, MusicXML `print-object="no"`) | nothing (advances offset cursor) | 0 |
 | `beam` (container) | per-note beam-type lists, then musicdiff `get_enhance_beamings` fixups | 1 per beam/flag entry |
 | `tuplet` (container, @num @numbase) | per-note tuplet-type entries + tuplet_info (num string on start, "" otherwise) | 2 per active tuplet per note (type + info) |
 | `clef` (staffDef child or inline in layer) | SymExtra kind=clef, symbolic `{shape}{line}[{±8}]` | 1 |
