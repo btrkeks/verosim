@@ -524,6 +524,15 @@ TEST_CASE("a MusicXML slur that starts or ends on a rest is kept", "[extract]")
     CHECK(bars == expected);
 }
 
+TEST_CASE("MusicXML articulations in a second notations element are read", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("second_notations.xml", SourceFormat::kMusicXml);
+    std::vector<std::vector<std::string>> articulations;
+    for (const SymNote &note : result.score.parts[0].bar_list[0].notes) articulations.push_back(note.articulations);
+    const std::vector<std::vector<std::string>> expected = { { "accent", "staccato" }, { "accent" } };
+    CHECK(articulations == expected);
+}
+
 TEST_CASE("a control element whose start lies outside its measure warns", "[extract]")
 {
     const ExtractResult result = ExtractMeiData(R"(<?xml version="1.0" encoding="UTF-8"?>
