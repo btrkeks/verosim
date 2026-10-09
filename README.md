@@ -99,6 +99,29 @@ Typed Verovio spaces can be controlled with
 `type=straddle`/`type=filler` rhythm-repair spaces. Use `preserve` to keep those
 spaces as normal hidden-duration carriers.
 
+Add `--display-staff` to score cross-staff display placement, including Humdrum
+RDF `above`/`below` signifiers that Verovio imports as staff overrides:
+
+```sh
+build/verosim pred.krn gt.krn --display-staff --ops
+build/verosim --count-symbols --display-staff --per-measure score.krn
+```
+
+The option works with pair, list, batch, JSONL, visualization, and symbol-count
+commands. Each note or ordinary rest displayed away from its owning staff adds
+one symbol. Any change of display staff costs one edit, including a move between
+two non-home staffs. Staff order determines the signed displacement: negative
+means above and positive means below. Notes keep their musical part, pitch, and
+timing. Chord members inherit the chord override unless they have their own.
+The default leaves placement unscored. Evaluation profiles use schema v1 and
+cannot be combined with this option.
+
+Only valid imported targets in the current measure can be scored. Unusable
+parsed references produce a warning and use home placement; they do not create
+extra parts. Verovio may discard invalid source markers before extraction, so
+the metric cannot recover those markers. Full-measure and multi-measure rest
+classes currently expose no staff override through Verovio's typed tree.
+
 `--batch-jsonl` compares score strings directly from JSONL records. Each side
 can use `kern`, `musicxml`, `mei`, or `auto` independently:
 

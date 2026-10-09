@@ -81,6 +81,39 @@ use their separate `Ottavas` and `Arpeggios` bits.
   (HAND-10 keysig.krn); explicit redundant kern naturals keep `@accid="n"` →
   1 symbol (D14).
 
+## Opt-in display staff placement
+
+`--display-staff` reads parsed `AttStaffIdent` overrides on notes and ordinary
+rests. A chord member uses its own override when present, otherwise its chord's
+override. An explicit home-staff target cancels chord inheritance. The emitted
+note keeps its DOM staff, pitch, onset, carrier ID, and concrete visual ID.
+
+`display_staff_offset` is the target staff's registry ordinal minus the owning
+staff's ordinal, using staff-definition document order rather than numeric
+`@n`. Implicit and later-added staffs use their first registration order; the
+metric does not follow later changes of physical staff order. A nonzero value
+adds one symbol per split note or rest. Any difference
+costs one `displaystaffedit`, reported as `wrong display staff OMR-ED`. Placement
+does not alter the keys used to pair notes.
+
+The target must be a real staff in the current measure. Repeated identical
+targets are equivalent to a single target. Ambiguous, nonpositive, and absent
+parsed targets warn and use home placement, including an invalid explicit chord
+member target. References never create parts. When enabled, extraction registers
+real implicit sibling staffs before resolving references to them.
+
+This field is zero when the option is absent. Legacy note strings and count
+category keys stay unchanged; enabled counts append `display_staff`. Profile
+schema v1 has no placement feature and rejects this option or direct projection
+of a model with nonzero placement. Full-measure and multi-measure rests currently
+expose no staff-reference interface. Invalid RDF markers discarded by Verovio
+cannot be recovered from the parsed tree.
+
+Placement scoring follows the parsed attributes of each chord member. Verovio's
+mixed-override chord rendering can display a member on the chord's target staff
+despite that member's explicit home-staff reference. Extraction does not copy
+that drawing-state behavior; visual marks still use the member's concrete ID.
+
 ## Grace notes
 
 | Source | Verovio | musicdiff (graceType, slash) |
