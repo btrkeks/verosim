@@ -151,6 +151,11 @@ bool WriteComparisonJson(const LoadedScore &pred, const LoadedScore &gt,
 bool PrepareEvaluationProfile(CompareCliOptions &options, std::string &error)
 {
     error.clear();
+    if (options.surface.score_display_staff
+        && (!options.evaluation_profile_path.empty() || options.evaluation_profile)) {
+        error = kDisplayStaffProfileConflict;
+        return false;
+    }
     if (options.evaluation_profile_path.empty()) return true;
     if (options.evaluation_profile) return true;
     options.evaluation_profile

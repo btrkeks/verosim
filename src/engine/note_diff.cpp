@@ -384,6 +384,10 @@ DiffResult AnnotatedNoteDiff(const SymNote &n1, const SymNote &n2)
     }
     // noteshape / noteheadFill / noteheadParenthesis / stemDirection /
     // styledict: style-gated and constant-equal in the current metric modes.
+    if (n1.display_staff_offset != n2.display_staff_offset) {
+        result.cost += 1;
+        result.ops.push_back(note_op(OpName::kDisplayStaffEdit, 1));
+    }
     return result;
 }
 
@@ -416,6 +420,7 @@ long AnnotatedNoteDiffCost(const SymNote &n1, const SymNote &n2)
         cost += GenericLevenshteinDiffCost(n1.expressions, n2.expressions);
     }
     if (n1.gap_dur != n2.gap_dur) cost += 1;
+    if (n1.display_staff_offset != n2.display_staff_offset) cost += 1;
     return cost;
 }
 

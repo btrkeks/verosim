@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -64,7 +65,10 @@ private:
     std::vector<SymNote> BuildSymNotes(const std::vector<Event> &events,
         const std::vector<std::vector<BeamValue>> &beamings,
         const std::vector<std::vector<TupletValue>> &tuplets,
-        const std::vector<std::vector<std::string>> &tupletInfo, StaffState &state);
+        const std::vector<std::vector<std::string>> &tupletInfo, StaffState &state,
+        const std::string &homeStaffN);
+    int DisplayStaffOffset(const vrv::Object *symbol, const vrv::Object *carrier,
+        const std::string &homeStaffN);
     SymNote MakeSymNote(const Event &ev, const vrv::Note *note, const vrv::Object *carrier,
         int idxInChord, StaffState &state);
 
@@ -94,6 +98,7 @@ private:
     TieRegistry ties_;
     ControlSpanState controls_;
     LayoutBreakState layout_;
+    std::set<std::string> measure_staff_numbers_;
 };
 
 } // namespace verosim

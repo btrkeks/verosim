@@ -31,7 +31,7 @@ std::optional<std::string> FirstCommandFlag(const std::vector<std::string> &args
 {
     for (std::size_t i = 0; i < args.size();) {
         if (IsCommandFlag(args[i])) return args[i];
-        if (args[i] == "--ops") {
+        if (args[i] == "--ops" || args[i] == "--display-staff") {
             ++i;
         }
         else if (args[i] == "--mode" || args[i] == "--detail"
@@ -181,6 +181,10 @@ bool StripComparisonOptionsForCommand(std::vector<std::string> &args, CompareCli
             options.note_position_policy = *parsed;
             EraseArgs(args, i, 2);
         }
+        else if (args[i] == "--display-staff") {
+            options.surface.score_display_staff = true;
+            EraseArgs(args, i, 1);
+        }
         else {
             const std::size_t before = args.size();
             if (!StripModeOptions(
@@ -198,6 +202,10 @@ bool StripComparisonOptionsForCommand(std::vector<std::string> &args, CompareCli
             ++i;
         }
     }
+    if (!options.evaluation_profile_path.empty() && options.surface.score_display_staff) {
+        error = kDisplayStaffProfileConflict;
+        return false;
+    }
     if (!options.evaluation_profile_path.empty()
         && (options.mode_was_set || options.layout_was_set)) {
         error = "--evaluation-profile cannot be combined with explicit --mode or --layout; "
@@ -210,6 +218,15 @@ bool StripComparisonOptionsForCommand(std::vector<std::string> &args, CompareCli
 bool StripCountOptions(std::vector<std::string> &args, CountSymbolsCommand &command,
     std::string &error)
 {
+    for (std::size_t i = 0; i < args.size();) {
+        if (args[i] == "--display-staff") {
+            command.surface.score_display_staff = true;
+            EraseArgs(args, i, 1);
+        }
+        else {
+            ++i;
+        }
+    }
     if (!StripModeOptions(args, command.surface.mode, error)) return false;
     if (!StripLayoutOptions(args, command.surface.layout, error)) return false;
     return StripTypedSpaceOptions(args, command.typed_space_handling, error);

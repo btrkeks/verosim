@@ -10,9 +10,8 @@ namespace verosim {
 
 namespace {
 
-void WriteCategories(const SymbolCounts &c, std::ostream &os)
+void WriteCategories(const SymbolCounts &c, bool displayStaff, std::ostream &os)
 {
-    // key order mirrors count_oracle.py CATEGORIES
     os << "{\"pitches\":" << c.pitches << ",\"accidentals\":" << c.accidentals
        << ",\"ties\":" << c.ties << ",\"noteheads\":" << c.noteheads << ",\"dots\":" << c.dots
        << ",\"beams\":" << c.beams << ",\"tuplets\":" << c.tuplets
@@ -21,7 +20,9 @@ void WriteCategories(const SymbolCounts &c, std::ostream &os)
        << ",\"articulations\":" << c.articulations << ",\"expressions\":" << c.expressions
        << ",\"style\":" << c.style << ",\"barline\":" << c.barline << ",\"clef\":"
        << c.clef << ",\"keysig\":" << c.keysig << ",\"timesig\":" << c.timesig
-       << ",\"other_extras\":" << c.other_extras << "}";
+       << ",\"other_extras\":" << c.other_extras;
+    if (displayStaff) os << ",\"display_staff\":" << c.display_staff;
+    os << "}";
 }
 
 void WritePerMeasure(const SymScore &score, std::ostream &os)
@@ -113,7 +114,7 @@ bool CountSymbolsFile(VrvBridge &bridge, const std::string &path,
 
     os << ",\"ok\":true,\"total\":" << total << ",\"n_parts\":" << score.parts.size()
        << ",\"n_measures\":" << nMeasures << ",\"n_notes\":" << nNotes << ",\"categories\":";
-    WriteCategories(counts, os);
+    WriteCategories(counts, options.surface.score_display_staff, os);
     os << ",\"warnings\":";
     WriteJsonStringArray(loaded.warnings, os);
     if (options.per_measure) WritePerMeasure(score, os);

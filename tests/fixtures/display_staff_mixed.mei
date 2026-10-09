@@ -1,0 +1,26 @@
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">
+  <music><body><mdiv><score>
+    <scoreDef><staffGrp>
+      <staffDef n="30" lines="5" clef.shape="G" clef.line="2"/>
+      <staffDef n="10" lines="5" clef.shape="G" clef.line="2"/>
+      <staffDef n="90" lines="5" clef.shape="F" clef.line="4"/>
+    </staffGrp></scoreDef>
+    <section><measure xml:id="placement-measure" n="1">
+      <staff n="30"><layer n="1">
+        <chord xml:id="placement-chord" dur="2" staff="10">
+          <note xml:id="note-inherited" pname="c" oct="4"/>
+          <note xml:id="note-home" pname="e" oct="4" staff="30"/>
+          <note xml:id="note-later-inherited" pname="f" oct="4"/>
+          <note xml:id="note-distant" pname="g" oct="4" staff="90"/>
+        </chord>
+        <rest xml:id="rest-cross" dur="2" staff="10"/>
+      </layer></staff>
+      <staff n="10"><layer n="1">
+        <note xml:id="note-above" pname="d" oct="4" dur="1" staff="30"/>
+      </layer></staff>
+      <staff n="90"><layer n="1">
+        <note xml:id="note-upper" pname="f" oct="3" dur="1" staff="10"/>
+      </layer></staff>
+    </measure></section>
+  </score></mdiv></body></music>
+</mei>

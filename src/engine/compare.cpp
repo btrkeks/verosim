@@ -130,6 +130,7 @@ std::string_view OpNameStr(OpName name)
         case OpName::kExtraOffsetEdit: return "extraoffsetedit";
         case OpName::kExtraDurationEdit: return "extradurationedit";
         case OpName::kExtraStyleEdit: return "extrastyleedit";
+        case OpName::kDisplayStaffEdit: return "displaystaffedit";
     }
     return "?";
 }
@@ -214,6 +215,7 @@ std::string HeaderName(const std::string &edit_name)
 {
     static const std::map<std::string, std::string> kTable = {
         { "noteins", "wrong note OMR-ED" },
+        { "displaystaffedit", "wrong display staff OMR-ED" },
         { "notedel", "wrong note OMR-ED" },
         { "insspace", "wrong note OMR-ED" },
         { "delspace", "wrong note OMR-ED" },

@@ -9,6 +9,10 @@
 
 namespace verosim {
 
+inline constexpr const char *kDisplayStaffProfileConflict
+    = "--display-staff cannot be combined with --evaluation-profile; "
+      "schema v1 does not support display staff scoring";
+
 // Options shared by all score-comparison entry points. CLI code may add
 // serialization-specific knobs around this, but loading, extraction,
 // comparison, and visualization all consume only this metric surface.

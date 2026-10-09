@@ -18,6 +18,7 @@ enum class LayoutSurface {
 struct MetricSurface {
     MetricMode mode = MetricMode::kActive;
     LayoutSurface layout = LayoutSurface::kNone;
+    bool score_display_staff = false;
 };
 
 std::string_view MetricModeName(MetricMode mode);

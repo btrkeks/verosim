@@ -217,6 +217,10 @@ ProjectionResult ProjectSymScore(const SymScore &score, const EvaluationProfile 
     for (SymPart &part : result.score.parts) {
         for (SymMeasure &measure : part.bar_list) {
             for (SymNote &note : measure.notes) {
+                if (note.display_staff_offset != 0) {
+                    throw std::invalid_argument(
+                        "evaluation profile schema v1 cannot project nonzero display staff placement");
+                }
                 RemoveIgnoredNoteFeatures(note, profile, result.removed);
             }
             std::erase_if(measure.extras, [&](const SymExtra &extra) {

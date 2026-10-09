@@ -1,12 +1,20 @@
 #include "verosim/app/score_pipeline.h"
 
 #include <exception>
+#include <stdexcept>
 #include <utility>
 
 #include "verosim/extraction/vrv_bridge.h"
 
 namespace verosim {
 namespace {
+
+void ValidateRunOptions(const CompareRunOptions &options)
+{
+    if (options.evaluation_profile && options.surface.score_display_staff) {
+        throw std::invalid_argument(kDisplayStaffProfileConflict);
+    }
+}
 
 SourceFormat SourceFormatFromBridge(const VrvBridge &bridge)
 {
@@ -64,6 +72,7 @@ const char *ScoreDataFormatName(ScoreDataFormat format)
 
 ExtractOptions ExtractOptionsForRun(const CompareRunOptions &options)
 {
+    ValidateRunOptions(options);
     const MetricSurface surface = options.evaluation_profile
         ? MetricSurface{ .mode = MetricMode::kExperimental,
               .layout = LayoutSurface::kSystemBreaks }
@@ -134,6 +143,7 @@ LoadedScore LoadAndExtractScoreData(VrvBridge &bridge, const std::string &data,
 ScoreComparison CompareLoadedScores(
     const SymScore &pred, const SymScore &gt, const CompareRunOptions &options)
 {
+    ValidateRunOptions(options);
     ScoreComparison comparison;
     const SymScore *comparison_pred = &pred;
     const SymScore *comparison_gt = &gt;

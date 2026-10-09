@@ -400,7 +400,7 @@ void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staf
         extra.locator.offset = extra.offset;
         extra.locator.occurrence = extraOccurrences[extra.kind]++;
     }
-    symMeasure.notes = BuildSymNotes(events, beamings, tuplets, tupletInfo, state);
+    symMeasure.notes = BuildSymNotes(events, beamings, tuplets, tupletInfo, state, staffN);
     for (std::size_t i = 0; i < symMeasure.notes.size(); ++i) {
         SymNote &note = symMeasure.notes[i];
         note.locator = measureLocator;
@@ -417,7 +417,8 @@ void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staf
 std::vector<SymNote> Extractor::BuildSymNotes(const std::vector<Event> &events,
     const std::vector<std::vector<BeamValue>> &beamings,
     const std::vector<std::vector<TupletValue>> &tuplets,
-    const std::vector<std::vector<std::string>> &tupletInfo, StaffState &state)
+    const std::vector<std::vector<std::string>> &tupletInfo, StaffState &state,
+    const std::string &homeStaffN)
 {
     std::vector<SymNote> notes;
     notes.reserve(events.size());
@@ -430,6 +431,7 @@ std::vector<SymNote> Extractor::BuildSymNotes(const std::vector<Event> &events,
             for (const vrv::Note *member : members) {
                 SymNote sn = MakeSymNote(ev, member, chord, idx, state);
                 FillSharedNoteFields(sn, ev, beamings, tuplets, tupletInfo, i, idx == 0);
+                sn.display_staff_offset = DisplayStaffOffset(member, chord, homeStaffN);
                 ++idx;
                 notes.push_back(std::move(sn));
             }
@@ -440,16 +442,52 @@ std::vector<SymNote> Extractor::BuildSymNotes(const std::vector<Event> &events,
             sn.visual_id = sn.vrv_id;
             sn.pitches.push_back(SymPitch{ "R", "None", false, 0 });
             FillSharedNoteFields(sn, ev, beamings, tuplets, tupletInfo, i, true);
+            sn.display_staff_offset = DisplayStaffOffset(ev.obj, ev.obj, homeStaffN);
             notes.push_back(std::move(sn));
         }
         else {
             const vrv::Note *note = vrv_cast<const vrv::Note *>(ev.obj);
             SymNote sn = MakeSymNote(ev, note, note, -1, state);
             FillSharedNoteFields(sn, ev, beamings, tuplets, tupletInfo, i, true);
+            sn.display_staff_offset = DisplayStaffOffset(note, note, homeStaffN);
             notes.push_back(std::move(sn));
         }
     }
     return notes;
+}
+
+int Extractor::DisplayStaffOffset(const vrv::Object *symbol, const vrv::Object *carrier,
+    const std::string &homeStaffN)
+{
+    if (!options_.surface.score_display_staff) return 0;
+    const vrv::Object *source = symbol;
+    const auto *staffIdent = dynamic_cast<const vrv::AttStaffIdent *>(symbol);
+    if (!staffIdent || !staffIdent->HasStaff()) {
+        source = carrier;
+        staffIdent = dynamic_cast<const vrv::AttStaffIdent *>(carrier);
+    }
+    if (!staffIdent || !staffIdent->HasStaff()) return 0;
+
+    const auto targets = staffIdent->GetStaff();
+    const std::set<int> uniqueTargets(targets.begin(), targets.end());
+    std::string targetText;
+    for (const int target : targets) {
+        if (!targetText.empty()) targetText += " ";
+        targetText += std::to_string(target);
+    }
+    const auto invalid = [&](const std::string &reason) {
+        Warn("display staff on " + source->GetID() + ": target '" + targetText + "' "
+            + reason + "; using home staff " + homeStaffN);
+        return 0;
+    };
+    if (uniqueTargets.size() != 1) return invalid("is ambiguous");
+    const int target = *uniqueTargets.begin();
+    if (target <= 0) return invalid("must be positive");
+    const std::string targetN = std::to_string(target);
+    if (!measure_staff_numbers_.contains(targetN) || !staves_.Contains(targetN)) {
+        return invalid("does not identify a staff in this measure");
+    }
+    return staves_.At(targetN).part_idx - staves_.At(homeStaffN).part_idx;
 }
 
 void Extractor::RegisterEmittedExtras(int partIdx, std::size_t measureIdx)

@@ -173,6 +173,7 @@ int SymNote::notation_size() const
         if (grace_slash) size += 1;
     }
     if (gap_dur != Fraction(0)) size += 1;
+    if (display_staff_offset != 0) size += 1;
     return size;
 }
 
@@ -214,6 +215,7 @@ std::string SymNote::str() const
         for (const std::string &e : expressions) s += e;
     }
     if (gap_dur != Fraction(0)) s += " spaceBefore=" + gap_dur.str();
+    if (display_staff_offset != 0) s += " displayStaff=" + std::to_string(display_staff_offset);
     return s;
 }
 
@@ -256,6 +258,7 @@ std::string SymNote::repr() const
         os << "'" << expressions[i] << "'";
     }
     os << "],S:{}";
+    if (display_staff_offset != 0) os << ",displayStaff:" << display_staff_offset;
     return os.str();
 }
 
@@ -308,7 +311,7 @@ long SymbolCounts::total() const
 {
     return pitches + accidentals + ties + noteheads + dots + beams + tuplets + tuplet_info
         + grace + grace_slash + gaps + articulations + expressions + style + barline + clef
-        + keysig + timesig + other_extras;
+        + keysig + timesig + other_extras + display_staff;
 }
 
 SymbolCounts CountSymbols(const SymScore &score)
@@ -334,6 +337,7 @@ SymbolCounts CountSymbols(const SymScore &score)
                     if (note.grace_slash) c.grace_slash += 1;
                 }
                 if (note.gap_dur != Fraction(0)) c.gaps += 1;
+                if (note.display_staff_offset != 0) c.display_staff += 1;
             }
             for (const SymExtra &extra : measure.extras) {
                 long body = extra.notation_size();

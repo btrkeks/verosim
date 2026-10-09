@@ -75,6 +75,7 @@ struct SymNote {
     std::string note_dur_type; // carrier m21 duration type ("quarter", "16th", "complex")
     int note_dur_dots = 0;
     bool note_is_grace = false;
+    int display_staff_offset = 0;
 
     int notation_size() const; // AnnNote.notation_size at v1 tiers
     std::string str() const; // == AnnNote.__str__ (comparison content)
@@ -149,7 +150,6 @@ struct SymScore {
 };
 
 // Per-category accounting for --count-symbols; Σ categories == notation_size.
-// Mirrored by harness/verosim_harness/count_oracle.py CATEGORIES — keep in sync.
 struct SymbolCounts {
     long pitches = 0;
     long accidentals = 0;
@@ -170,6 +170,7 @@ struct SymbolCounts {
     long keysig = 0;
     long timesig = 0;
     long other_extras = 0; // slurs, dynamics, hairpins, layout extras
+    long display_staff = 0;
 
     long total() const;
 };

@@ -239,6 +239,16 @@ void Extractor::FinishStaffMeasure(StaffState &state, const Fraction &measureSpa
 
 void Extractor::HandleMeasure(const vrv::Measure *measure)
 {
+    if (options_.surface.score_display_staff) {
+        measure_staff_numbers_.clear();
+        for (const vrv::Object *child : measure->GetChildren()) {
+            if (!child->Is(vrv::STAFF)) continue;
+            const auto *staff = vrv_cast<const vrv::Staff *>(child);
+            const std::string n = std::to_string(staff->GetN());
+            measure_staff_numbers_.insert(n);
+            EnsureStaffPart(n, true);
+        }
+    }
     // tie control elements: @startid notes carry the sounding alter across
     // the barline (RegisterTieStart), @endid notes are tied-from-previous
     for (const vrv::Object *child : measure->GetChildren()) {

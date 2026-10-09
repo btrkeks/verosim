@@ -58,6 +58,7 @@ enum class OpName {
     kExtraOffsetEdit,
     kExtraDurationEdit,
     kExtraStyleEdit,
+    kDisplayStaffEdit,
 };
 
 std::string_view OpNameStr(OpName name); // "insbar", "noteins", ... (musicdiff spelling)
