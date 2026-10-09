@@ -524,6 +524,17 @@ TEST_CASE("a MusicXML slur that starts or ends on a rest is kept", "[extract]")
     CHECK(bars == expected);
 }
 
+TEST_CASE("a MusicXML slur end on a hidden rest without a type anchors nowhere", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("slur_on_untyped_hidden_rest.xml", SourceFormat::kMusicXml);
+    std::vector<std::size_t> slursPerBar;
+    for (const SymMeasure &bar : result.score.parts[0].bar_list) {
+        slursPerBar.push_back(ExtrasOfKind(bar, ExtraKind::kSlur).size());
+    }
+    CHECK(slursPerBar == std::vector<std::size_t>{ 0, 1 });
+    CHECK(result.warnings.empty());
+}
+
 TEST_CASE("MusicXML articulations in a second notations element are read", "[extract]")
 {
     const ExtractResult result = ExtractFixture("second_notations.xml", SourceFormat::kMusicXml);
