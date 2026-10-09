@@ -508,6 +508,22 @@ TEST_CASE("a MusicXML beam that opens with a tuplet keeps going across the barli
     CHECK(bars == expected);
 }
 
+TEST_CASE("a MusicXML slur that starts or ends on a rest is kept", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("slur_on_rest.xml", SourceFormat::kMusicXml);
+    std::vector<std::vector<std::pair<Fraction, Fraction>>> bars;
+    for (const SymMeasure &bar : result.score.parts[0].bar_list) {
+        std::vector<std::pair<Fraction, Fraction>> slurs;
+        for (const SymExtra *extra : ExtrasOfKind(bar, ExtraKind::kSlur)) {
+            slurs.emplace_back(extra->offset, extra->duration.value_or(Fraction(-1)));
+        }
+        bars.push_back(slurs);
+    }
+    const std::vector<std::vector<std::pair<Fraction, Fraction>>> expected
+        = { { { Fraction(0), Fraction(2) } }, { { Fraction(0), Fraction(2) } } };
+    CHECK(bars == expected);
+}
+
 TEST_CASE("a control element whose start lies outside its measure warns", "[extract]")
 {
     const ExtractResult result = ExtractMeiData(R"(<?xml version="1.0" encoding="UTF-8"?>
