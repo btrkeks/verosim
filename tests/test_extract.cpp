@@ -93,6 +93,21 @@ const vrv::Object *FindStraddleOrFillerSpace(const vrv::Doc &doc)
     return nullptr;
 }
 
+std::vector<std::vector<std::vector<std::string>>> PitchesByStaffAndBar(const ExtractResult &result)
+{
+    std::vector<std::vector<std::vector<std::string>>> staves;
+    for (const auto &part : result.score.parts) {
+        std::vector<std::vector<std::string>> bars;
+        for (const SymMeasure &bar : part.bar_list) {
+            std::vector<std::string> pitches;
+            for (const SymNote &note : bar.notes) pitches.push_back(note.pitches[0].step_octave);
+            bars.push_back(pitches);
+        }
+        staves.push_back(bars);
+    }
+    return staves;
+}
+
 } // namespace
 
 TEST_CASE("mono.krn: offsets, beams, dots", "[extract]")
@@ -406,6 +421,26 @@ TEST_CASE("a MusicXML octave shift displaces every voice by onset, not file orde
         { { Fraction(0), "C4" } },
     };
     CHECK(bars == expected);
+}
+
+TEST_CASE("a MusicXML voice that opens on the other staff stays on its home staff", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("cross_staff_voice_home.xml", SourceFormat::kMusicXml);
+    const std::vector<std::vector<std::vector<std::string>>> expected = {
+        { { "C5" }, { "E5" } },
+        { { "C3", "D3", "E3", "F3" }, { "G4", "A3", "B3", "C4" } },
+    };
+    CHECK(PitchesByStaffAndBar(result) == expected);
+}
+
+TEST_CASE("a MusicXML voice number reused on both staves keeps each stream on its own staff", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("voice_reused_across_staves.xml", SourceFormat::kMusicXml);
+    const std::vector<std::vector<std::vector<std::string>>> expected = {
+        { { "C5", "D5", "E5", "F5" }, { "G5", "A5", "B5", "C6" } },
+        { { "C3" }, { "E3" } },
+    };
+    CHECK(PitchesByStaffAndBar(result) == expected);
 }
 
 TEST_CASE("a MusicXML octave line read after its stop still ends there", "[extract]")
