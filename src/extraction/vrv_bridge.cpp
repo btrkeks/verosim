@@ -101,26 +101,40 @@ VrvBridge::VrvBridge(const VrvBridgeConfig &config)
     this->SetOptions(R"({"breaks":"none","header":"none","footer":"none"})");
 }
 
-bool VrvBridge::LoadScoreFile(const std::string &path)
+vrv::FileFormat VrvBridge::IdentifyFileFormat(const std::string &path)
 {
     // IdentifyInputFrom only looks at the head of the data (regex search over
     // the first 2000 bytes), so a prefix read is enough.
-    m_lastInputFormat = vrv::UNKNOWN;
-    this->SetInputFrom("auto");
     std::ifstream in(path, std::ios::binary);
-    if (in) {
-        std::string head(2100, '\0');
-        in.read(head.data(), static_cast<std::streamsize>(head.size()));
-        head.resize(static_cast<std::size_t>(in.gcount()));
-        if (head.rfind("PK", 0) == 0) {
-            // zip signature (Toolkit::IsZip is private): a compressed .mxl,
-            // whose payload is MusicXML
-            m_lastInputFormat = vrv::MUSICXML;
-        }
-        else {
-            m_lastInputFormat = this->IdentifyInputFrom(head);
-        }
-    }
+    if (!in) return vrv::UNKNOWN;
+    std::string head(2100, '\0');
+    in.read(head.data(), static_cast<std::streamsize>(head.size()));
+    head.resize(static_cast<std::size_t>(in.gcount()));
+    // zip signature (Toolkit::IsZip is private): a compressed .mxl, whose
+    // payload is MusicXML
+    if (head.rfind("PK", 0) == 0) return vrv::MUSICXML;
+    return this->IdentifyInputFrom(head);
+}
+
+bool VrvBridge::HumdrumTimingIsCleanFile(const std::string &path)
+{
+    if (IdentifyFileFormat(path) != vrv::HUMDRUM) return true;
+    std::ifstream in(path, std::ios::binary);
+    std::ostringstream contents;
+    contents << in.rdbuf();
+    return HumdrumRhythmIsConsistent(contents.str().c_str());
+}
+
+bool VrvBridge::HumdrumTimingIsCleanData(const std::string &data, vrv::FileFormat format)
+{
+    if (format == vrv::UNKNOWN) format = this->IdentifyInputFrom(data);
+    return format != vrv::HUMDRUM || HumdrumRhythmIsConsistent(data.c_str());
+}
+
+bool VrvBridge::LoadScoreFile(const std::string &path)
+{
+    this->SetInputFrom("auto");
+    m_lastInputFormat = IdentifyFileFormat(path);
     const bool loaded = this->LoadFile(path);
     if (loaded) NormalizeImportedScore();
     else m_lastNormalizedRhythmRepairSpaces = 0;
@@ -152,7 +166,7 @@ void VrvBridge::NormalizeImportedScore()
     // When that analysis succeeds they are real time (a layer split mid-bar);
     // only a failed analysis turns them into rhythm repairs worth suppressing.
     const bool keepSpaces = m_typedSpaceHandling == TypedSpaceHandling::kPreserve
-        || (m_lastInputFormat == vrv::HUMDRUM
+        || m_humdrumTimingTrusted.value_or(m_lastInputFormat == vrv::HUMDRUM
             && HumdrumRhythmIsConsistent(this->GetHumdrumBuffer()));
     m_lastNormalizedRhythmRepairSpaces
         = keepSpaces ? 0 : NormalizeTypedSpaces(this->GetDoc(), m_typedSpaceHandling);

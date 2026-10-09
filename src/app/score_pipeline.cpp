@@ -86,6 +86,11 @@ CompareOptions EngineOptionsForRun(const CompareRunOptions &options)
     return CompareOptions{ .note_position_policy = options.note_position_policy };
 }
 
+bool HumdrumTimingIsClean(VrvBridge &bridge, const std::string &data, ScoreDataFormat format)
+{
+    return bridge.HumdrumTimingIsCleanData(data, VrvFormat(format));
+}
+
 LoadedScore LoadAndExtractScoreFile(
     VrvBridge &bridge, const std::string &path, const ExtractOptions &options)
 {
@@ -95,6 +100,7 @@ LoadedScore LoadAndExtractScoreFile(
     // batch callers can keep producing complete JSONL records.
     try {
         bridge.set_typed_space_handling(options.typed_space_handling);
+        bridge.set_humdrum_timing_trusted(options.humdrum_timing_trusted);
         if (!bridge.LoadScoreFile(path)) {
             loaded.error = "failed to load " + path;
             return loaded;
@@ -123,6 +129,7 @@ LoadedScore LoadAndExtractScoreData(VrvBridge &bridge, const std::string &data,
     loaded.format = format;
     try {
         bridge.set_typed_space_handling(options.typed_space_handling);
+        bridge.set_humdrum_timing_trusted(options.humdrum_timing_trusted);
         if (!bridge.LoadScoreData(data, VrvFormat(format))) {
             loaded.format = ScoreFormatFromBridge(bridge, format);
             loaded.error = "failed to load " + label;

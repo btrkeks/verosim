@@ -949,3 +949,28 @@ TEST_CASE("profile-aware early JSONL failures audit independently available side
     std::filesystem::remove(input);
     std::filesystem::remove(summary);
 }
+
+TEST_CASE("a split bar both sides encode alike costs 0 beside a rhythm error elsewhere",
+    "[cli][typed-space]")
+{
+    const std::string pred_path = std::string(VEROSIM_TEST_FIXTURE_DIR) + "/straddle_pair_pred.krn";
+    const std::string gt_path = std::string(VEROSIM_TEST_FIXTURE_DIR) + "/straddle_pair_gt.krn";
+    VrvBridge bridge;
+
+    std::ostringstream files;
+    REQUIRE(ComparePairToJson(bridge, pred_path, gt_path, CompareCliOptions{}, files));
+    jsonxx::Object file_record;
+    REQUIRE(file_record.parse(files.str()));
+    CHECK(file_record.get<jsonxx::Number>("distance") == 2);
+
+    std::ostringstream pred_data;
+    pred_data << std::ifstream(pred_path).rdbuf();
+    std::ostringstream gt_data;
+    gt_data << std::ifstream(gt_path).rdbuf();
+    std::ostringstream data;
+    REQUIRE(CompareScoreDataToJson(
+        bridge, pred_data.str(), gt_data.str(), CompareCliOptions{}, "{", data));
+    jsonxx::Object data_record;
+    REQUIRE(data_record.parse(data.str()));
+    CHECK(data_record.get<jsonxx::Number>("distance") == 2);
+}

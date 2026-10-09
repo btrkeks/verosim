@@ -160,7 +160,12 @@ std::string FailureRecordJson(VrvBridge &bridge, const JsonlScoreRecord &record,
     out << ",\"distance\":null,\"n_pred\":null,\"n_gt\":null,\"omr_ned\":null,"
            "\"edit_distances_dict\":null";
     if (options.evaluation_profile) {
-        const ExtractOptions extract_options = ExtractOptionsForRun(RunOptionsForCli(options));
+        ExtractOptions extract_options = ExtractOptionsForRun(RunOptionsForCli(options));
+        extract_options.humdrum_timing_trusted
+            = (!record.pred_auditable
+                  || HumdrumTimingIsClean(bridge, record.pred, record.pred_audit_format))
+            && (!record.gt_auditable
+                || HumdrumTimingIsClean(bridge, record.gt, record.gt_audit_format));
         LoadedScore pred;
         LoadedScore gt;
         if (record.pred_auditable) {

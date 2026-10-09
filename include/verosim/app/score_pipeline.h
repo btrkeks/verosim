@@ -53,6 +53,8 @@ struct ScoreComparison {
 ExtractOptions ExtractOptionsForRun(const CompareRunOptions &options);
 CompareOptions EngineOptionsForRun(const CompareRunOptions &options);
 
+bool HumdrumTimingIsClean(VrvBridge &bridge, const std::string &data, ScoreDataFormat format);
+
 LoadedScore LoadAndExtractScoreFile(
     VrvBridge &bridge, const std::string &path, const ExtractOptions &options);
 LoadedScore LoadAndExtractKernData(VrvBridge &bridge, const std::string &data,

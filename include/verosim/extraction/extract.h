@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -27,6 +28,8 @@ struct ExtractResult {
 struct ExtractOptions {
     MetricSurface surface;
     TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
+    // Set by pair loads: every Humdrum side's timing is clean. Unset: per file.
+    std::optional<bool> humdrum_timing_trusted;
 };
 
 // Walk the parse-only Verovio Object tree of the first <score> into the

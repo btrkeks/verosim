@@ -96,9 +96,11 @@ separate `Arpeggios` detail bit.
 Typed Verovio spaces can be controlled with
 `--typed-space-handling preserve|suppress-straddle-filler`. The default is
 `suppress-straddle-filler`. It shrinks Verovio's `type=straddle`/`type=filler`
-spaces so they do not move later onsets, unless the input is Humdrum whose
-rhythm humlib analyzes without error. In that case the spaces are real time,
-such as a layer that starts mid-bar after `*^`, and keep their duration. Use
+spaces so they do not move later onsets, unless humlib analyzes the Humdrum
+rhythm without error. In that case the spaces are real time, such as a layer
+that starts mid-bar after `*^`, and keep their duration. A comparison decides
+once for the pair: the spaces keep their duration on both sides only when every
+Humdrum side is clean. Single-file commands decide per file. Use
 `preserve` to keep those spaces as normal hidden-duration carriers in every
 input.
 

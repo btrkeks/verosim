@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <string>
 
 #include "toolkit.h"
@@ -47,6 +48,17 @@ public:
     TypedSpaceHandling typed_space_handling() const { return m_typedSpaceHandling; }
     void set_typed_space_handling(TypedSpaceHandling handling) { m_typedSpaceHandling = handling; }
 
+    // True unless the input is Humdrum whose rhythm humlib cannot analyze.
+    bool HumdrumTimingIsCleanFile(const std::string &path);
+    bool HumdrumTimingIsCleanData(const std::string &data, vrv::FileFormat format);
+
+    // Unset, each load trusts its own Humdrum timing. A pair sets one verdict
+    // for both sides, so a bar both sides encode alike suppresses alike.
+    void set_humdrum_timing_trusted(std::optional<bool> trusted)
+    {
+        m_humdrumTimingTrusted = trusted;
+    }
+
     std::size_t last_normalized_rhythm_repair_spaces() const
     {
         return m_lastNormalizedRhythmRepairSpaces;
@@ -62,10 +74,12 @@ public:
     const vrv::Doc &GetDoc() const { return m_doc; }
 
 private:
+    vrv::FileFormat IdentifyFileFormat(const std::string &path);
     void NormalizeImportedScore();
 
     vrv::FileFormat m_lastInputFormat = vrv::UNKNOWN;
     TypedSpaceHandling m_typedSpaceHandling = TypedSpaceHandling::kSuppressStraddleFiller;
+    std::optional<bool> m_humdrumTimingTrusted;
     std::size_t m_lastNormalizedRhythmRepairSpaces = 0;
 };
 

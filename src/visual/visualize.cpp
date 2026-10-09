@@ -68,7 +68,9 @@ bool BuildVisualComparison(const std::string &pred_path, const std::string &gt_p
 
     VrvBridge pred_bridge;
     VrvBridge gt_bridge;
-    const ExtractOptions extract_options = ExtractOptionsForRun(options);
+    ExtractOptions extract_options = ExtractOptionsForRun(options);
+    extract_options.humdrum_timing_trusted = pred_bridge.HumdrumTimingIsCleanFile(pred_path)
+        && pred_bridge.HumdrumTimingIsCleanFile(gt_path);
 
     const LoadedScore pred = LoadAndExtractScoreFile(pred_bridge, pred_path, extract_options);
     if (!pred.ok) {

@@ -170,7 +170,9 @@ bool ComparePairToJson(VrvBridge &bridge, const std::string &pred_path,
 
     // One bridge, two loads: SymScore is self-contained, so the first
     // extraction survives the second load.
-    const ExtractOptions extract_options = ExtractOptionsForRun(RunOptionsForCli(options));
+    ExtractOptions extract_options = ExtractOptionsForRun(RunOptionsForCli(options));
+    extract_options.humdrum_timing_trusted
+        = bridge.HumdrumTimingIsCleanFile(pred_path) && bridge.HumdrumTimingIsCleanFile(gt_path);
     const LoadedScore pred = LoadAndExtractScoreFile(bridge, pred_path, extract_options);
     const LoadedScore gt
         = pred.ok ? LoadAndExtractScoreFile(bridge, gt_path, extract_options) : LoadedScore{};
@@ -198,7 +200,9 @@ bool CompareScoreDataToJson(VrvBridge &bridge, const std::string &pred_data,
     const std::string &json_prefix, std::ostream &out)
 {
     const auto start = std::chrono::steady_clock::now();
-    const ExtractOptions extract_options = ExtractOptionsForRun(RunOptionsForCli(options));
+    ExtractOptions extract_options = ExtractOptionsForRun(RunOptionsForCli(options));
+    extract_options.humdrum_timing_trusted = HumdrumTimingIsClean(bridge, pred_data, pred_format)
+        && HumdrumTimingIsClean(bridge, gt_data, gt_format);
     const LoadedScore pred
         = LoadAndExtractScoreData(bridge, pred_data, pred_format, pred_label, extract_options);
     LoadedScore gt;
