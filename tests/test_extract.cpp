@@ -371,6 +371,23 @@ TEST_CASE("a MusicXML clef change in a two-voice staff extracts once", "[extract
     CHECK(clefs == expected);
 }
 
+TEST_CASE("grace slash follows what Verovio draws in both formats", "[extract]")
+{
+    for (const auto &[name, format] :
+        { std::pair { "grace_slash_kinds.krn", SourceFormat::kKern },
+            std::pair { "grace_slash_kinds.xml", SourceFormat::kMusicXml } }) {
+        INFO(name);
+        const ExtractResult result = ExtractFixture(name, format);
+        std::vector<std::pair<std::string, bool>> graces;
+        for (const SymNote &note : result.score.parts[0].bar_list[0].notes) {
+            if (!note.grace_type.empty()) graces.emplace_back(note.grace_type, note.grace_slash);
+        }
+        const std::vector<std::pair<std::string, bool>> expected
+            = { { "unacc", true }, { "acc", false }, { "acc", false } };
+        CHECK(graces == expected);
+    }
+}
+
 TEST_CASE("tiny.xml: MusicXML side", "[extract]")
 {
     const ExtractResult result = Extract("tiny.xml", SourceFormat::kMusicXml);

@@ -204,17 +204,10 @@ Event Extractor::MakeCarrierEvent(const vrv::Object *obj, const Fraction &cursor
         ev.grace_slash = true;
     }
     else if (grace == vrv::GRACE_acc || grace == vrv::GRACE_unknown) {
-        // kern qq is a true appoggiatura; MusicXML <grace> without a slash
-        // attribute maps here too, but music21 defaults GraceDuration.slash
-        // to True ('unacc') — see docs/symbol_mapping.md "Grace notes"
-        if (format_ == SourceFormat::kKern) {
-            ev.grace_type = "acc";
-            ev.grace_slash = false;
-        }
-        else {
-            ev.grace_type = "unacc";
-            ev.grace_slash = true;
-        }
+        // Verovio draws the slash only for unacc, so kern qq and a MusicXML
+        // <grace> without slash="yes" both print unslashed
+        ev.grace_type = "acc";
+        ev.grace_slash = false;
     }
 
     if (obj->Is(vrv::MREST) || obj->Is(vrv::MULTIREST) || obj->Is(vrv::MSPACE)) {

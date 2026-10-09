@@ -121,12 +121,15 @@ that drawing-state behavior; visual marks still use the member's concrete ID.
 | kern `qq` | `@grace="acc"` | ('acc', False) |
 | kern `q` | `@grace="unacc"` | ('unacc', True) — slash implied, no @stem.mod |
 | xml `slash="yes"` | `@grace="unacc"` + `@stem.mod="1slash"` | ('unacc', True) |
-| xml no slash attr | `@grace="acc"` | ('unacc', True) — music21 GraceDuration defaults slash=True |
-| xml `slash="no"` | `@grace="acc"` (indistinguishable from absent) | ('acc', False) — **unrepresentable**, accepted D6 edge |
+| xml no slash attr | `@grace="acc"` | ('acc', False) |
+| xml `slash="no"` | `@grace="acc"` (indistinguishable from absent) | ('acc', False) |
 
-Extraction rule: `unacc` → ('unacc', slash); `acc` → kern ('acc', no slash),
-MusicXML ('unacc', slash). Requires knowing the input format (recorded by
-VrvBridge at load).
+Extraction rule: `unacc` → ('unacc', slash); `acc` → ('acc', no slash) for
+both formats. This follows the drawing: Verovio adds the acciaccatura slash
+only for `unacc` (`View::DrawStem`). It departs from music21, which defaults
+`GraceDuration.slash` to True for a MusicXML `<grace>` without a slash
+attribute, so musicdiff scores such a note as slashed although no slash is
+printed.
 
 ## Known v1 caveats (documented, not solved)
 
