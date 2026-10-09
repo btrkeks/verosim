@@ -37,6 +37,7 @@ enum class TupletValue { kStart, kContinue, kStop, kStartStop };
 
 // Stable visual-only position for resolving rendered SVG elements. These
 // fields are metadata: metric equality, counts, and edit costs ignore them.
+// The visual note-position policy pairs measures by measure_idx.
 struct SymbolLocator {
     int part_idx = -1;
     std::string staff_n;

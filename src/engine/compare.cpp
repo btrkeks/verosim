@@ -1,6 +1,7 @@
 #include "verosim/engine/compare.h"
 
 #include <iterator>
+#include <limits>
 #include <map>
 #include <string>
 #include <string_view>
@@ -26,60 +27,55 @@ namespace verosim {
 
 namespace {
 
-std::vector<NcsBlock> PositionalNonCommonSubsequences(
-    const std::vector<std::int32_t> &original_ids, const std::vector<std::int32_t> &compare_to_ids)
+// Bars pair by source measure index, not list position: extraction drops a
+// bar with no symbols, so one side's list can skip a measure the other keeps.
+std::vector<NcsBlock> PositionalNonCommonSubsequences(const std::vector<std::int32_t> &original_ids,
+    const std::vector<int> &original_measures, const std::vector<std::int32_t> &compare_to_ids,
+    const std::vector<int> &compare_to_measures)
 {
     std::vector<NcsBlock> blocks;
-    const std::size_t shared = std::min(original_ids.size(), compare_to_ids.size());
-    std::size_t i = 0;
-    bool last_block_reached_shared_end = false;
-    while (i < shared) {
-        if (original_ids[i] == compare_to_ids[i]) {
-            last_block_reached_shared_end = false;
-            ++i;
+    NcsBlock open;
+    const auto close = [&] {
+        if (open.original.empty() && open.compare_to.empty()) return;
+        blocks.push_back(std::move(open));
+        open = NcsBlock();
+    };
+    constexpr int kExhausted = std::numeric_limits<int>::max();
+    std::size_t o = 0;
+    std::size_t c = 0;
+    while (o < original_ids.size() || c < compare_to_ids.size()) {
+        const int o_measure = o < original_ids.size() ? original_measures[o] : kExhausted;
+        const int c_measure = c < compare_to_ids.size() ? compare_to_measures[c] : kExhausted;
+        if (o_measure == c_measure && original_ids[o] == compare_to_ids[c]) {
+            close();
+            ++o;
+            ++c;
             continue;
         }
-        NcsBlock block;
-        while (i < shared && original_ids[i] != compare_to_ids[i]) {
-            block.original.push_back(static_cast<int>(i));
-            block.compare_to.push_back(static_cast<int>(i));
-            ++i;
-        }
-        last_block_reached_shared_end = i == shared;
-        blocks.push_back(std::move(block));
+        if (o_measure <= c_measure) open.original.push_back(static_cast<int>(o++));
+        if (c_measure <= o_measure) open.compare_to.push_back(static_cast<int>(c++));
     }
-
-    if (i < original_ids.size() || i < compare_to_ids.size()) {
-        NcsBlock tail;
-        for (std::size_t o = i; o < original_ids.size(); ++o) {
-            tail.original.push_back(static_cast<int>(o));
-        }
-        for (std::size_t c = i; c < compare_to_ids.size(); ++c) {
-            tail.compare_to.push_back(static_cast<int>(c));
-        }
-        if (last_block_reached_shared_end && !blocks.empty()) {
-            blocks.back().original.insert(
-                blocks.back().original.end(), tail.original.begin(), tail.original.end());
-            blocks.back().compare_to.insert(
-                blocks.back().compare_to.end(), tail.compare_to.begin(), tail.compare_to.end());
-        }
-        else {
-            blocks.push_back(std::move(tail));
-        }
-    }
-
+    close();
     return blocks;
 }
 
+std::vector<int> MeasureIndices(const SymPart &part)
+{
+    std::vector<int> indices;
+    indices.reserve(part.bar_list.size());
+    for (const SymMeasure &measure : part.bar_list) indices.push_back(measure.locator.measure_idx);
+    return indices;
+}
+
 std::vector<NcsBlock> MeasureBlocks(const std::vector<std::int32_t> &pred_ids,
-    const std::vector<std::int32_t> &gt_ids, const CompareOptions &options)
+    const std::vector<int> &pred_measures, const std::vector<std::int32_t> &gt_ids,
+    const std::vector<int> &gt_measures, const CompareOptions &options)
 {
     switch (options.note_position_policy) {
         case NotePositionPolicy::kMusicalOnset: return NonCommonSubsequences(pred_ids, gt_ids);
-        case NotePositionPolicy::kVisualEventOrder:
-            return PositionalNonCommonSubsequences(pred_ids, gt_ids);
+        case NotePositionPolicy::kVisualEventOrder: break;
     }
-    return PositionalNonCommonSubsequences(pred_ids, gt_ids);
+    return PositionalNonCommonSubsequences(pred_ids, pred_measures, gt_ids, gt_measures);
 }
 
 } // namespace
@@ -188,7 +184,8 @@ CompareResult CompareScores(const SymScore &pred, const SymScore &gt, const Comp
         gt_ids.reserve(gt_part.measures.size());
         for (const PreparedMeasure &m : gt_part.measures) gt_ids.push_back(m.content_id);
 
-        for (const NcsBlock &block : MeasureBlocks(pred_ids, gt_ids, options)) {
+        for (const NcsBlock &block : MeasureBlocks(pred_ids, MeasureIndices(pred.parts[p]), gt_ids,
+                 MeasureIndices(gt.parts[p]), options)) {
             DiffResult block_diff
                 = BlockDiffLin(pred.parts[p], pred_part, gt.parts[p], gt_part, block, options);
             result.cost += block_diff.cost;
