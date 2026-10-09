@@ -107,7 +107,10 @@ void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &e
             }
         }
         else if (child->Is(vrv::CLEF)) {
-            extras.push_back(MakeClefExtra(*vrv_cast<const vrv::Clef *>(child), cursor));
+            const vrv::Clef *clef = vrv_cast<const vrv::Clef *>(child);
+            // iomusxml copies a clef change into the staff's other layers as
+            // @sameas references to the one clef that is drawn
+            if (!clef->HasSameas()) extras.push_back(MakeClefExtra(*clef, cursor));
         }
         else if (child->Is(vrv::KEYSIG)) {
             const vrv::KeySig *keysig = vrv_cast<const vrv::KeySig *>(child);

@@ -359,6 +359,18 @@ TEST_CASE("hidden whole-bar kern rest is not extracted", "[extract]")
     CHECK(part.bar_list[1].notes[0].note_offset == Fraction(0));
 }
 
+TEST_CASE("a MusicXML clef change in a two-voice staff extracts once", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("clef_change_two_voices.xml", SourceFormat::kMusicXml);
+    std::vector<std::pair<std::string, Fraction>> clefs;
+    for (const SymExtra &extra : result.score.parts[0].bar_list[0].extras) {
+        if (extra.kind == ExtraKind::kClef) clefs.emplace_back(extra.symbolic.value_or(""), extra.offset);
+    }
+    const std::vector<std::pair<std::string, Fraction>> expected
+        = { { "G2", Fraction(0) }, { "F4", Fraction(1) } };
+    CHECK(clefs == expected);
+}
+
 TEST_CASE("tiny.xml: MusicXML side", "[extract]")
 {
     const ExtractResult result = Extract("tiny.xml", SourceFormat::kMusicXml);
