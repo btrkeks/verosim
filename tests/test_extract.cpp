@@ -371,6 +371,39 @@ TEST_CASE("a MusicXML clef change in a two-voice staff extracts once", "[extract
     CHECK(clefs == expected);
 }
 
+TEST_CASE("a MusicXML octave shift displaces every voice by onset, not file order", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("ottava_two_voices.xml", SourceFormat::kMusicXml);
+    std::vector<std::vector<std::pair<Fraction, std::string>>> bars;
+    for (const SymMeasure &bar : result.score.parts[0].bar_list) {
+        std::vector<std::pair<Fraction, std::string>> notes;
+        for (const SymNote &note : bar.notes) {
+            if (note.pitches[0].step_octave != "R") notes.emplace_back(note.note_offset, note.pitches[0].step_octave);
+        }
+        std::sort(notes.begin(), notes.end());
+        bars.push_back(notes);
+    }
+    const std::vector<std::vector<std::pair<Fraction, std::string>>> expected = {
+        { { Fraction(0), "C5" }, { Fraction(0), "G4" }, { Fraction(1), "D5" }, { Fraction(2), "A4" },
+            { Fraction(2), "E5" }, { Fraction(3), "F5" } },
+        { { Fraction(0), "E5" }, { Fraction(2), "C4" }, { Fraction(3), "D4" } },
+        { { Fraction(0), "C4" } },
+    };
+    CHECK(bars == expected);
+}
+
+TEST_CASE("a MusicXML octave line read after its stop still ends there", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("ottava_two_voices.xml", SourceFormat::kMusicXml,
+        ExtractOptions{ .surface = MetricSurface{ .mode = MetricMode::kExperimental } });
+    const std::vector<const SymExtra *> lines = ExtrasOfKind(result.score.parts[0].bar_list[1], ExtraKind::kOttava);
+    REQUIRE(lines.size() == 1);
+    CHECK(lines[0]->symbolic == "8vb");
+    CHECK(lines[0]->offset == Fraction(2));
+    REQUIRE(lines[0]->duration.has_value());
+    CHECK(*lines[0]->duration == Fraction(2));
+}
+
 TEST_CASE("grace slash follows what Verovio draws in both formats", "[extract]")
 {
     for (const auto &[name, format] :
