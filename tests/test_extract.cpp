@@ -492,6 +492,22 @@ TEST_CASE("a MusicXML clef change inside one voice's note lands at the other voi
     CHECK(clefs == expected);
 }
 
+TEST_CASE("a MusicXML beam that opens with a tuplet keeps going across the barline", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("beam_across_barline.xml", SourceFormat::kMusicXml);
+    std::vector<std::vector<std::vector<BeamValue>>> bars;
+    for (const SymMeasure &bar : result.score.parts[0].bar_list) {
+        std::vector<std::vector<BeamValue>> beams;
+        for (const SymNote &note : bar.notes) beams.push_back(note.beamings);
+        bars.push_back(beams);
+    }
+    const std::vector<std::vector<std::vector<BeamValue>>> expected = {
+        { {}, { BeamValue::kStart }, { BeamValue::kContinue }, { BeamValue::kContinue } },
+        { { BeamValue::kStart }, { BeamValue::kContinue }, { BeamValue::kStop }, {} },
+    };
+    CHECK(bars == expected);
+}
+
 TEST_CASE("a control element whose start lies outside its measure warns", "[extract]")
 {
     const ExtractResult result = ExtractMeiData(R"(<?xml version="1.0" encoding="UTF-8"?>
