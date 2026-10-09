@@ -65,7 +65,11 @@ namespace {
 
 bool IsHiddenCarrier(const vrv::Object *obj)
 {
-    return obj->Is(vrv::SPACE) || obj->Is(vrv::MSPACE);
+    if (obj->Is(vrv::SPACE) || obj->Is(vrv::MSPACE)) return true;
+    // iohumdrum imports a whole-bar kern ryy as <mRest visible="false">
+    if (!obj->Is(vrv::REST) && !obj->Is(vrv::MREST) && !obj->Is(vrv::MULTIREST)) return false;
+    const auto *visibility = dynamic_cast<const vrv::AttVisibility *>(obj);
+    return visibility && visibility->GetVisible() == vrv::BOOLEAN_false;
 }
 
 } // namespace
@@ -108,9 +112,7 @@ void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &e
         else if (child->Is(vrv::KEYSIG)) {
             const vrv::KeySig *keysig = vrv_cast<const vrv::KeySig *>(child);
             extras.push_back(MakeKeySigExtra(*keysig, cursor));
-            const int count = keysig->GetAccidCount();
-            state.accids.SetKeySig(
-                keysig->GetAccidType() == vrv::ACCIDENTAL_WRITTEN_f ? -count : count);
+            state.accids.SetKeyAlters(KeySigAlters(*keysig));
         }
         else if (child->Is(vrv::METERSIG)) {
             const vrv::MeterSig *metersig = vrv_cast<const vrv::MeterSig *>(child);

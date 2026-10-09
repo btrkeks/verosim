@@ -2,14 +2,6 @@
 
 namespace verosim {
 
-namespace {
-
-// circle-of-fifths order: sharps F C G D A E B, flats B E A D G C F
-constexpr char kSharpOrder[] = { 'f', 'c', 'g', 'd', 'a', 'e', 'b' };
-constexpr char kFlatOrder[] = { 'b', 'e', 'a', 'd', 'g', 'c', 'f' };
-
-} // namespace
-
 void AccidentalState::StartMeasure()
 {
     measure_state_.clear();
@@ -21,17 +13,8 @@ void AccidentalState::StartMeasure()
 
 int AccidentalState::KeyAlter(char step) const
 {
-    if (key_sig_ > 0) {
-        for (int i = 0; i < key_sig_ && i < 7; ++i) {
-            if (kSharpOrder[i] == step) return 1;
-        }
-    }
-    else if (key_sig_ < 0) {
-        for (int i = 0; i < -key_sig_ && i < 7; ++i) {
-            if (kFlatOrder[i] == step) return -1;
-        }
-    }
-    return 0;
+    const auto it = key_alters_.find(step);
+    return it == key_alters_.end() ? 0 : it->second;
 }
 
 int AccidentalState::Resolve(char step, int octave, const int *written_alter,

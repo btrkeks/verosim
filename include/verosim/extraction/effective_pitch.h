@@ -19,9 +19,8 @@ namespace verosim {
 // signal used by --count-symbols --per-measure triage.
 class AccidentalState {
 public:
-    // sig: key signature as signed count (+sharps / -flats), e.g. +2 = D major.
-    void SetKeySig(int sig) { key_sig_ = sig; }
-    int key_sig() const { return key_sig_; }
+    // step ('c'..'b') -> alter for every step the key signature alters.
+    void SetKeyAlters(std::map<char, int> alters) { key_alters_ = std::move(alters); }
 
     // Called at every barline.
     void StartMeasure();
@@ -45,7 +44,7 @@ public:
 private:
     int KeyAlter(char step) const;
 
-    int key_sig_ = 0;
+    std::map<char, int> key_alters_;
     // (step, octave) -> alter carried for the rest of the measure
     std::map<std::pair<char, int>, int> measure_state_;
     // (step, octave) -> alter carried across a barline by a tie

@@ -14,6 +14,7 @@
 #include "dynam.h"
 #include "gracegrp.h"
 #include "hairpin.h"
+#include "keyaccid.h"
 #include "keysig.h"
 #include "layer.h"
 #include "layerelement.h"

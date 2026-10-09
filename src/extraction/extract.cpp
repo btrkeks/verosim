@@ -150,11 +150,7 @@ void Extractor::StartStaffMeasure(StaffState &state)
 {
     state.accids.StartMeasure();
     if (state.pending.keysig) {
-        state.accids.SetKeySig([&] {
-            const int count = state.pending.keysig->GetAccidCount();
-            return state.pending.keysig->GetAccidType() == vrv::ACCIDENTAL_WRITTEN_f ? -count
-                                                                                     : count;
-        }());
+        state.accids.SetKeyAlters(KeySigAlters(*state.pending.keysig));
     }
 }
 

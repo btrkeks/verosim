@@ -327,6 +327,38 @@ TEST_CASE("keysig.krn: in-key accidentals are invisible but sound", "[extract]")
     CHECK(fsharp.pitches[0].sounding_alter == 1); // resolver: keysig applies
 }
 
+TEST_CASE("spelled-out key keeps its naturals and matches across formats", "[extract]")
+{
+    using Infodict = std::vector<std::pair<std::string, std::string>>;
+    const Infodict expected = { { "natural0", "F" }, { "natural1", "C" }, { "natural2", "G" },
+        { "flat0", "B" }, { "flat1", "E" }, { "flat2", "A" }, { "flat3", "D" }, { "flat4", "G" } };
+    for (const auto &[name, format] :
+        { std::pair { "key_cancel_naturals.krn", SourceFormat::kKern },
+            std::pair { "key_cancel_naturals.xml", SourceFormat::kMusicXml } }) {
+        INFO(name);
+        const ExtractResult result = ExtractFixture(name, format);
+        const SymMeasure &m2 = result.score.parts[0].bar_list[1];
+        const auto keysig = std::find_if(m2.extras.begin(), m2.extras.end(),
+            [](const SymExtra &extra) { return extra.kind == ExtraKind::kKeySig; });
+        REQUIRE(keysig != m2.extras.end());
+        CHECK(keysig->infodict == expected);
+        CHECK(m2.notes[0].pitches[0].step_octave == "D5");
+        CHECK(m2.notes[0].pitches[0].sounding_alter == -1);
+        CHECK(m2.notes[1].pitches[0].step_octave == "F5");
+        CHECK(m2.notes[1].pitches[0].sounding_alter == 0);
+    }
+}
+
+TEST_CASE("hidden whole-bar kern rest is not extracted", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("hidden_full_bar_rest.krn", SourceFormat::kKern);
+    const SymPart &part = result.score.parts[0];
+    REQUIRE(part.bar_list.size() == 2);
+    CHECK(part.bar_list[0].notes.empty());
+    REQUIRE(part.bar_list[1].notes.size() == 3);
+    CHECK(part.bar_list[1].notes[0].note_offset == Fraction(0));
+}
+
 TEST_CASE("tiny.xml: MusicXML side", "[extract]")
 {
     const ExtractResult result = Extract("tiny.xml", SourceFormat::kMusicXml);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -22,6 +23,7 @@ bool StaffMatches(const vrv::Object *obj, const std::string &staffN);
 bool HasStaffIdent(const vrv::Object *obj);
 std::optional<std::string> ModernMensurSymbol(const vrv::Mensur &mensur);
 bool IsVisibleMeterSig(const vrv::MeterSig &metersig);
+std::map<char, int> KeySigAlters(const vrv::KeySig &keysig);
 bool MeterQLFromMeterSig(const vrv::MeterSig &metersig, Fraction &ql);
 bool MeterQLFromMensur(const vrv::Mensur &mensur, Fraction &ql);
 Fraction BeatQLFromMeterSig(const vrv::MeterSig &metersig);

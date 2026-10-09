@@ -1,5 +1,7 @@
 #include "extractor.h"
 
+#include <cctype>
+#include <map>
 #include <optional>
 #include <string>
 
@@ -30,6 +32,49 @@ std::optional<std::string> ModernMensurSymbol(const vrv::Mensur &mensur)
     if (mensur.HasNum() || mensur.HasNumbase()) return std::nullopt;
     return mensur.HasSlash() ? std::optional<std::string>("cut")
                              : std::optional<std::string>("common");
+}
+
+namespace {
+
+constexpr char kSharpOrder[] = { 'f', 'c', 'g', 'd', 'a', 'e', 'b' };
+constexpr char kFlatOrder[] = { 'b', 'e', 'a', 'd', 'g', 'c', 'f' };
+
+// A key spelled out accidental by accidental (MusicXML key-step, kern *k[fn...])
+// comes through as keyAccid children with no @sig to count from.
+std::vector<const vrv::KeyAccid *> ExplicitKeyAccids(const vrv::KeySig &keysig)
+{
+    std::vector<const vrv::KeyAccid *> accids;
+    if (!keysig.HasNonAttribKeyAccidChildren()) return accids;
+    for (const vrv::Object *child : keysig.GetList()) {
+        if (!child->IsAttribute() && child->Is(vrv::KEYACCID)) {
+            accids.push_back(vrv_cast<const vrv::KeyAccid *>(child));
+        }
+    }
+    return accids;
+}
+
+} // namespace
+
+std::map<char, int> KeySigAlters(const vrv::KeySig &keysig)
+{
+    std::map<char, int> alters;
+    const std::vector<const vrv::KeyAccid *> explicitAccids = ExplicitKeyAccids(keysig);
+    if (!explicitAccids.empty()) {
+        for (const vrv::KeyAccid *accid : explicitAccids) {
+            std::string name;
+            int alter = 0;
+            if (AccidWrittenInfo(accid->GetAccid(), name, alter)) {
+                alters[StepFromPname(accid->GetPname())] = alter;
+            }
+        }
+        return alters;
+    }
+    const int count = keysig.GetAccidCount();
+    const bool flats = keysig.GetAccidType() == vrv::ACCIDENTAL_WRITTEN_f;
+    for (int i = 0; i < count && i < 7; ++i) {
+        alters[flats ? kFlatOrder[i] : kSharpOrder[i]] = flats ? -1 : 1;
+    }
+    return alters;
 }
 
 bool IsVisibleMeterSig(const vrv::MeterSig &metersig)
@@ -74,6 +119,21 @@ SymExtra Extractor::MakeKeySigExtra(const vrv::KeySig &keysig, const Fraction &o
     // m21utils keysig_to_infodict: per-accidental entries, circle-of-fifths
     static const char *kFlatNames[] = { "B", "E", "A", "D", "G", "C", "F" };
     static const char *kSharpNames[] = { "F", "C", "G", "D", "A", "E", "B" };
+    const std::vector<const vrv::KeyAccid *> explicitAccids = ExplicitKeyAccids(keysig);
+    if (!explicitAccids.empty()) {
+        // numbered per accidental kind, so a spelled-out standard key
+        // (flat0:B flat1:E) labels the same as its @sig form
+        std::map<std::string, int> seen;
+        for (const vrv::KeyAccid *accid : explicitAccids) {
+            std::string name;
+            int alter = 0;
+            if (!AccidWrittenInfo(accid->GetAccid(), name, alter)) name = "unknown";
+            const char step = StepFromPname(accid->GetPname());
+            extra.infodict.emplace_back(name + std::to_string(seen[name]++),
+                std::string(1, static_cast<char>(std::toupper(step))));
+        }
+        return extra;
+    }
     const int count = keysig.GetAccidCount();
     if (count == 0) {
         extra.infodict.emplace_back("flats/sharps", "none");
