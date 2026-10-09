@@ -638,6 +638,26 @@ TEST_CASE("a tremolo merged inside a triplet keeps its dot and tuplet", "[extrac
     }
 }
 
+TEST_CASE("a fingered tremolo merged inside a tuplet keeps its written value", "[extract]")
+{
+    for (const auto &[name, format] :
+        { std::pair { "tremolo_fingered_sextuplet.krn", SourceFormat::kKern },
+            std::pair { "tremolo_fingered_sextuplet.xml", SourceFormat::kMusicXml } }) {
+        INFO(name);
+        const ExtractResult result = ExtractFixture(name, format);
+        const std::vector<SymNote> &notes = result.score.parts[0].bar_list[0].notes;
+        REQUIRE(notes.size() == 2);
+        CHECK(notes[0].pitches[0].step_octave == "C4");
+        CHECK(notes[1].pitches[0].step_octave == "D4");
+        for (const SymNote &note : notes) {
+            CHECK(note.note_dur_type == "half");
+            CHECK(note.dots == 1);
+        }
+        CHECK(notes[0].tuplets == std::vector<TupletValue> { TupletValue::kStart });
+        CHECK(notes[1].tuplets == std::vector<TupletValue> { TupletValue::kStop });
+    }
+}
+
 TEST_CASE("a kern tremolo span stays in its own layer", "[extract]")
 {
     const ExtractResult result = ExtractFixture("tremolo_layer_carry.krn", SourceFormat::kKern);
