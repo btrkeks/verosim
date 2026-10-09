@@ -5,6 +5,7 @@
 // extras, the measure drop rule, and the repr format.
 
 #include <algorithm>
+#include <tuple>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -108,6 +109,17 @@ std::vector<std::vector<std::vector<std::string>>> PitchesByStaffAndBar(const Ex
     return staves;
 }
 
+std::vector<std::vector<std::tuple<std::string, Fraction, std::string>>> NotesByBar(const ExtractResult &result)
+{
+    std::vector<std::vector<std::tuple<std::string, Fraction, std::string>>> bars;
+    for (const SymMeasure &bar : result.score.parts[0].bar_list) {
+        bars.emplace_back();
+        for (const SymNote &note : bar.notes) {
+            bars.back().emplace_back(note.pitches[0].step_octave, note.note_offset, note.note_dur_type);
+        }
+    }
+    return bars;
+}
 } // namespace
 
 TEST_CASE("mono.krn: offsets, beams, dots", "[extract]")
@@ -579,6 +591,74 @@ TEST_CASE("grace slash follows what Verovio draws in both formats", "[extract]")
             = { { "unacc", true }, { "acc", false }, { "acc", false } };
         CHECK(graces == expected);
     }
+}
+
+TEST_CASE("kern clef copies in other layers of the staff extract once", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("clef_layer_copies.krn", SourceFormat::kKern);
+    std::vector<std::vector<std::pair<std::string, Fraction>>> clefs;
+    for (const SymMeasure &bar : result.score.parts[0].bar_list) {
+        clefs.emplace_back();
+        for (const SymExtra &extra : bar.extras) {
+            if (extra.kind == ExtraKind::kClef) clefs.back().emplace_back(extra.symbolic.value_or(""), extra.offset);
+        }
+    }
+    const std::vector<std::vector<std::pair<std::string, Fraction>>> expected
+        = { { { "F4", Fraction(0) }, { "G2", Fraction(1) } }, { { "F4", Fraction(2) } }, {} };
+    CHECK(clefs == expected);
+}
+
+TEST_CASE("a tie on a visible chord member survives a hidden sibling", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("hidden_chord_member_tie.krn", SourceFormat::kKern);
+    const SymPart &part = result.score.parts[0];
+    REQUIRE(part.bar_list.size() == 2);
+    REQUIRE(part.bar_list[0].notes.size() == 1);
+    REQUIRE(part.bar_list[1].notes.size() == 1);
+    CHECK(part.bar_list[0].notes[0].pitches[0].step_octave == "E4");
+    CHECK(part.bar_list[0].notes[0].pitches[0].tie);
+    CHECK(part.bar_list[1].notes[0].pitches[0].step_octave == "E4");
+    CHECK_FALSE(part.bar_list[1].notes[0].pitches[0].tie);
+}
+
+TEST_CASE("a tremolo merged inside a triplet keeps its dot and tuplet", "[extract]")
+{
+    for (const auto &[name, format] :
+        { std::pair { "tremolo_dotted_triplet.krn", SourceFormat::kKern },
+            std::pair { "tremolo_dotted_triplet.xml", SourceFormat::kMusicXml } }) {
+        INFO(name);
+        const ExtractResult result = ExtractFixture(name, format);
+        const std::vector<SymNote> &notes = result.score.parts[0].bar_list[0].notes;
+        REQUIRE(notes.size() == 4);
+        const SymNote &tremolo = notes[3];
+        CHECK(tremolo.note_offset == Fraction(1));
+        CHECK(tremolo.note_dur_type == "quarter");
+        CHECK(tremolo.dots == 1);
+        CHECK(tremolo.tuplets == std::vector<TupletValue> { TupletValue::kStartStop });
+    }
+}
+
+TEST_CASE("a kern tremolo span stays in its own layer", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("tremolo_layer_carry.krn", SourceFormat::kKern);
+    const std::vector<std::vector<std::tuple<std::string, Fraction, std::string>>> expected = {
+        { { "C5", Fraction(0), "quarter" }, { "C5", Fraction(1), "quarter" }, { "G4", Fraction(0), "eighth" },
+            { "G4", Fraction(1, 2), "eighth" }, { "A4", Fraction(1), "quarter" } },
+        { { "C5", Fraction(0), "quarter" }, { "E5", Fraction(1), "quarter" }, { "G4", Fraction(0), "eighth" },
+            { "G4", Fraction(1, 2), "eighth" }, { "A4", Fraction(1), "quarter" } },
+    };
+    CHECK(NotesByBar(result) == expected);
+}
+
+TEST_CASE("a kern tremolo span carries into the layer a split creates", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("tremolo_before_split.krn", SourceFormat::kKern);
+    const std::vector<std::vector<std::tuple<std::string, Fraction, std::string>>> expected = {
+        { { "C5", Fraction(0), "quarter" }, { "C5", Fraction(1), "quarter" }, { "G4", Fraction(1), "quarter" } },
+        { { "C5", Fraction(0), "quarter" }, { "E5", Fraction(1), "quarter" }, { "G4", Fraction(0), "quarter" },
+            { "A4", Fraction(1), "quarter" } },
+    };
+    CHECK(NotesByBar(result) == expected);
 }
 
 TEST_CASE("hidden notes and hidden chord members are not extracted", "[extract]")
