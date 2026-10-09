@@ -9,6 +9,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "durationinterface.h"
+#include "verosim/engine/compare.h"
 #include "verosim/engine/interner.h"
 #include "verosim/extraction/extract.h"
 #include "verosim/extraction/typed_space_policy.h"
@@ -357,6 +358,21 @@ TEST_CASE("hidden whole-bar kern rest is not extracted", "[extract]")
     CHECK(part.bar_list[0].notes.empty());
     REQUIRE(part.bar_list[1].notes.size() == 3);
     CHECK(part.bar_list[1].notes[0].note_offset == Fraction(0));
+}
+
+TEST_CASE("a dropped hidden bar keeps later bars paired by measure", "[extract][engine]")
+{
+    const ExtractResult pred = ExtractFixture("hidden_bar_shift_pred.krn", SourceFormat::kKern);
+    const ExtractResult gt = ExtractFixture("hidden_bar_shift_gt.krn", SourceFormat::kKern);
+    REQUIRE(pred.score.parts[0].bar_list.size() == 4);
+    REQUIRE(gt.score.parts[0].bar_list.size() == 5);
+
+    const CompareResult result = CompareScores(pred.score, gt.score);
+    CHECK(result.cost == 2);
+    REQUIRE(result.op_list.size() == 1);
+    CHECK(result.op_list[0].name == OpName::kInsBar);
+    REQUIRE(result.op_list[0].b.measure != nullptr);
+    CHECK(result.op_list[0].b.measure->measure_n == "2");
 }
 
 TEST_CASE("a MusicXML clef change in a two-voice staff extracts once", "[extract]")
