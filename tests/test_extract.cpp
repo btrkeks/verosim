@@ -455,6 +455,31 @@ TEST_CASE("a MusicXML octave line read after its stop still ends there", "[extra
     CHECK(*lines[0]->duration == Fraction(2));
 }
 
+TEST_CASE("MusicXML slurs and clefs stay in their measure when measure numbers repeat", "[extract]")
+{
+    const ExtractResult result = ExtractFixture("repeated_measure_numbers.xml", SourceFormat::kMusicXml);
+    REQUIRE(result.score.parts.size() == 2);
+    std::vector<std::vector<std::pair<std::string, Fraction>>> marks;
+    for (const SymPart &part : result.score.parts) {
+        for (const SymMeasure &bar : part.bar_list) {
+            std::vector<std::pair<std::string, Fraction>> bar_marks;
+            for (const SymExtra &extra : bar.extras) {
+                if (extra.kind == ExtraKind::kSlur) bar_marks.emplace_back("slur", extra.offset);
+                if (extra.kind == ExtraKind::kClef) bar_marks.emplace_back(extra.symbolic.value_or(""), extra.offset);
+            }
+            marks.push_back(bar_marks);
+        }
+    }
+    const std::vector<std::vector<std::pair<std::string, Fraction>>> expected = {
+        { { "G2", Fraction(0) } },
+        { { "slur", Fraction(0) } },
+        { { "F4", Fraction(0) } },
+        { { "G2", Fraction(1) }, { "slur", Fraction(0) } },
+    };
+    CHECK(marks == expected);
+    CHECK(result.warnings.empty());
+}
+
 TEST_CASE("a control element whose start lies outside its measure warns", "[extract]")
 {
     const ExtractResult result = ExtractMeiData(R"(<?xml version="1.0" encoding="UTF-8"?>
