@@ -163,6 +163,7 @@ struct ControlSpanState {
 
     bool HasEvent(const std::string &id) const { return event_locations_.contains(id); }
     void AddPendingSpan(PendingSpan span) { pending_spans_.push_back(std::move(span)); }
+    bool HasPendingSpans() const { return !pending_spans_.empty(); }
 
     void ResolvePendingSpans(SymScore &score)
     {

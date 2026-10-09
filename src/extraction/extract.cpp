@@ -17,6 +17,9 @@ ExtractResult Extractor::Run()
         Warn("layout system break not followed by a measure; dropping it");
         layout_.Clear();
     }
+    if (controls_.HasPendingSpans()) {
+        Warn("control span endid never resolved; its duration counts as zero");
+    }
 
     // drop empty measures (annotation.py:1401) — already skipped at emit time;
     // assign part indices in staffDef document order

@@ -455,6 +455,26 @@ TEST_CASE("a MusicXML octave line read after its stop still ends there", "[extra
     CHECK(*lines[0]->duration == Fraction(2));
 }
 
+TEST_CASE("a control element whose start lies outside its measure warns", "[extract]")
+{
+    const ExtractResult result = ExtractMeiData(R"(<?xml version="1.0" encoding="UTF-8"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0"><music><body><mdiv><score>
+  <scoreDef><staffGrp><staffDef n="1" lines="5" clef.shape="G" clef.line="2" meter.count="2" meter.unit="4"/></staffGrp></scoreDef>
+  <section>
+    <measure n="1">
+      <staff n="1"><layer n="1"><note xml:id="a1" dur="4" oct="5" pname="c"/><note xml:id="a2" dur="4" oct="5" pname="d"/></layer></staff>
+      <slur startid="#b1" endid="#b2"/>
+    </measure>
+    <measure n="2">
+      <staff n="1"><layer n="1"><note xml:id="b1" dur="4" oct="5" pname="e"/><note xml:id="b2" dur="4" oct="5" pname="f"/></layer></staff>
+    </measure>
+  </section>
+</score></mdiv></body></music></mei>)");
+    const std::vector<std::string> expected
+        = { "control element <slur> starts outside its measure; dropped" };
+    CHECK(result.warnings == expected);
+}
+
 TEST_CASE("grace slash follows what Verovio draws in both formats", "[extract]")
 {
     for (const auto &[name, format] :

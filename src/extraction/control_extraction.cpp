@@ -144,12 +144,20 @@ std::optional<Fraction> Extractor::ControlPointOffset(const vrv::Object *obj,
 {
     if (!tpi) return std::nullopt;
     if (tpi->HasStartid()) {
-        const EventLocation *event = controls_.FindEvent(StripIdRef(tpi->GetStartid()));
+        const std::string startId = StripIdRef(tpi->GetStartid());
+        const EventLocation *event = controls_.FindEvent(startId);
         if (event && event->staff_n == staffN) {
             return event->abs_offset - startAbs;
         }
         if (event) return std::nullopt;
-        if (!tpi->HasTstamp()) return std::nullopt;
+        if (!tpi->HasTstamp()) {
+            // a later staff of this measure registers the start event on its own pass
+            const vrv::Object *measure = obj->GetFirstAncestor(vrv::MEASURE);
+            if (!measure || !measure->FindDescendantByID(startId)) {
+                Warn("control element <" + obj->GetClassName() + "> starts outside its measure; dropped");
+            }
+            return std::nullopt;
+        }
     }
     if (tpi->HasTstamp()) {
         return TstampToOffset(tpi->GetTstamp(), staffN);
