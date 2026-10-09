@@ -100,8 +100,7 @@ void Extractor::CollectLayerEvents(const vrv::Object *obj, std::vector<Event> &e
             Event ev = MakeCarrierEvent(child, cursor, state, tupletStack, beam);
             const bool hidden = IsHiddenCarrier(child);
             if (!hidden) events.push_back(ev);
-            if (ev.grace_type.empty()
-                && !ShouldSuppressTypedSpaceDuration(child, options_.typed_space_handling)) {
+            if (ev.grace_type.empty() && !IsSuppressedTypedSpace(child)) {
                 cursor += ev.dur_ql;
             }
         }

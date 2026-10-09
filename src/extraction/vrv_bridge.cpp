@@ -12,6 +12,7 @@
 #include <unistd.h>
 #endif
 
+#include "humlib.h"
 #include "toolkitdef.h"
 #include "verosim/extraction/typed_space_policy.h"
 #include "vrv.h"
@@ -67,6 +68,13 @@ bool LooksLikeResourcePath(const std::string &path)
     return std::filesystem::is_regular_file(root / "Bravura.xml")
         && std::filesystem::is_regular_file(root / "Leipzig.xml")
         && std::filesystem::is_regular_file(root / "text" / "Times.xml");
+}
+
+bool HumdrumRhythmIsConsistent(const char *humdrum)
+{
+    hum::HumdrumFile infile;
+    infile.setQuietParsing();
+    return infile.readString(humdrum);
 }
 
 } // namespace
@@ -140,7 +148,14 @@ bool VrvBridge::LoadScoreData(const std::string &data, vrv::FileFormat format)
 
 void VrvBridge::NormalizeImportedScore()
 {
-    m_lastNormalizedRhythmRepairSpaces = NormalizeTypedSpaces(this->GetDoc(), m_typedSpaceHandling);
+    // iohumdrum sizes straddle/filler spaces from humlib's timing analysis.
+    // When that analysis succeeds they are real time (a layer split mid-bar);
+    // only a failed analysis turns them into rhythm repairs worth suppressing.
+    const bool keepSpaces = m_typedSpaceHandling == TypedSpaceHandling::kPreserve
+        || (m_lastInputFormat == vrv::HUMDRUM
+            && HumdrumRhythmIsConsistent(this->GetHumdrumBuffer()));
+    m_lastNormalizedRhythmRepairSpaces
+        = keepSpaces ? 0 : NormalizeTypedSpaces(this->GetDoc(), m_typedSpaceHandling);
 }
 
 } // namespace verosim

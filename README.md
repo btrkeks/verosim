@@ -95,9 +95,12 @@ separate `Arpeggios` detail bit.
 
 Typed Verovio spaces can be controlled with
 `--typed-space-handling preserve|suppress-straddle-filler`. The default is
-`suppress-straddle-filler`, which keeps the legacy workaround for Verovio
-`type=straddle`/`type=filler` rhythm-repair spaces. Use `preserve` to keep those
-spaces as normal hidden-duration carriers.
+`suppress-straddle-filler`. It shrinks Verovio's `type=straddle`/`type=filler`
+spaces so they do not move later onsets, unless the input is Humdrum whose
+rhythm humlib analyzes without error. In that case the spaces are real time,
+such as a layer that starts mid-bar after `*^`, and keep their duration. Use
+`preserve` to keep those spaces as normal hidden-duration carriers in every
+input.
 
 Add `--display-staff` to score cross-staff display placement, including Humdrum
 RDF `above`/`below` signifiers that Verovio imports as staff overrides:

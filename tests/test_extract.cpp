@@ -1026,6 +1026,30 @@ TEST_CASE("repair_space_beamspan.mei: preserve mode keeps typed space duration",
     CHECK(m1.notes[4].note_offset == Fraction(3));
 }
 
+TEST_CASE("straddle_space_split.krn: a layer split mid-bar keeps its straddle space duration",
+    "[extract]")
+{
+    const ExtractResult result = ExtractFixture("straddle_space_split.krn", SourceFormat::kKern);
+    const SymMeasure &m1 = result.score.parts[0].bar_list[0];
+    REQUIRE(m1.notes.size() == 6);
+
+    CHECK(m1.notes[3].note_offset == Fraction(1));
+    CHECK(m1.notes[4].note_offset == Fraction(3, 2));
+    CHECK(m1.notes[5].note_offset == Fraction(2));
+}
+
+TEST_CASE("straddle_space_rhythm_error.krn: inconsistent rhythm suppresses straddle spaces",
+    "[extract]")
+{
+    const ExtractResult result
+        = ExtractFixture("straddle_space_rhythm_error.krn", SourceFormat::kKern);
+    const SymMeasure &bass = result.score.parts[1].bar_list[0];
+    REQUIRE(bass.notes.size() == 2);
+
+    CHECK(bass.notes[0].note_offset == Fraction(0));
+    CHECK(bass.notes[1].note_offset == Fraction(1));
+}
+
 TEST_CASE("overlapping_beamspans.mei: nested spans preserve outer beam depth", "[extract]")
 {
     const ExtractResult result = ExtractFixture("overlapping_beamspans.mei", SourceFormat::kOther);

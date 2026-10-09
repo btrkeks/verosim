@@ -44,12 +44,14 @@ void CollectTypedSpaces(vrv::Object *obj, std::vector<vrv::Object *> &out)
     }
 }
 
+constexpr vrv::data_DURATION kSuppressedDuration = vrv::DURATION_1024;
+
 void NeutralizeDuration(vrv::Object *obj)
 {
     vrv::DurationInterface *duration = obj->GetDurationInterface();
     if (!duration) return;
 
-    duration->SetDur(vrv::DURATION_1024);
+    duration->SetDur(kSuppressedDuration);
     if (duration->HasDots()) {
         duration->SetDots(0);
     }
@@ -85,9 +87,11 @@ bool IsStraddleOrFillerSpace(const vrv::Object *obj)
     return IsStraddleOrFillerValue(element->GetType());
 }
 
-bool ShouldSuppressTypedSpaceDuration(const vrv::Object *obj, TypedSpaceHandling handling)
+bool IsSuppressedTypedSpace(const vrv::Object *obj)
 {
-    return IsSuppressionMode(handling) && IsStraddleOrFillerSpace(obj);
+    if (!IsStraddleOrFillerSpace(obj)) return false;
+    const vrv::DurationInterface *duration = obj->GetDurationInterface();
+    return duration && duration->GetDur() == kSuppressedDuration;
 }
 
 bool ShouldStripTypedSpaceSvgGroup(const std::string &class_attr, TypedSpaceHandling handling)
