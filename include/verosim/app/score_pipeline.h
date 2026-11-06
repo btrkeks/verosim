@@ -10,6 +10,7 @@
 #include "verosim/app/evaluation_audit.h"
 #include "verosim/app/score_format.h"
 #include "verosim/engine/compare.h"
+#include "verosim/engine/alignment_trace.h"
 #include "verosim/extraction/extract.h"
 #include "verosim/model/sym_score.h"
 
@@ -43,6 +44,7 @@ struct ScoreComparison {
     // where diff points into the caller-owned input scores as before.
     std::unique_ptr<ProjectedScorePair> projected_scores;
     CompareResult diff;
+    std::unique_ptr<AlignmentTrace> alignment_trace;
     long n_pred = 0;
     long n_gt = 0;
     double omr_ned = 0.0;

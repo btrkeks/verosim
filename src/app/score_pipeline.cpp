@@ -83,7 +83,11 @@ ExtractOptions ExtractOptionsForRun(const CompareRunOptions &options)
 
 CompareOptions EngineOptionsForRun(const CompareRunOptions &options)
 {
-    return CompareOptions{ .note_position_policy = options.note_position_policy };
+    return CompareOptions{ .note_position_policy = options.note_position_policy,
+        .alignment_policy = options.alignment_policy,
+        .score_barline_boundaries = !options.evaluation_profile ||
+            options.evaluation_profile->disposition(EvaluationFeature::kBarline) !=
+                FeatureDisposition::kIgnored };
 }
 
 bool HumdrumTimingIsClean(VrvBridge &bridge, const std::string &data, ScoreDataFormat format)
@@ -168,8 +172,13 @@ ScoreComparison CompareLoadedScores(
         comparison_gt = &comparison.projected_scores->gt;
         comparison.evaluation_audit = std::move(audit);
     }
-    comparison.diff
-        = CompareScores(*comparison_pred, *comparison_gt, EngineOptionsForRun(options));
+    CompareOptions engine_options = EngineOptionsForRun(options);
+    if (options.trace_alignment) {
+        comparison.alignment_trace = std::make_unique<AlignmentTrace>();
+        comparison.alignment_trace->detailed_measures = options.trace_measures;
+        engine_options.alignment_trace = comparison.alignment_trace.get();
+    }
+    comparison.diff = CompareScores(*comparison_pred, *comparison_gt, engine_options);
     comparison.n_pred = comparison_pred->notation_size();
     comparison.n_gt = comparison_gt->notation_size();
     comparison.omr_ned = OmrNed(comparison.diff.cost, comparison.n_pred, comparison.n_gt);

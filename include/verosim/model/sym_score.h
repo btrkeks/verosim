@@ -128,6 +128,9 @@ struct SymMeasure {
     SymbolLocator locator;
     std::vector<SymNote> notes; // flat; layer order, then event order
     std::vector<SymExtra> extras; // stable-sorted by (kind, offset)
+    // Performed span, including hidden timing carriers, for split/merge
+    // alignment. Zero means unknown/empty. Not a metric symbol or equality key.
+    Fraction content_duration;
 
     int n_of_elements() const
     {

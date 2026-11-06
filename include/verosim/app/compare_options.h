@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <set>
 
 #include "verosim/engine/compare.h"
 #include "verosim/extraction/typed_space_policy.h"
@@ -19,8 +20,11 @@ inline constexpr const char *kDisplayStaffProfileConflict
 struct CompareRunOptions {
     MetricSurface surface;
     NotePositionPolicy note_position_policy = NotePositionPolicy::kVisualEventOrder;
+    AlignmentPolicy alignment_policy = kDefaultAlignmentPolicy;
     TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
     std::shared_ptr<const EvaluationProfile> evaluation_profile;
+    bool trace_alignment = false;
+    std::set<int> trace_measures;
 };
 
 } // namespace verosim

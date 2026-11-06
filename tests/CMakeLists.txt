@@ -1,4 +1,6 @@
 add_executable(verosim_tests
+    test_alignment_trace.cpp
+    test_score_alignment.cpp
     test_smoke.cpp
     test_cli_args.cpp
     test_check.cpp

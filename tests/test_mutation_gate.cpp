@@ -34,7 +34,7 @@ SymScore ExtractFile(VrvBridge &bridge, const std::string &path)
 
 } // namespace
 
-TEST_CASE("active mutation cases produce the analytically expected cost", "[mutations]")
+TEST_CASE("independent alignment retains musicdiff mutation costs", "[mutations]")
 {
     const std::string dir(VEROSIM_MUTATIONS_DIR);
     std::ifstream in(dir + "/manifest.json");
@@ -67,7 +67,8 @@ TEST_CASE("active mutation cases produce the analytically expected cost", "[muta
             const SymScore pred = ExtractFile(bridge, dir + "/" + c.get<jsonxx::String>("mutated"));
             const SymScore gt = ExtractFile(bridge, dir + "/" + c.get<jsonxx::String>("base"));
             const CompareResult result = CompareScores(pred, gt,
-                CompareOptions{ .note_position_policy = NotePositionPolicy::kMusicalOnset });
+                CompareOptions{ .note_position_policy = NotePositionPolicy::kMusicalOnset,
+                    .alignment_policy = AlignmentPolicy::kIndependent });
 
             CHECK(result.cost == static_cast<long>(c.get<jsonxx::Number>("expected_cost")));
 

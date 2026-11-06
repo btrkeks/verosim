@@ -53,5 +53,6 @@ struct PreparedScore {
 };
 
 PreparedScore PrepareScore(const SymScore &score, StringInterner &interner);
+PreparedMeasure PrepareMeasure(const SymMeasure &measure, StringInterner &interner);
 
 } // namespace verosim

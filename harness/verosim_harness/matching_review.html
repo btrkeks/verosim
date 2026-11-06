@@ -1,0 +1,1277 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>VeroSim matching review</title>
+    <style>
+      :root {
+        font-family: var(--font-sans, system-ui, sans-serif);
+        color: var(--foreground, #17232d);
+        --edge: var(--border, #d4dde5);
+        --panel: var(--card, #f4f7f9);
+        --blue: var(--info, #1764ac);
+        --green: var(--success, #137451);
+        --orange: var(--warning, #a65b10);
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        max-width: 1600px;
+        margin: auto;
+        padding: 20px;
+      }
+      h1 {
+        font-size: 24px;
+        margin: 0 0 6px;
+      }
+      p {
+        line-height: 1.5;
+      }
+      button,
+      select,
+      input,
+      textarea {
+        font: inherit;
+        color: inherit;
+        background: var(--background, white);
+        border: 1px solid var(--edge);
+        border-radius: 6px;
+        padding: 7px 10px;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      button.primary {
+        background: var(--blue);
+        color: white;
+        border-color: var(--blue);
+      }
+      button.active {
+        border-color: var(--blue);
+        box-shadow: inset 0 -2px var(--blue);
+      }
+      button:hover:not(:disabled) {
+        filter: brightness(0.95);
+      }
+      .muted {
+        color: var(--muted-foreground, #526576);
+        font-size: 13px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .toolbar {
+        padding: 12px 0;
+        border-bottom: 1px solid var(--edge);
+      }
+      #cases {
+        max-width: 100%;
+        flex: 1;
+        min-width: 200px;
+      }
+      .case {
+        padding: 14px 0;
+      }
+      .case p {
+        margin: 7px 0;
+      }
+      .badge {
+        font-size: 12px;
+        border-radius: 4px;
+        padding: 3px 6px;
+        background: var(--panel);
+      }
+      .scores {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .score {
+        min-width: 0;
+        border: 1px solid var(--edge);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .score h2 {
+        font-size: 14px;
+        margin: 0;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--edge);
+      }
+      .score-body {
+        overflow: auto;
+        max-height: 640px;
+        background: white;
+        min-height: 120px;
+      }
+      .score-body > svg {
+        display: block;
+        width: 100%;
+        height: auto;
+        min-width: 350px;
+        color: black;
+      }
+      .show-current .verosim-role-inserted,
+      .show-current .verosim-role-inserted * {
+        color: #087f8c;
+        fill: #087f8c;
+        stroke: #087f8c;
+      }
+      .show-current .verosim-role-deleted,
+      .show-current .verosim-role-deleted * {
+        color: #d34f45;
+        fill: #d34f45;
+        stroke: #d34f45;
+      }
+      .show-current .verosim-role-changed,
+      .show-current .verosim-role-changed * {
+        color: #b97900;
+        fill: #b97900;
+        stroke: #b97900;
+      }
+      .rv-selected {
+        filter: drop-shadow(0 0 5px var(--blue));
+      }
+      .rv-selected use,
+      .rv-selected path {
+        fill: var(--blue) !important;
+        stroke: var(--blue) !important;
+        color: var(--blue) !important;
+      }
+      .rv-linked {
+        filter: drop-shadow(0 0 4px var(--green));
+      }
+      .rv-linked use,
+      .rv-linked path {
+        fill: var(--green) !important;
+        stroke: var(--green) !important;
+        color: var(--green) !important;
+      }
+      .rv-bar-hitbox {
+        fill: transparent !important;
+        stroke: transparent !important;
+        vector-effect: non-scaling-stroke;
+        stroke-width: 2px;
+      }
+      .rv-selected > .rv-bar-hitbox {
+        fill: rgb(23 100 172 / 10%) !important;
+        stroke: var(--blue) !important;
+      }
+      .rv-linked > .rv-bar-hitbox {
+        fill: rgb(19 116 81 / 10%) !important;
+        stroke: var(--green) !important;
+      }
+      .rv-bar-label {
+        font:
+          240px system-ui,
+          sans-serif;
+        fill: #344553 !important;
+        stroke: white !important;
+        stroke-width: 60px;
+        paint-order: stroke;
+        pointer-events: none;
+      }
+      #selection-summary {
+        min-height: 1.5em;
+        margin: 8px 0;
+      }
+      .selection-legend {
+        color: var(--blue);
+      }
+      .partner-legend {
+        color: var(--green);
+      }
+      .rv-uncertain {
+        opacity: 0.55;
+      }
+      [data-note-key],
+      [data-measure-key] {
+        cursor: pointer;
+      }
+      section.editor {
+        margin-top: 14px;
+        padding: 14px;
+        background: var(--panel);
+        border-radius: 8px;
+      }
+      .editor h2 {
+        font-size: 15px;
+        margin: 0 0 9px;
+      }
+      .picker {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin: 12px 0;
+      }
+      .picker label {
+        font-size: 13px;
+        display: grid;
+        gap: 5px;
+      }
+      .picker select {
+        width: 100%;
+        padding: 3px;
+        min-height: 110px;
+      }
+      .links {
+        max-height: 320px;
+        overflow: auto;
+        background: var(--background, white);
+        margin-top: 10px;
+        border: 1px solid var(--edge);
+        border-radius: 6px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 7px;
+        border-bottom: 1px solid var(--edge);
+        vertical-align: top;
+      }
+      td button {
+        font-size: 12px;
+        padding: 3px 7px;
+      }
+      tr:hover {
+        background: var(--panel);
+      }
+      details {
+        margin-top: 10px;
+      }
+      summary {
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .ending {
+        margin-top: 12px;
+        border-top: 1px solid var(--edge);
+        padding-top: 12px;
+      }
+      #status {
+        min-height: 22px;
+        color: var(--green);
+        font-size: 13px;
+      }
+      .error {
+        color: var(--destructive, #b21c32) !important;
+      }
+      #scan {
+        max-width: 100%;
+        max-height: 1100px;
+        object-fit: contain;
+      }
+      #review-notes {
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 55px;
+      }
+      #loader {
+        padding: 25px;
+      }
+      code {
+        font-size: 12px;
+      }
+      #evidence {
+        white-space: pre-wrap;
+        font-family: var(--font-mono, monospace);
+        font-size: 12px;
+      }
+      #sample-name {
+        overflow-wrap: anywhere;
+      }
+      @media (max-width: 900px) {
+        .scores {
+          grid-template-columns: 1fr;
+        }
+        .score-body {
+          max-height: 450px;
+        }
+        .picker {
+          grid-template-columns: 1fr;
+        }
+        main {
+          padding: 12px;
+        }
+      }
+      @media print {
+        button,
+        .toolbar,
+        .picker,
+        .ending {
+          display: none;
+        }
+        .scores {
+          grid-template-columns: 1fr 1fr;
+        }
+        .score-body,
+        .links {
+          max-height: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="loader">Loading the frozen review set…</div>
+    <main hidden>
+      <h1>VeroSim matching review</h1>
+      <p class="muted">
+        Draft correspondences for your review. Start with bars; review
+        individual notes separately. Nothing is gold until you approve it. Bars
+        are numbered from 0 within each page.
+      </p>
+      <p class="muted">
+        Proposed policy: link the same intended musical event even when its
+        pitch or duration is wrong. Mark actual additions and omissions
+        unmatched; mark an unclear identity uncertain.
+      </p>
+      <div class="toolbar row">
+        <button id="previous">←</button
+        ><select id="cases" aria-label="Review case"></select
+        ><button id="next">→</button><span id="progress" class="badge"></span
+        ><button id="export">Export reviewed labels</button
+        ><button id="import">Import labels</button
+        ><input id="import-file" type="file" accept="application/json" hidden />
+      </div>
+      <div class="case">
+        <div class="row">
+          <strong id="category"></strong><span id="split" class="badge"></span
+          ><span id="confidence" class="badge"></span>
+        </div>
+        <p id="explanation"></p>
+        <div id="sample-name" class="muted"></div>
+        <details>
+          <summary>Source evidence and parser warnings</summary>
+          <p id="evidence"></p>
+          <pre id="warnings" style="white-space: pre-wrap"></pre>
+        </details>
+      </div>
+      <div class="row" id="levels">
+        <button data-level="part">Staffs</button
+        ><button data-level="measure" class="active">Bars</button
+        ><button data-level="note">Notes</button
+        ><label class="muted"
+          ><input id="whole-page" type="checkbox" /> Whole page</label
+        ><label class="muted"
+          ><input id="current-marks" type="checkbox" /> Show current matcher’s
+          edits</label
+        ><button id="clear-selection">Clear selection</button>
+      </div>
+      <p id="selection-help" class="muted">
+        Select a bar on either score or in the lists below to inspect its
+        proposed link.
+        <strong class="selection-legend">Blue = selected</strong>;
+        <strong class="partner-legend">green = proposed partner</strong>. To
+        correct a link, select the intended objects on both sides, then click
+        Link selected. Shift-click to select multiple objects.
+      </p>
+      <p id="selection-summary" role="status" aria-live="polite"></p>
+      <div class="scores">
+        <div class="score">
+          <h2>Prediction</h2>
+          <div id="prediction-score" class="score-body"></div>
+        </div>
+        <div class="score">
+          <h2>Reference</h2>
+          <div id="ground_truth-score" class="score-body"></div>
+        </div>
+      </div>
+      <section class="editor">
+        <div class="row">
+          <h2 id="level-title">Proposed bar links</h2>
+          <span id="review-state" class="badge"></span>
+        </div>
+        <div class="picker">
+          <label
+            >Prediction objects<select
+              id="prediction-pick"
+              multiple
+              aria-label="Prediction objects"
+            ></select></label
+          ><label
+            >Reference objects<select
+              id="ground_truth-pick"
+              multiple
+              aria-label="Reference objects"
+            ></select
+          ></label>
+        </div>
+        <div class="row">
+          <button id="link">Link selected</button
+          ><button id="unmatch">Mark selected unmatched</button
+          ><button id="ambiguous">Mark selected uncertain</button
+          ><button id="approve" class="primary">Approve these bar labels</button
+          ><button id="unapprove">Return to draft</button>
+        </div>
+        <label class="muted"
+          ><input id="moved-event" type="checkbox" /> This selected event moved
+          to a different bar or staff</label
+        >
+        <p class="muted">
+          Changing a link returns displaced objects to the unmatched list. Check
+          unmatched objects before approving. Uncertain objects are excluded
+          from accuracy results.
+        </p>
+        <div class="links">
+          <table>
+            <thead>
+              <tr>
+                <th>Prediction</th>
+                <th>Reference</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="links"></tbody>
+          </table>
+        </div>
+        <details>
+          <summary id="unmatched-summary">Unmatched objects</summary>
+          <div id="unmatched-list"></div>
+        </details>
+        <details>
+          <summary id="ambiguous-summary">Uncertain groups</summary>
+          <div id="ambiguous-list"></div>
+        </details>
+        <details id="decision-details">
+          <summary>Current matcher’s decision for the selected object</summary>
+          <pre
+            id="decision"
+            style="white-space: pre-wrap; max-height: 260px; overflow: auto"
+          ></pre>
+        </details>
+        <label class="muted"
+          >Review note<textarea
+            id="review-notes"
+            placeholder="Explain a correction or an unresolved repetition"
+          ></textarea>
+        </label>
+      </section>
+      <details>
+        <summary>Original scan</summary>
+        <img id="scan" alt="Original sheet music scan" />
+      </details>
+      <div class="ending row">
+        <label class="muted"
+          >Reviewer
+          <input
+            id="reviewer"
+            value="human"
+            aria-label="Reviewer name" /></label
+        ><span class="muted"
+          >Changes save in this browser. Export labels to evaluate them or move
+          to another browser.</span
+        >
+      </div>
+      <p id="status" role="status"></p>
+    </main>
+    <script>
+      "use strict";
+      const encoded = "__PAYLOAD_GZIP_BASE64__";
+      let bundle,
+        labels,
+        index = 0,
+        level = "measure",
+        selected = { prediction: new Set(), ground_truth: new Set() },
+        symbolMaps,
+        decisionMaps;
+      const sides = ["prediction", "ground_truth"];
+      const $ = (id) => document.getElementById(id);
+      const current = () => bundle.windows[index];
+      const labeling = () =>
+        labels.windows.find((w) => w.id === current().id).levels[level];
+      const sample = () => bundle.samples[current().sample_id];
+      function validateLabels(value) {
+        const fail = (text) => {
+            throw new Error(text);
+          },
+          levels = ["part", "measure", "note"];
+        if (
+          !value ||
+          value.schema_version !== 1 ||
+          value.dataset_id !== bundle.dataset_id ||
+          !Array.isArray(value.windows) ||
+          value.windows.length !== bundle.windows.length
+        )
+          fail("Labels belong to a different frozen set");
+        const ids = new Set();
+        function partition(label, scope, top = true) {
+          const seen = Object.fromEntries(sides.map((s) => [s, new Set()]));
+          const add = (side, keys) => {
+            if (
+              !Array.isArray(keys) ||
+              !keys.every((k) => typeof k === "string")
+            )
+              fail("Invalid endpoint list");
+            for (const key of keys) {
+              if (!scope[side].includes(key) || seen[side].has(key))
+                fail("Unknown or duplicate endpoint");
+              seen[side].add(key);
+            }
+          };
+          if (!label || typeof label !== "object" || Array.isArray(label))
+            fail("Invalid label level");
+          if (
+            !["links", "unmatched_prediction", "unmatched_ground_truth"].every(
+              (k) => label[k] === undefined || Array.isArray(label[k]),
+            )
+          )
+            fail("Invalid assignment arrays");
+          if (!top && label.ambiguous?.length)
+            fail("Acceptable assignments cannot contain nested ambiguity");
+          if (
+            top &&
+            (!["unreviewed", "approved"].includes(label.status) ||
+              ![
+                "links",
+                "ambiguous",
+                "unmatched_prediction",
+                "unmatched_ground_truth",
+              ].every((k) => Array.isArray(label[k])))
+          )
+            fail("Invalid level status or arrays");
+          if (
+            top &&
+            label.status === "approved" &&
+            (!(
+              typeof label.reviewed_by === "string" && label.reviewed_by.trim()
+            ) ||
+              !(typeof label.reviewed_at === "string" && label.reviewed_at))
+          )
+            fail("Approved labels require reviewer and time");
+          for (const g of label.links || []) {
+            if (
+              !g ||
+              !["corresponding", "moved"].includes(
+                g.relation || "corresponding",
+              ) ||
+              !sides.every((s) => Array.isArray(g[s]) && g[s].length)
+            )
+              fail("Invalid match group");
+            for (const s of sides) add(s, g[s]);
+          }
+          for (const s of sides) add(s, label["unmatched_" + s] || []);
+          for (const g of label.ambiguous || []) {
+            if (!g) fail("Invalid uncertain group");
+            for (const s of sides) add(s, g[s]);
+            if (g.acceptable_assignments !== undefined) {
+              if (!Array.isArray(g.acceptable_assignments))
+                fail("Invalid acceptable assignments");
+              for (const assignment of g.acceptable_assignments)
+                partition(assignment, g, false);
+            }
+          }
+          if (!sides.every((s) => seen[s].size === scope[s].length))
+            fail("Labels must cover their complete scope");
+        }
+        for (const w of value.windows) {
+          const frozen = bundle.windows.find((x) => x.id === w.id);
+          if (
+            !frozen ||
+            ids.has(w.id) ||
+            w.sample_id !== frozen.sample_id ||
+            !w.levels ||
+            Object.keys(w.levels).length !== 3 ||
+            !levels.every((k) => w.levels[k])
+          )
+            fail("Invalid window or missing levels");
+          ids.add(w.id);
+          for (const l of levels) partition(w.levels[l], frozen.scope[l]);
+        }
+        for (const [sampleId, sampleValue] of Object.entries(bundle.samples)) {
+          const maps = Object.fromEntries(
+            sides.map((s) => [
+              s,
+              new Map(sampleValue.trace.symbols[s].map((x) => [x.key, x])),
+            ]),
+          );
+          const reviewed = (l) =>
+            value.windows
+              .filter(
+                (w) =>
+                  w.sample_id === sampleId && w.levels[l].status === "approved",
+              )
+              .map((w) => w.levels[l]);
+          const pairs = (g) =>
+            g.prediction.flatMap((a) =>
+              g.ground_truth.map((b) => JSON.stringify([a, b])),
+            );
+          for (const [parent, child] of [
+            ["part", "measure"],
+            ["measure", "note"],
+          ]) {
+            const allowed = new Set(),
+              known = { prediction: new Set(), ground_truth: new Set() },
+              choiceGroups = [];
+            for (const label of reviewed(parent)) {
+              for (const g of label.links) {
+                for (const p of pairs(g)) allowed.add(p);
+                for (const s of sides) for (const k of g[s]) known[s].add(k);
+              }
+              for (const s of sides)
+                for (const k of label["unmatched_" + s]) known[s].add(k);
+              for (const g of label.ambiguous)
+                if (g.acceptable_assignments?.length) {
+                  const alternatives = g.acceptable_assignments.map(
+                    (a) => new Set((a.links || []).flatMap(pairs)),
+                  );
+                  choiceGroups.push({ g, alternatives });
+                  for (const a of alternatives)
+                    for (const p of a) allowed.add(p);
+                  for (const s of sides) for (const k of g[s]) known[s].add(k);
+                }
+            }
+            const constraints = [];
+            for (const label of reviewed(child))
+              for (const g of [
+                ...label.links,
+                ...label.ambiguous.flatMap((g) =>
+                  (g.acceptable_assignments || []).flatMap(
+                    (a) => a.links || [],
+                  ),
+                ),
+              ])
+                if (g.relation !== "moved")
+                  for (const a of g.prediction)
+                    for (const b of g.ground_truth) {
+                      const pair = [
+                          maps.prediction.get(a).parent,
+                          maps.ground_truth.get(b).parent,
+                        ],
+                        key = JSON.stringify(pair);
+                      constraints.push(pair);
+                      if (
+                        (known.prediction.has(pair[0]) ||
+                          known.ground_truth.has(pair[1])) &&
+                        !allowed.has(key)
+                      )
+                        fail(
+                          `Approved ${child} link contradicts ${parent} labels. Correct it or mark an intentionally moved event.`,
+                        );
+                    }
+            for (const { g, alternatives } of choiceGroups) {
+              const relevant = constraints
+                .filter(
+                  ([a, b]) =>
+                    g.prediction.includes(a) || g.ground_truth.includes(b),
+                )
+                .map((p) => JSON.stringify(p));
+              if (!alternatives.some((a) => relevant.every((p) => a.has(p))))
+                fail("Child links mix incompatible parent assignments");
+            }
+          }
+        }
+        return value;
+      }
+      const message = (text, error = false) => {
+        $("status").textContent = text;
+        $("status").classList.toggle("error", error);
+      };
+      const escape = (text) =>
+        String(text).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      function name(side, key) {
+        const s = symbolMaps[side].get(key);
+        if (!s) return key;
+        if (s.kind === "part") return `Staff ${s.part_index + 1}`;
+        if (s.kind === "measure")
+          return `Staff ${s.part_index + 1}, bar ${s.measure_index}`;
+        return `Staff ${s.part_index + 1}, bar ${s.measure_index}: ${s.pitch} ${s.accidental === "None" ? "" : s.accidental} · ${s.duration_type}${s.dots ? ` +${s.dots} dot` : ""} · ${s.source_id}${s.chord_member >= 0 ? ` [${s.chord_member}]` : ""}`;
+      }
+      function persist() {
+        try {
+          localStorage.setItem(
+            "verosim-review:" + bundle.dataset_id,
+            JSON.stringify(labels),
+          );
+        } catch {
+          message(
+            "Browser storage is unavailable. Export labels to keep your work.",
+            true,
+          );
+        }
+        updateProgress();
+      }
+      function updateProgress() {
+        let approved = 0,
+          total = 0;
+        for (const w of bundle.windows) {
+          const l = labels.windows.find((x) => x.id === w.id);
+          for (const k of ["part", "measure", "note"])
+            if (w.scope[k].prediction.length + w.scope[k].ground_truth.length) {
+              total++;
+              approved += l.levels[k].status === "approved";
+            }
+        }
+        $("progress").textContent = `${approved} / ${total} groups approved`;
+        for (const [i, w] of bundle.windows.entries()) {
+          $("cases").options[i].textContent =
+            `${i + 1}. ${w.id} · ${bundle.samples[w.sample_id].split}`;
+        }
+      }
+      function clearSelection() {
+        for (const side of sides) {
+          selected[side].clear();
+          for (const o of $(side + "-pick").options) o.selected = false;
+        }
+        paintSelection();
+      }
+      function invalidate() {
+        const reset = (l) => {
+          l.status = "unreviewed";
+          l.reviewed_by = "";
+          l.reviewed_at = "";
+        };
+        reset(labeling());
+        const dependents =
+          level === "part"
+            ? ["measure", "note"]
+            : level === "measure"
+              ? ["note"]
+              : [];
+        for (const w of labels.windows)
+          if (w.sample_id === current().sample_id)
+            for (const child of dependents) reset(w.levels[child]);
+      }
+      function repair() {
+        const l = labeling();
+        for (const side of sides) {
+          const used = new Set([
+            ...l.links.flatMap((g) => g[side]),
+            ...l.ambiguous.flatMap((g) => g[side]),
+          ]);
+          l["unmatched_" + side] = current().scope[level][side].filter(
+            (k) => !used.has(k),
+          );
+        }
+      }
+      function removeIntersecting() {
+        const l = labeling();
+        l.links = l.links.filter(
+          (g) => !sides.some((s) => g[s].some((k) => selected[s].has(k))),
+        );
+        l.ambiguous = l.ambiguous.filter(
+          (g) => !sides.some((s) => g[s].some((k) => selected[s].has(k))),
+        );
+      }
+      function edit(action) {
+        if (!sides.some((s) => selected[s].size)) {
+          message("Select at least one object.", true);
+          return;
+        }
+        if (action === "link" && !sides.every((s) => selected[s].size)) {
+          message("Select objects on both sides to link them.", true);
+          return;
+        }
+        invalidate();
+        removeIntersecting();
+        const g = Object.fromEntries(sides.map((s) => [s, [...selected[s]]]));
+        if (action === "link") {
+          if (level !== "part" && $("moved-event").checked)
+            g.relation = "moved";
+          labeling().links.push(g);
+        }
+        if (action === "ambiguous") labeling().ambiguous.push(g);
+        repair();
+        persist();
+        renderEditor();
+        paintSelection();
+        message(
+          "Draft updated. Review the displaced unmatched objects before approving.",
+        );
+      }
+      function selectKeys(keys) {
+        $("moved-event").checked = keys.relation === "moved";
+        for (const side of sides) {
+          selected[side] = new Set(keys[side]);
+          for (const option of $(side + "-pick").options)
+            option.selected = selected[side].has(option.value);
+        }
+        paintSelection();
+      }
+      function paintSelection() {
+        document
+          .querySelectorAll(".rv-selected,.rv-linked")
+          .forEach((el) => el.classList.remove("rv-selected", "rv-linked"));
+        const partners = { prediction: new Set(), ground_truth: new Set() };
+        for (const g of labeling().links) {
+          if (sides.some((s) => g[s].some((k) => selected[s].has(k))))
+            for (const s of sides) for (const k of g[s]) partners[s].add(k);
+        }
+        for (const side of sides) {
+          const host = $(side + "-score");
+          for (const el of host.querySelectorAll(
+            "[data-note-key],[data-measure-key]",
+          )) {
+            const key = el.dataset[level === "note" ? "noteKey" : "measureKey"];
+            if (selected[side].has(key)) el.classList.add("rv-selected");
+            else if (partners[side].has(key)) el.classList.add("rv-linked");
+          }
+        }
+        const describe = (side, keys) =>
+          [...keys].map(
+            (key) =>
+              `${side === "prediction" ? "Prediction" : "Reference"}: ${name(side, key)}`,
+          );
+        const selectedNames = sides.flatMap((side) =>
+          describe(side, selected[side]),
+        );
+        const partnerNames = sides.flatMap((side) =>
+          describe(
+            side,
+            new Set(
+              [...partners[side]].filter((key) => !selected[side].has(key)),
+            ),
+          ),
+        );
+        $("selection-summary").textContent = selectedNames.length
+          ? `Selected: ${selectedNames.join("; ")}. ${
+              partnerNames.length
+                ? "Proposed partner: " + partnerNames.join("; ")
+                : sides.every((side) => selected[side].size)
+                  ? "Both sides selected."
+                  : "No proposed partner (unmatched or uncertain)."
+            }`
+          : "Select a bar to inspect its proposed partner. Bar labels use zero-based page indices.";
+        const chosen = sides.flatMap((side) =>
+          [...selected[side]].map((key) => ({
+            side,
+            key,
+            decision: decisionMaps[side].get(key),
+          })),
+        );
+        $("decision").textContent = chosen.length
+          ? JSON.stringify(chosen, null, 2)
+          : "Select an object to inspect its current matching decision.";
+      }
+      function renderEditor() {
+        $("moved-event").disabled = level === "part";
+        const l = labeling(),
+          title = { part: "staff", measure: "bar", note: "note" }[level];
+        $("level-title").textContent = `Proposed ${title} links`;
+        $("approve").textContent = `Approve these ${title} labels`;
+        $("review-state").textContent =
+          l.status === "approved"
+            ? `Approved by ${l.reviewed_by}`
+            : "Unreviewed draft";
+        $("review-notes").value = l.notes || "";
+        for (const side of sides) {
+          const picker = $(side + "-pick");
+          picker.replaceChildren();
+          for (const key of current().scope[level][side]) {
+            const o = new Option(name(side, key), key);
+            o.selected = selected[side].has(key);
+            picker.add(o);
+          }
+        }
+        $("links").replaceChildren();
+        for (const [i, g] of l.links.entries()) {
+          const row = document.createElement("tr");
+          for (const s of sides) {
+            const cell = document.createElement("td");
+            cell.textContent =
+              g[s].map((k) => name(s, k)).join(" + ") +
+              (g.relation === "moved" ? " [moved]" : "");
+            row.append(cell);
+          }
+          const actions = document.createElement("td"),
+            inspect = document.createElement("button"),
+            remove = document.createElement("button");
+          inspect.textContent = "Inspect";
+          inspect.onclick = () => selectKeys(g);
+          remove.textContent = "Unlink";
+          remove.onclick = () => {
+            invalidate();
+            l.links.splice(i, 1);
+            repair();
+            persist();
+            renderEditor();
+            paintSelection();
+          };
+          actions.append(inspect, document.createTextNode(" "), remove);
+          row.append(actions);
+          $("links").append(row);
+        }
+        $("unmatched-list").replaceChildren();
+        let unmatched = 0;
+        for (const s of sides) {
+          const p = document.createElement("p");
+          const keys = l["unmatched_" + s];
+          unmatched += keys.length;
+          p.textContent = `${s === "prediction" ? "Prediction" : "Reference"}: ${keys.length}`;
+          $("unmatched-list").append(p);
+          for (const key of keys) {
+            const b = document.createElement("button");
+            b.textContent = name(s, key);
+            b.onclick = () =>
+              selectKeys(
+                Object.fromEntries(sides.map((x) => [x, x === s ? [key] : []])),
+              );
+            $("unmatched-list").append(b, document.createTextNode(" "));
+          }
+        }
+        $("unmatched-summary").textContent = `Unmatched objects (${unmatched})`;
+        $("ambiguous-list").replaceChildren();
+        for (const [i, g] of l.ambiguous.entries()) {
+          const p = document.createElement("p");
+          p.textContent = sides
+            .map((s) => g[s].map((k) => name(s, k)).join(" + "))
+            .join(" ↔ ");
+          const b = document.createElement("button");
+          b.textContent = "Return to unmatched";
+          b.onclick = () => {
+            invalidate();
+            l.ambiguous.splice(i, 1);
+            repair();
+            persist();
+            renderEditor();
+          };
+          p.append(" ", b);
+          $("ambiguous-list").append(p);
+        }
+        $("ambiguous-summary").textContent =
+          `Uncertain groups (${l.ambiguous.length})`;
+        const empty =
+          !current().scope[level].prediction.length &&
+          !current().scope[level].ground_truth.length;
+        $("approve").disabled = empty;
+        $("link").disabled = empty;
+        $("unmatch").disabled = empty;
+        $("ambiguous").disabled = empty;
+      }
+      function cropSvg(root, side) {
+        if ($("whole-page").checked) return;
+        const measures = [
+          ...new Set(
+            current().scope.measure[side].map(
+              (k) => symbolMaps[side].get(k).source_id,
+            ),
+          ),
+        ];
+        const boxes = [];
+        const viewport = root.querySelector("svg.definition-scale") || root;
+        const inverse = viewport.getScreenCTM()?.inverse();
+        if (!inverse) return;
+        for (const id of measures) {
+          const element = [...root.querySelectorAll("[id]")].find(
+            (el) => el.id === id,
+          );
+          if (!element) continue;
+          const rect = element.getBoundingClientRect();
+          if (rect.width && rect.height) {
+            const a = new DOMPoint(rect.left, rect.top).matrixTransform(
+                inverse,
+              ),
+              b = new DOMPoint(rect.right, rect.bottom).matrixTransform(
+                inverse,
+              );
+            boxes.push({ x: a.x, y: a.y, right: b.x, bottom: b.y });
+          }
+        }
+        if (!boxes.length) return;
+        const padding = viewport === root ? 30 : 180,
+          x = Math.min(...boxes.map((b) => b.x)) - padding,
+          y = Math.min(...boxes.map((b) => b.y)) - padding,
+          right = Math.max(...boxes.map((b) => b.right)) + padding,
+          bottom = Math.max(...boxes.map((b) => b.bottom)) + padding;
+        viewport.setAttribute(
+          "viewBox",
+          `${x} ${y} ${right - x} ${bottom - y}`,
+        );
+        if (viewport !== root)
+          root.setAttribute("viewBox", `0 0 ${right - x} ${bottom - y}`);
+        root.setAttribute("height", bottom - y);
+        root.setAttribute("width", right - x);
+      }
+      function renderScores() {
+        for (const side of sides) {
+          const host = $(side + "-score");
+          host.replaceChildren();
+          for (const text of sample().svg[side]) {
+            const xml = new DOMParser().parseFromString(text, "image/svg+xml");
+            if (xml.querySelector("parsererror"))
+              throw new Error("Unable to parse a rendered score");
+            const root = document.importNode(xml.documentElement, true);
+            root
+              .querySelectorAll("script,foreignObject")
+              .forEach((el) => el.remove());
+            // Generated edit styles color notation groups, not separate overlays.
+            // The reviewer owns the color toggle; the music must stay visible.
+            for (const style of root.querySelectorAll("style"))
+              if (style.textContent.includes(".verosim-mark")) style.remove();
+            host.append(root);
+            for (const el of root.querySelectorAll("*"))
+              for (const attr of [...el.attributes])
+                if (attr.name.startsWith("on")) el.removeAttribute(attr.name);
+            const byId = new Map(
+              [...root.querySelectorAll("[id]")].map((el) => [el.id, el]),
+            );
+            for (const key of current().scope.note[side]) {
+              const s = symbolMaps[side].get(key),
+                el = byId.get(s.visual_id) || byId.get(s.source_id);
+              if (el) el.dataset.noteKey = key;
+            }
+            for (const key of current().scope.measure[side]) {
+              const s = symbolMaps[side].get(key),
+                measure = byId.get(s.source_id);
+              if (!measure) continue;
+              const staffs = measure.querySelectorAll(".staff");
+              const staff = staffs[s.part_index];
+              const target = staff || (staffs.length === 0 ? measure : null);
+              if (!target) continue;
+              target.dataset.measureKey = key;
+              const box = target.getBBox();
+              const hitbox = document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "rect",
+              );
+              hitbox.setAttribute("class", "rv-bar-hitbox");
+              hitbox.setAttribute("x", box.x);
+              hitbox.setAttribute("y", box.y - 390);
+              hitbox.setAttribute("width", box.width);
+              hitbox.setAttribute("height", box.height + 470);
+              target.prepend(hitbox);
+              const label = document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "text",
+              );
+              label.setAttribute("class", "rv-bar-label");
+              label.setAttribute("x", box.x + 50);
+              label.setAttribute("y", box.y - 100);
+              label.textContent = `Bar ${s.measure_index} · S${s.part_index + 1}`;
+              target.append(label);
+            }
+            cropSvg(root, side);
+          }
+          host.onclick = (event) => {
+            if (level === "part") return;
+            const field = level === "note" ? "noteKey" : "measureKey",
+              attribute =
+                level === "note" ? "data-note-key" : "data-measure-key";
+            const el = event.target.closest("[" + attribute + "]");
+            if (!el) return;
+            const key = el.dataset[field];
+            if (!event.shiftKey) selected[side].clear();
+            if (selected[side].has(key)) selected[side].delete(key);
+            else selected[side].add(key);
+            for (const option of $(side + "-pick").options)
+              option.selected = selected[side].has(option.value);
+            paintSelection();
+          };
+        }
+        paintSelection();
+      }
+      function renderCase() {
+        $("moved-event").checked = false;
+        selected = { prediction: new Set(), ground_truth: new Set() };
+        const w = current(),
+          s = sample();
+        symbolMaps = Object.fromEntries(
+          sides.map((side) => [
+            side,
+            new Map(s.trace.symbols[side].map((x) => [x.key, x])),
+          ]),
+        );
+        decisionMaps = Object.fromEntries(
+          sides.map((side) => [
+            side,
+            new Map(
+              s.trace.decisions
+                .filter((d) => d[side] !== null)
+                .flatMap((d) =>
+                  (Array.isArray(d[side]) ? d[side] : [d[side]]).map((key) => [key, d]),
+                ),
+            ),
+          ]),
+        );
+        $("cases").value = String(index);
+        $("category").textContent = w.category.replaceAll("_", " ");
+        $("split").textContent = s.split;
+        $("confidence").textContent = `Proposal confidence: ${w.confidence}`;
+        $("explanation").textContent = w.explanation;
+        $("sample-name").textContent = w.sample_id;
+        $("evidence").textContent = w.evidence;
+        $("warnings").textContent =
+          s.parser_stderr || "No parser stderr warnings.";
+        $("scan").src = s.scan_data || "";
+        $("previous").disabled = index === 0;
+        $("next").disabled = index === bundle.windows.length - 1;
+        document.querySelectorAll("[data-level]").forEach((b) => {
+          b.classList.toggle("active", b.dataset.level === level);
+          const scope = w.scope[b.dataset.level];
+          b.disabled = !scope.prediction.length && !scope.ground_truth.length;
+        });
+        if (
+          level === "part" &&
+          !w.scope.part.prediction.length &&
+          !w.scope.part.ground_truth.length
+        ) {
+          level = "measure";
+          document
+            .querySelectorAll("[data-level]")
+            .forEach((b) =>
+              b.classList.toggle("active", b.dataset.level === level),
+            );
+        }
+        renderEditor();
+        renderScores();
+        updateProgress();
+      }
+      async function load() {
+        const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
+        const stream = new Blob([bytes])
+          .stream()
+          .pipeThrough(new DecompressionStream("gzip"));
+        const payload = JSON.parse(await new Response(stream).text());
+        bundle = payload.bundle;
+        labels = payload.labels;
+        try {
+          const saved = localStorage.getItem(
+            "verosim-review:" + bundle.dataset_id,
+          );
+          if (saved) labels = validateLabels(JSON.parse(saved));
+        } catch (error) {
+          window.savedReviewError =
+            "Ignored invalid saved labels: " + error.message;
+        }
+        $("cases").replaceChildren(
+          ...bundle.windows.map((w, i) => new Option(w.id, String(i))),
+        );
+        $("cases").onchange = () => {
+          index = Number($("cases").value);
+          renderCase();
+        };
+        $("previous").onclick = () => {
+          index--;
+          renderCase();
+        };
+        $("next").onclick = () => {
+          index++;
+          renderCase();
+        };
+        document.querySelectorAll("[data-level]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              level = b.dataset.level;
+              clearSelection();
+              renderCase();
+            }),
+        );
+        $("whole-page").onchange = renderScores;
+        $("current-marks").onchange = () =>
+          document
+            .querySelector("main")
+            .classList.toggle("show-current", $("current-marks").checked);
+        $("clear-selection").onclick = clearSelection;
+        for (const side of sides)
+          $(side + "-pick").onchange = () => {
+            selected[side] = new Set(
+              [...$(side + "-pick").selectedOptions].map((o) => o.value),
+            );
+            paintSelection();
+          };
+        $("link").onclick = () => edit("link");
+        $("unmatch").onclick = () => edit("unmatch");
+        $("ambiguous").onclick = () => edit("ambiguous");
+        $("approve").onclick = () => {
+          const l = labeling();
+          l.status = "approved";
+          l.reviewed_by = $("reviewer").value.trim() || "human";
+          l.reviewed_at = new Date().toISOString();
+          try {
+            validateLabels(labels);
+          } catch (error) {
+            l.status = "unreviewed";
+            l.reviewed_by = "";
+            l.reviewed_at = "";
+            message(error.message, true);
+            return;
+          }
+          persist();
+          renderEditor();
+          message(
+            `${level} labels approved. Export labels to run the evaluator.`,
+          );
+        };
+        $("unapprove").onclick = () => {
+          invalidate();
+          persist();
+          renderEditor();
+        };
+        $("review-notes").onchange = () => {
+          labeling().notes = $("review-notes").value;
+          persist();
+        };
+        $("export").onclick = () => {
+          const blob = new Blob([JSON.stringify(labels, null, 2) + "\n"], {
+            type: "application/json",
+          });
+          const a = document.createElement("a"),
+            url = URL.createObjectURL(blob);
+          a.href = url;
+          a.download = "verosim-reviewed-labels.json";
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          message(
+            "Exported labels. Draft groups remain excluded from evaluation.",
+          );
+        };
+        $("import").onclick = () => $("import-file").click();
+        $("import-file").onchange = async () => {
+          try {
+            const file = $("import-file").files[0];
+            if (!file) return;
+            const imported = validateLabels(JSON.parse(await file.text()));
+            labels = imported;
+            persist();
+            renderCase();
+            message("Imported review labels.");
+          } catch (error) {
+            message(error.message, true);
+          }
+        };
+        $("loader").hidden = true;
+        document.querySelector("main").hidden = false;
+        renderCase();
+        if (window.savedReviewError) message(window.savedReviewError, true);
+        window.matchingReview = {
+          bundle,
+          get labels() {
+            return labels;
+          },
+          get current() {
+            return current();
+          },
+          get level() {
+            return level;
+          },
+        };
+      }
+      load().catch((error) => {
+        $("loader").textContent = "Unable to load review: " + error.message;
+      });
+    </script>
+  </body>
+</html>

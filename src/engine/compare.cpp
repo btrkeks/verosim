@@ -8,8 +8,10 @@
 #include <vector>
 
 #include "verosim/engine/block_diff.h"
+#include "verosim/engine/alignment_trace.h"
 #include "verosim/engine/interner.h"
 #include "verosim/engine/myers.h"
+#include "verosim/engine/score_alignment.h"
 
 // Memoization note (the one deliberate deviation from a 1:1 port): Python
 // memoizes every recursive diff on repr() keys cleared per comparison. Those
@@ -87,6 +89,8 @@ std::string_view OpNameStr(OpName name)
         case OpName::kDelPart: return "delpart";
         case OpName::kInsBar: return "insbar";
         case OpName::kDelBar: return "delbar";
+        case OpName::kBarlineIns: return "barlineins";
+        case OpName::kBarlineDel: return "barlinedel";
         case OpName::kNoteIns: return "noteins";
         case OpName::kNoteDel: return "notedel";
         case OpName::kInsPitch: return "inspitch";
@@ -147,11 +151,27 @@ std::optional<NotePositionPolicy> ParseNotePositionPolicy(std::string_view text)
     return std::nullopt;
 }
 
+std::string_view AlignmentPolicyName(AlignmentPolicy policy)
+{
+    return policy == AlignmentPolicy::kShared ? "shared" : "independent";
+}
+
+std::optional<AlignmentPolicy> ParseAlignmentPolicy(std::string_view text)
+{
+    if (text == "independent") return AlignmentPolicy::kIndependent;
+    if (text == "shared") return AlignmentPolicy::kShared;
+    return std::nullopt;
+}
+
 CompareResult CompareScores(const SymScore &pred, const SymScore &gt, const CompareOptions &options)
 {
     StringInterner interner; // shared: content equality across scores == id equality
     const PreparedScore pred_prep = PrepareScore(pred, interner);
     const PreparedScore gt_prep = PrepareScore(gt, interner);
+
+    if (options.alignment_policy == AlignmentPolicy::kShared) {
+        return CompareSharedAlignment(pred, gt, pred_prep, gt_prep, options);
+    }
 
     CompareResult result;
 
@@ -165,6 +185,10 @@ CompareResult CompareScores(const SymScore &pred, const SymScore &gt, const Comp
             .b = OpSide::None(),
             .cost = size });
         result.cost += size;
+        if (options.alignment_trace) {
+            options.alignment_trace->RecordUnmatched(
+                OpSide::Part(&pred.parts[p]), true, "surplus_trailing_part");
+        }
     }
     for (std::size_t p = pred.parts.size(); p < gt.parts.size(); ++p) {
         const long size = gt.parts[p].notation_size();
@@ -173,9 +197,20 @@ CompareResult CompareScores(const SymScore &pred, const SymScore &gt, const Comp
             .b = OpSide::Part(&gt.parts[p]),
             .cost = size });
         result.cost += size;
+        if (options.alignment_trace) {
+            options.alignment_trace->RecordUnmatched(
+                OpSide::Part(&gt.parts[p]), false, "surplus_trailing_part");
+        }
     }
 
     for (std::size_t p = 0; p < n_of_parts; ++p) {
+        if (options.alignment_trace) {
+            options.alignment_trace->decisions.push_back({
+                .prediction = OpSide::Part(&pred.parts[p]),
+                .ground_truth = OpSide::Part(&gt.parts[p]),
+                .algorithm = "part_order",
+                .reason = "same_part_vector_index" });
+        }
         const PreparedPart &pred_part = pred_prep.parts[p];
         const PreparedPart &gt_part = gt_prep.parts[p];
         std::vector<std::int32_t> pred_ids, gt_ids;
@@ -184,14 +219,32 @@ CompareResult CompareScores(const SymScore &pred, const SymScore &gt, const Comp
         gt_ids.reserve(gt_part.measures.size());
         for (const PreparedMeasure &m : gt_part.measures) gt_ids.push_back(m.content_id);
 
-        for (const NcsBlock &block : MeasureBlocks(pred_ids, MeasureIndices(pred.parts[p]), gt_ids,
-                 MeasureIndices(gt.parts[p]), options)) {
+        const std::vector<NcsBlock> blocks = MeasureBlocks(pred_ids, MeasureIndices(pred.parts[p]),
+            gt_ids, MeasureIndices(gt.parts[p]), options);
+        for (const NcsBlock &block : blocks) {
             DiffResult block_diff
                 = BlockDiffLin(pred.parts[p], pred_part, gt.parts[p], gt_part, block, options);
             result.cost += block_diff.cost;
             result.op_list.insert(result.op_list.end(),
                 std::make_move_iterator(block_diff.ops.begin()),
                 std::make_move_iterator(block_diff.ops.end()));
+        }
+        if (options.alignment_trace) {
+            std::vector<bool> pred_in_block(pred_ids.size(), false);
+            std::vector<bool> gt_in_block(gt_ids.size(), false);
+            for (const NcsBlock &block : blocks) {
+                for (const int i : block.original) pred_in_block[i] = true;
+                for (const int j : block.compare_to) gt_in_block[j] = true;
+            }
+            std::size_t j = 0;
+            for (std::size_t i = 0; i < pred_ids.size(); ++i) {
+                if (pred_in_block[i]) continue;
+                while (gt_in_block[j]) ++j;
+                options.alignment_trace->RecordEqualMeasure(pred.parts[p].bar_list[i],
+                    gt.parts[p].bar_list[j++],
+                    options.note_position_policy == NotePositionPolicy::kVisualEventOrder
+                        ? "same_source_index_content_anchor" : "myers_content_anchor");
+            }
         }
     }
 
@@ -304,6 +357,8 @@ std::string HeaderName(const std::string &edit_name)
         { "diminuendodurationedit", "wrong diminuendo OMR-ED" },
         { "diminuendostyleedit", "wrong diminuendo OMR-ED" },
         { "insbar", "entire measure insert/delete OMR-ED" },
+        { "barlineins", "wrong barline OMR-ED" },
+        { "barlinedel", "wrong barline OMR-ED" },
         { "delbar", "entire measure insert/delete OMR-ED" },
         { "inspart", "entire staff insert/delete OMR-ED" },
         { "delpart", "entire staff insert/delete OMR-ED" },

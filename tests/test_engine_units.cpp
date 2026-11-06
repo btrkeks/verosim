@@ -500,7 +500,7 @@ TEST_CASE("block diff tie-break and op order", "[engine]")
     // appends ops after the recursive result -> [insbar, delbar].
     const SymScore a = MakeScore({ { MakeMeasure({ MakeNote("C4", Fraction(0)) }) } });
     const SymScore b = MakeScore({ { MakeMeasure({ MakeNote("D4", Fraction(0)) }) } });
-    const CompareResult r = CompareScores(a, b);
+    const CompareResult r = CompareScores(a, b, {.alignment_policy = AlignmentPolicy::kIndependent});
     CHECK(r.cost == 4);
     CHECK(OpNames(r.op_list) == std::vector<std::string>{ "insbar", "delbar" });
 }
@@ -555,7 +555,10 @@ TEST_CASE("visual compare keeps repeated measures positionally aligned", "[engin
         == std::map<std::string, int>{ { "dotdel", 4 }, { "dotins", 1 } });
 
     const CompareResult musical = CompareScores(pred, gt, MusicalOptions());
-    CHECK(musical.cost > visual.cost);
+    CHECK(musical.cost == visual.cost);
+    auto legacy_options = MusicalOptions();
+    legacy_options.alignment_policy = AlignmentPolicy::kIndependent;
+    CHECK(CompareScores(pred, gt, legacy_options).cost > visual.cost);
 }
 
 TEST_CASE("visual compare keeps whole-measure insertion tails in one block", "[engine]")

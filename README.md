@@ -85,6 +85,15 @@ build/verosim --count-symbols --per-measure score.krn
 build/verosim --count-symbols --mode experimental score.mei
 ```
 
+For complete correspondence traces and human-reviewed matching evaluation, see
+[Matching review](docs/matching_review.md). The trace captures zero-cost links
+as well as edits, and the reviewer scores only labels a person has approved.
+The default `--alignment shared` matcher aligns bars together across staves,
+allows omitted staffs, and matches a merged bar against two adjacent bars when
+their combined performed duration agrees. Missing/extra boundaries cost one
+per matched staff and highlight the actual barline. Use
+`--alignment independent` to reproduce the previous matcher.
+
 Metric modes are `active` and `experimental`. The default is `active`: core
 notation plus ties, slurs, and articulations. `experimental` adds broader
 extras such as dynamics, hairpins, and ottavas and is intended for diagnostics.

@@ -88,6 +88,7 @@ TEST_CASE("ParseCommand defaults compare and count-symbols modes to active", "[c
     CHECK(compare->options.surface.mode == MetricMode::kActive);
     CHECK(compare->options.surface.layout == LayoutSurface::kNone);
     CHECK(compare->options.note_position_policy == NotePositionPolicy::kVisualEventOrder);
+    CHECK(compare->options.alignment_policy == AlignmentPolicy::kShared);
     CHECK(compare->options.typed_space_handling == TypedSpaceHandling::kSuppressStraddleFiller);
 
     error.clear();

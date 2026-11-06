@@ -1,0 +1,263 @@
+**kern	**kern
+*clefF4	*clefG2
+*k[]	*k[]
+*M2/4	*M2/4
+4r	16bLL
+.	16a
+.	16g#
+.	16aJJ
+=	=
+8AL	8cc
+8c 8e	8r
+8c 8e	16ddLL
+.	16cc
+8c 8eJ	16b
+.	16ccJJ
+=	=
+8AL	8ee
+8c 8e	8r
+8c 8e	16ffLL
+.	16ee
+8c 8eJ	16dd#
+.	16eeJJ
+=	=
+8AL	16bbLL
+.	16aa
+8c 8e	16gg#
+.	16aaJJ
+8A	16bbLL
+.	16aa
+8c 8eJ	16gg#
+.	16aaJJ
+=	=
+8AL	4ccc
+8c 8e	.
+8c 8e	8aaL
+8c 8eJ	8cccJ
+!!LO:LB:g=original
+=	=
+.	32qqgg#LLL
+.	32qqaaJJJ
+8EL	8bbL
+8B 8e	8ff# 8aa
+8B 8e	8ee 8gg#
+8B 8eJ	8ff# 8aaJ
+=	=
+.	32qqgg#LLL
+.	32qqaaJJJ
+8EL	8bbL
+8B 8e	8ff# 8aa
+8B 8e	8ee 8gg#
+8B 8eJ	8ff# 8aaJ
+=	=
+.	32qqgg#LLL
+.	32qqaaJJJ
+8EL	8bbL
+8B 8e	8ff# 8aa
+8BB	8ee 8gg#
+8BJ	8dd# 8ff#J
+=	=
+4E	4ee
+=:|!|:	=:|!|:
+4r	8cc 8eeL
+.	8dd 8ffJ
+=	=
+8CL	8ee 8ggL
+8c	8ee 8ggJ
+8E	16aaLL
+.	16gg
+8eJ	16ff
+.	16eeJJ
+=	=
+*	*^
+4G	4dd	8bL
+.	.	8gJ
+4r	8cc 8eeL	4ryy
+.	8dd 8ffJ	.
+*	*v	*v
+!!LO:LB:g=original
+=	=
+8CL	8ee 8ggL
+8c	8ee 8ggJ
+8E	16aaLL
+.	16gg
+8eJ	16ff
+.	16eeJJ
+=	=
+4G	4b 4dd
+4r	8a 8ccL
+.	8b 8ddJ
+=	=
+8AAL	8cc 8eeL
+8A	8cc 8eeJ
+8C	16ffLL
+.	16ee
+8cJ	16dd
+.	16ccJJ
+=	=
+*	*^
+4E	4b	8g#L
+.	.	8eJ
+4r	8a 8ccL	4ryy
+.	8b 8ddJ	.
+*	*v	*v
+=	=
+8AAL	8cc 8eeL
+8A	8cc 8eeJ
+8C	16ffLL
+.	16ee
+8cJ	16dd
+.	16ccJJ
+=	=
+4E	4g# 4b
+4r	16bLL
+.	16a
+.	16g#
+.	16aJJ
+=	=
+8AL	8cc
+8c 8e	8r
+8c 8e	16ddLL
+.	16cc
+8c 8eJ	16b
+.	16ccJJ
+!!LO:LB:g=original
+=	=
+8AL	8ee
+8c 8e	8r
+8c 8e	16ffLL
+.	16ee
+8c 8eJ	16dd#
+.	16eeJJ
+=	=
+8AL	16bbLL
+.	16aa
+8c 8e	16gg#
+.	16aaJJ
+8A	16bbLL
+.	16aa
+8c 8eJ	16gg#
+.	16aaJJ
+=	=
+8FL	4ccc
+8A 8d#	.
+8A 8d#	8aaL
+8A 8d#J	8bbJ
+=	=
+8EL	8cccL
+8A 8e	8bb
+8Dn	8aa
+8F 8BJ	8gg#J
+=	=
+8CL	8aaL
+8E 8A	8ee
+8D	8ff
+8F 8BJ	8ddJ
+=	=
+8E 8AL	4cc
+8E 8A	.
+8E 8G#	8.bL
+8E 8G#J	.
+.	32aLL
+.	32bJJJ
+=	=
+4AA 4A	4a
+!!LO:LB:g=original
+=:|!|:	=:|!|:
+*k[f#c#g#]	*k[f#c#g#]
+4r	8a 8aaL
+.	8b 8bbJ
+32qqAALLL	.
+32qqC#	.
+32qqEJJJ	.
+8AL	4a 4aa
+8A	.
+8A	8a 8aaL
+8AJ	8b 8bbJ
+=	=
+32qqAALLL	.
+32qqC#	.
+32qqEJJJ	.
+8AL	8cc# 8ccc#L
+8A	8b 8bb
+8A	8a 8aa
+8AJ	8g# 8gg#J
+=	=
+32qqDDLLL	.
+32qqEE	.
+32qqAAJJJ	.
+8DL	8f# 8ff#L
+8DJ	8g# 8gg#
+32qqDD#LLL	.
+32qqEE	.
+32qqAAJJJ	.
+8D#L	8a 8aa
+8D#J	8b 8bbJ
+=	=
+32qqEELLL	.
+32qqGG#	.
+32qqBBJJJ	.
+8EL	8g# 8gg#L
+8E	8e 8ee
+8E	8a 8aa
+8EJ	8b 8bbJ
+=	=
+32qqAALLL	.
+32qqC#	.
+32qqEJJJ	.
+8AL	4cc# 4ccc#
+8A	.
+8A	8a 8aaL
+8AJ	8b 8bbJ
+!!LO:LB:g=original
+=	=
+32qqAALLL	.
+32qqC#	.
+32qqEJJJ	.
+8AL	8cc# 8ccc#L
+8A	8b 8bb
+8A	8a 8aa
+8AJ	8g# 8gg#J
+=	=
+32qqDDLLL	.
+32qqEE	.
+32qqAAJJJ	.
+8DL	8f# 8ff#L
+8DJ	8b 8bb
+32qqEELLL	.
+32qqGG#	.
+32qqBBJJJ	.
+8EL	8g# 8gg#
+8EJ	8e 8eeJ
+=	=
+4AA	4a 4aa
+=:|!|:	=:|!|:
+4r	16ccc#LL
+.	16ddd
+.	16ccc#
+.	16bbJJ
+=	=
+8F#L	16aaLL
+.	16bb
+8A 8c#	16aa
+.	16gg#JJ
+8A 8c#	16ff#LL
+.	16aa
+8A 8c#J	16gg#
+.	16ff#JJ
+=	=
+8G#L	16ee#LL
+.	16ff#
+8B 8c#	16gg#
+.	16ee#JJ
+8B 8c#	16cc#LL
+.	16dd#
+8B 8c#J	16ee#
+.	16cc#JJ
+=	=
+*-	*-
+!!!RDF**kern: > = above
+!!!RDF**kern: < = below
+!!!RDF**kern: N = linked
+!!!RDF**kern: Z = editorial accidental, parentheses
+!!!RDF**kern: j = editorial accidental, brackets

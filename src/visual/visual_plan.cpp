@@ -170,6 +170,20 @@ VisualPlan BuildVisualPlan(const std::vector<EditOp> &ops)
         const std::string category = EditOpCategory(op);
 
         switch (op.name) {
+            case OpName::kBarlineIns:
+            case OpName::kBarlineDel: {
+                const bool insertion = op.name == OpName::kBarlineIns;
+                const SymMeasure &measure = *(insertion ? op.b.measure : op.a.measure);
+                SymbolLocator locator = measure.locator;
+                locator.offset = measure.content_duration;
+                locator.occurrence = -1;
+                AddMark(plan, insertion ? VisualSide::kGt : VisualSide::kPred,
+                    insertion ? VisualRole::kInserted : VisualRole::kDeleted,
+                    ElementRef{ .symbol = VisualSymbolRef{ .kind = VisualTargetKind::kBarline,
+                        .locator = locator, .barline_boundary = true } },
+                    op_name, category, op.cost);
+                continue;
+            }
             case OpName::kInsPart:
                 AddPartMarks(plan, VisualSide::kGt, VisualRole::kInserted, op.b.part, op_name,
                     category, op.cost);

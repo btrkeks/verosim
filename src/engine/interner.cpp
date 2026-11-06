@@ -33,6 +33,18 @@ std::string MeasureContentKey(const PreparedMeasure &measure)
 
 } // namespace
 
+PreparedMeasure PrepareMeasure(const SymMeasure &measure, StringInterner &interner)
+{
+    PreparedMeasure result;
+    for (const SymNote &note : measure.notes)
+        result.note_str_ids.push_back(interner.Intern(note.str()));
+    for (const SymExtra &extra : measure.extras)
+        result.extra_str_ids.push_back(interner.Intern(ExtraComparisonKey(extra)));
+    result.content_id = interner.Intern(MeasureContentKey(result));
+    result.notation_size = measure.notation_size();
+    return result;
+}
+
 PreparedScore PrepareScore(const SymScore &score, StringInterner &interner)
 {
     PreparedScore prepared;
@@ -42,17 +54,7 @@ PreparedScore PrepareScore(const SymScore &score, StringInterner &interner)
         PreparedPart &p = prepared.parts.emplace_back();
         p.measures.reserve(part.bar_list.size());
         for (const SymMeasure &measure : part.bar_list) {
-            PreparedMeasure &m = p.measures.emplace_back();
-            m.note_str_ids.reserve(measure.notes.size());
-            for (const SymNote &note : measure.notes) {
-                m.note_str_ids.push_back(interner.Intern(note.str()));
-            }
-            m.extra_str_ids.reserve(measure.extras.size());
-            for (const SymExtra &extra : measure.extras) {
-                m.extra_str_ids.push_back(interner.Intern(ExtraComparisonKey(extra)));
-            }
-            m.content_id = interner.Intern(MeasureContentKey(m));
-            m.notation_size = measure.notation_size();
+            p.measures.push_back(PrepareMeasure(measure, interner));
         }
     }
     return prepared;

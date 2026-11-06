@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "verosim/engine/note_diff.h"
+#include "verosim/engine/alignment_trace.h"
 
 namespace verosim {
 
@@ -176,6 +177,14 @@ bool SameVisualPitchAndGrace(const SymNote &orig, const SymNote &comp)
         && orig.note_is_grace == comp.note_is_grace;
 }
 
+std::string NoteRejection(const SymNote &orig, const SymNote &comp, bool musical)
+{
+    if (orig.pitches[0].step_octave != comp.pitches[0].step_octave) return "pitch_step_or_octave";
+    if (orig.note_is_grace != comp.note_is_grace) return "grace_status";
+    if (musical && AreDifferentEnough(orig.note_offset, comp.note_offset)) return "onset_tolerance";
+    return {};
+}
+
 long NotePairCost(const SymMeasure &orig, const SymMeasure &comp,
     const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep, int o, int c)
 {
@@ -193,7 +202,8 @@ void AppendNotePairOps(DiffResult &result, const SymMeasure &orig, const SymMeas
 }
 
 DiffResult NotesSetDistanceMusical(const SymMeasure &orig, const SymMeasure &comp,
-    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep)
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep,
+    const CompareOptions &options)
 {
     const auto required = [&](int o, int c) {
         const SymNote &on = orig.notes[o];
@@ -227,11 +237,52 @@ DiffResult NotesSetDistanceMusical(const SymMeasure &orig, const SymMeasure &com
         result.cost += cost;
         AppendNotePairOps(result, orig, comp, orig_prep, comp_prep, o, c);
     }
+    if (options.alignment_trace) {
+        AlignmentTrace &trace = *options.alignment_trace;
+        std::vector<bool> used(comp.notes.size(), false);
+        for (int o = 0; o < static_cast<int>(orig.notes.size()); ++o) {
+            const auto found = std::find_if(pairing.paired.begin(), pairing.paired.end(),
+                [o](const auto &pair) { return pair.first == o; });
+            std::vector<AlignmentAlternative> alternatives;
+            if (trace.WantsDetails(orig, comp)) {
+                for (int c = 0; c < static_cast<int>(comp.notes.size()); ++c) {
+                    std::string rejection = used[c] ? "already_paired"
+                        : NoteRejection(orig.notes[o], comp.notes[c], true);
+                    alternatives.push_back({ .action = "pair",
+                        .prediction = OpSide::Note(&orig.notes[o]),
+                        .ground_truth = OpSide::Note(&comp.notes[c]),
+                        .rejection = rejection,
+                        .local_cost = rejection.empty()
+                            ? std::optional<long>(NotePairCost(orig, comp, orig_prep, comp_prep, o, c))
+                            : std::nullopt,
+                        .preferred = rejection.empty() && preferred(o, c) });
+                }
+            }
+            if (found == pairing.paired.end()) {
+                trace.RecordUnmatched(OpSide::Note(&orig.notes[o]), true,
+                    "no_available_pitch_grace_onset_candidate", std::move(alternatives));
+            }
+            else {
+                const int c = found->second;
+                used[c] = true;
+                trace.decisions.push_back({ .prediction = OpSide::Note(&orig.notes[o]),
+                    .ground_truth = OpSide::Note(&comp.notes[c]),
+                    .algorithm = "musical_greedy",
+                    .reason = preferred(o, c) ? "first_preferred_duration" : "first_eligible_fallback",
+                    .local_cost = NotePairCost(orig, comp, orig_prep, comp_prep, o, c),
+                    .alternatives = std::move(alternatives) });
+            }
+        }
+        for (const int c : pairing.unpaired_comp) {
+            trace.RecordUnmatched(OpSide::Note(&comp.notes[c]), false, "left_after_greedy_pairing");
+        }
+    }
     return result;
 }
 
 DiffResult NotesSetDistanceVisual(const SymMeasure &orig, const SymMeasure &comp,
-    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep)
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep,
+    const CompareOptions &options)
 {
     const int m = static_cast<int>(orig.notes.size());
     const int n = static_cast<int>(comp.notes.size());
@@ -280,16 +331,59 @@ DiffResult NotesSetDistanceVisual(const SymMeasure &orig, const SymMeasure &comp
     int i = 0;
     int j = 0;
     while (i < m || j < n) {
+        std::vector<AlignmentAlternative> alternatives;
+        if (options.alignment_trace && options.alignment_trace->WantsDetails(orig, comp)) {
+            if (i < m) alternatives.push_back({ .action = "delete",
+                .prediction = OpSide::Note(&orig.notes[i]),
+                .local_cost = orig.notes[i].notation_size(),
+                .total_cost = orig.notes[i].notation_size() + cost_at(i + 1, j) });
+            if (j < n) alternatives.push_back({ .action = "insert",
+                .ground_truth = OpSide::Note(&comp.notes[j]),
+                .local_cost = comp.notes[j].notation_size(),
+                .total_cost = comp.notes[j].notation_size() + cost_at(i, j + 1) });
+            if (i < m) {
+                for (int c = 0; c < n; ++c) {
+                    const std::string rejection = c < j ? "earlier_in_sequence"
+                        : NoteRejection(orig.notes[i], comp.notes[c], false);
+                    const std::optional<long> local = rejection.empty()
+                        ? std::optional<long>(NotePairCost(orig, comp, orig_prep, comp_prep, i, c))
+                        : std::nullopt;
+                    alternatives.push_back({ .action = c == j ? "pair" : "candidate",
+                        .prediction = OpSide::Note(&orig.notes[i]),
+                        .ground_truth = OpSide::Note(&comp.notes[c]),
+                        .rejection = rejection, .local_cost = local,
+                        .total_cost = c == j && local.has_value()
+                            ? std::optional<long>(*local + cost_at(i + 1, j + 1)) : std::nullopt });
+                }
+            }
+        }
         switch (choice_at(i, j)) {
             case SeqChoice::kDel:
+                if (options.alignment_trace) {
+                    options.alignment_trace->RecordUnmatched(OpSide::Note(&orig.notes[i]), true,
+                        "note_dp_delete_tie_order_delete_insert_pair", std::move(alternatives), cost_at(i, j));
+                }
                 result.ops.push_back(NoteDelOp(orig.notes[i]));
                 ++i;
                 break;
             case SeqChoice::kIns:
+                if (options.alignment_trace) {
+                    options.alignment_trace->RecordUnmatched(OpSide::Note(&comp.notes[j]), false,
+                        "note_dp_insert_tie_order_delete_insert_pair", std::move(alternatives), cost_at(i, j));
+                }
                 result.ops.push_back(NoteInsOp(comp.notes[j]));
                 ++j;
                 break;
             case SeqChoice::kEdit:
+                if (options.alignment_trace) {
+                    options.alignment_trace->decisions.push_back({
+                        .prediction = OpSide::Note(&orig.notes[i]),
+                        .ground_truth = OpSide::Note(&comp.notes[j]),
+                        .algorithm = "visual_sequence_dp",
+                        .reason = "minimum_suffix_cost_tie_order_delete_insert_pair",
+                        .local_cost = NotePairCost(orig, comp, orig_prep, comp_prep, i, j),
+                        .total_cost = cost_at(i, j), .alternatives = std::move(alternatives) });
+                }
                 AppendNotePairOps(result, orig, comp, orig_prep, comp_prep, i, j);
                 ++i;
                 ++j;
@@ -307,15 +401,16 @@ DiffResult NotesSetDistance(const SymMeasure &orig, const SymMeasure &comp,
 {
     switch (options.note_position_policy) {
         case NotePositionPolicy::kMusicalOnset:
-            return NotesSetDistanceMusical(orig, comp, orig_prep, comp_prep);
+            return NotesSetDistanceMusical(orig, comp, orig_prep, comp_prep, options);
         case NotePositionPolicy::kVisualEventOrder:
-            return NotesSetDistanceVisual(orig, comp, orig_prep, comp_prep);
+            return NotesSetDistanceVisual(orig, comp, orig_prep, comp_prep, options);
     }
-    return NotesSetDistanceVisual(orig, comp, orig_prep, comp_prep);
+    return NotesSetDistanceVisual(orig, comp, orig_prep, comp_prep, options);
 }
 
 DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,
-    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep)
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep,
+    const CompareOptions &options)
 {
     const auto required = [&](int o, int c) {
         const SymExtra &oe = orig.extras[o];
@@ -357,6 +452,9 @@ DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,
     DiffResult result;
     for (const int o : pairing.unpaired_orig) {
         const SymExtra &e = orig.extras[o];
+        if (options.alignment_trace) {
+            options.alignment_trace->RecordUnmatched(OpSide::Extra(&e), true, "no_available_kind_onset_candidate");
+        }
         const long size = e.notation_size();
         result.cost += size;
         result.ops.push_back(EditOp{
@@ -364,12 +462,24 @@ DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,
     }
     for (const int c : pairing.unpaired_comp) {
         const SymExtra &e = comp.extras[c];
+        if (options.alignment_trace) {
+            options.alignment_trace->RecordUnmatched(OpSide::Extra(&e), false, "left_after_greedy_pairing");
+        }
         const long size = e.notation_size();
         result.cost += size;
         result.ops.push_back(EditOp{
             .name = OpName::kExtraIns, .a = OpSide::None(), .b = OpSide::Extra(&e), .cost = size });
     }
     for (const auto &[o, c] : pairing.paired) {
+        if (options.alignment_trace) {
+            options.alignment_trace->decisions.push_back({
+                .prediction = OpSide::Extra(&orig.extras[o]),
+                .ground_truth = OpSide::Extra(&comp.extras[c]),
+                .algorithm = "extras_greedy",
+                .reason = preferred(o, c) ? "first_preferred_candidate" : "first_eligible_fallback",
+                .local_cost = orig_prep.extra_str_ids[o] == comp_prep.extra_str_ids[c] ? 0
+                    : AnnotatedExtraDiffCost(orig.extras[o], comp.extras[c]) });
+        }
         if (orig_prep.extra_str_ids[o] == comp_prep.extra_str_ids[c]) continue; // AnnExtra.__eq__
         DiffResult sub = AnnotatedExtraDiff(orig.extras[o], comp.extras[c]);
         result.cost += sub.cost;

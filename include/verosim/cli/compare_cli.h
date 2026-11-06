@@ -15,19 +15,25 @@ struct CompareCliOptions {
     bool emit_ops = false; // include the per-edit operation list (large)
     MetricSurface surface;
     NotePositionPolicy note_position_policy = NotePositionPolicy::kVisualEventOrder;
+    AlignmentPolicy alignment_policy = kDefaultAlignmentPolicy;
     TypedSpaceHandling typed_space_handling = TypedSpaceHandling::kSuppressStraddleFiller;
     std::string evaluation_profile_path;
     std::shared_ptr<const EvaluationProfile> evaluation_profile;
     bool mode_was_set = false;
     bool layout_was_set = false;
+    std::string trace_json_path;
+    std::set<int> trace_measures;
 };
 
 inline CompareRunOptions RunOptionsForCli(const CompareCliOptions &options)
 {
     return CompareRunOptions{ .surface = options.surface,
         .note_position_policy = options.note_position_policy,
+        .alignment_policy = options.alignment_policy,
         .typed_space_handling = options.typed_space_handling,
-        .evaluation_profile = options.evaluation_profile };
+        .evaluation_profile = options.evaluation_profile,
+        .trace_alignment = !options.trace_json_path.empty(),
+        .trace_measures = options.trace_measures };
 }
 
 // Loads the external profile exactly once at command preflight. With no

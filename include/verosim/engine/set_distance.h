@@ -32,7 +32,8 @@ long NotesSetDistanceCost(const SymMeasure &orig, const SymMeasure &comp,
 
 // Comparison._extras_set_distance (comparison.py:1234-1337).
 DiffResult ExtrasSetDistance(const SymMeasure &orig, const SymMeasure &comp,
-    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep);
+    const PreparedMeasure &orig_prep, const PreparedMeasure &comp_prep,
+    const CompareOptions &options = CompareOptions());
 
 // Cost-only variant of ExtrasSetDistance.
 long ExtrasSetDistanceCost(const SymMeasure &orig, const SymMeasure &comp,

@@ -208,15 +208,18 @@ void Extractor::ApplyPendingLayoutBreaks(
     }
 }
 
-void Extractor::CollectStaffLayerEvents(const vrv::Staff *staff, std::vector<Event> &events,
+Fraction Extractor::CollectStaffLayerEvents(const vrv::Staff *staff, std::vector<Event> &events,
     std::vector<SymExtra> &extras, StaffState &state)
 {
+    Fraction duration;
     for (const vrv::Object *staffChild : staff->GetChildren()) {
         if (!staffChild->Is(vrv::LAYER)) continue;
         Fraction cursor(0);
         std::vector<const vrv::Tuplet *> tupletStack;
         CollectLayerEvents(staffChild, events, extras, cursor, state, tupletStack, nullptr);
+        if (cursor > duration) duration = cursor;
     }
+    return duration;
 }
 
 Fraction Extractor::MeasureSpan(const StaffState &state, const std::vector<Event> &events) const
@@ -268,12 +271,12 @@ void Extractor::HandleMeasure(const vrv::Measure *measure)
         std::vector<SymExtra> extras;
         ApplyPendingLayoutBreaks(measure, state, extras);
         ApplyPendingSignatures(state, extras);
-        CollectStaffLayerEvents(staff, events, extras, state);
+        const Fraction contentDuration = CollectStaffLayerEvents(staff, events, extras, state);
         RegisterEventLocations(n, events);
         CollectControlExtras(measure, n, events, extras);
         const Fraction measureSpan = MeasureSpan(state, events);
         CollectMeasureBarlines(measure, n, measureSpan, extras);
-        EmitMeasure(measure, n, std::move(events), std::move(extras), state);
+        EmitMeasure(measure, n, std::move(events), std::move(extras), state, contentDuration);
         FinishStaffMeasure(state, measureSpan);
     }
 }

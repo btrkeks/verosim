@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "verosim/engine/set_distance.h"
+#include "verosim/engine/alignment_trace.h"
 
 namespace verosim {
 
@@ -19,7 +20,7 @@ DiffResult InsideBarDiff(const SymMeasure &orig, const SymMeasure &comp,
     const CompareOptions &options)
 {
     DiffResult result = NotesSetDistance(orig, comp, orig_prep, comp_prep, options);
-    DiffResult extras = ExtrasSetDistance(orig, comp, orig_prep, comp_prep);
+    DiffResult extras = ExtrasSetDistance(orig, comp, orig_prep, comp_prep, options);
     result.cost += extras.cost;
     result.ops.insert(result.ops.end(), std::make_move_iterator(extras.ops.begin()),
         std::make_move_iterator(extras.ops.end()));
@@ -121,8 +122,31 @@ DiffResult BlockDiffLin(const SymPart &orig_part, const PreparedPart &orig_prep,
     int i = 0, j = 0;
     while (i < m || j < n) {
         std::vector<EditOp> &group = groups.emplace_back();
+        std::vector<AlignmentAlternative> alternatives;
+        if (options.alignment_trace && i < m && j < n
+            && options.alignment_trace->WantsDetails(orig_measure(i), comp_measure(j))) {
+            const OpSide a = OpSide::Measure(&orig_measure(i));
+            const OpSide b = OpSide::Measure(&comp_measure(j));
+            const long inside = orig_pm(i).content_id == comp_pm(j).content_id ? 0
+                : InsideBarCost(orig_measure(i), comp_measure(j), orig_pm(i), comp_pm(j), options);
+            alternatives = {
+                { .action = "delete", .prediction = a,
+                    .local_cost = orig_pm(i).notation_size,
+                    .total_cost = orig_pm(i).notation_size + cost_at(i + 1, j) },
+                { .action = "insert", .ground_truth = b,
+                    .local_cost = comp_pm(j).notation_size,
+                    .total_cost = comp_pm(j).notation_size + cost_at(i, j + 1) },
+                { .action = "pair", .prediction = a, .ground_truth = b,
+                    .local_cost = inside, .total_cost = inside + cost_at(i + 1, j + 1) },
+            };
+        }
         switch (choice_at(i, j)) {
             case Choice::kDelBar:
+                if (options.alignment_trace) {
+                    options.alignment_trace->RecordUnmatched(OpSide::Measure(&orig_measure(i)),
+                        true, "bar_dp_delete_tie_order_delete_insert_pair",
+                        std::move(alternatives), cost_at(i, j));
+                }
                 group.push_back(EditOp{ .name = OpName::kDelBar,
                     .a = OpSide::Measure(&orig_measure(i)),
                     .b = OpSide::None(),
@@ -130,6 +154,11 @@ DiffResult BlockDiffLin(const SymPart &orig_part, const PreparedPart &orig_prep,
                 ++i;
                 break;
             case Choice::kInsBar:
+                if (options.alignment_trace) {
+                    options.alignment_trace->RecordUnmatched(OpSide::Measure(&comp_measure(j)),
+                        false, "bar_dp_insert_tie_order_delete_insert_pair",
+                        std::move(alternatives), cost_at(i, j));
+                }
                 group.push_back(EditOp{ .name = OpName::kInsBar,
                     .a = OpSide::None(),
                     .b = OpSide::Measure(&comp_measure(j)),
@@ -140,6 +169,19 @@ DiffResult BlockDiffLin(const SymPart &orig_part, const PreparedPart &orig_prep,
                 if (orig_pm(i).content_id != comp_pm(j).content_id) {
                     group = InsideBarDiff(orig_measure(i), comp_measure(j), orig_pm(i), comp_pm(j), options)
                                 .ops;
+                    if (options.alignment_trace) {
+                        options.alignment_trace->decisions.push_back({
+                            .prediction = OpSide::Measure(&orig_measure(i)),
+                            .ground_truth = OpSide::Measure(&comp_measure(j)),
+                            .algorithm = "bar_sequence_dp",
+                            .reason = "minimum_suffix_cost_tie_order_delete_insert_pair",
+                            .local_cost = cost_at(i, j) - cost_at(i + 1, j + 1),
+                            .total_cost = cost_at(i, j), .alternatives = std::move(alternatives) });
+                    }
+                }
+                else if (options.alignment_trace) {
+                    options.alignment_trace->RecordEqualMeasure(orig_measure(i), comp_measure(j),
+                        "bar_dp_content_equality_shortcut", std::move(alternatives), cost_at(i, j));
                 }
                 ++i;
                 ++j;

@@ -19,6 +19,8 @@ enum class OpName {
     kDelPart,
     kInsBar,
     kDelBar,
+    kBarlineIns,
+    kBarlineDel,
     kNoteIns,
     kNoteDel,
     kInsPitch,

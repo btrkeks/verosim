@@ -6,6 +6,7 @@
 
 #include "engine_fixtures.h"
 #include "verosim/app/score_pipeline.h"
+#include "verosim/engine/alignment_trace.h"
 #include "verosim/extraction/vrv_bridge.h"
 
 using namespace verosim;
@@ -40,6 +41,81 @@ SymScore OneNoteScore(const std::string &pitch = "C4")
 }
 
 } // namespace
+
+TEST_CASE("Mozart missing boundary aligns the pickup and full bar on both staffs",
+    "[pipeline][shared-alignment][split-merge]")
+{
+    VrvBridge bridge;
+    CompareRunOptions options;
+    options.surface.layout = LayoutSurface::kSystemBreaks;
+    options.trace_alignment = true;
+    const std::string base = std::string(VEROSIM_TEST_FIXTURE_DIR) + "/matching/mozart-k331-p13.";
+    const auto pred = LoadAndExtractScoreFile(bridge, base + "prediction.krn", ExtractOptionsForRun(options));
+    const auto gt = LoadAndExtractScoreFile(bridge, base + "ground_truth.krn", ExtractOptionsForRun(options));
+    REQUIRE(pred.ok);
+    REQUIRE(gt.ok);
+    const auto comparison = CompareLoadedScores(pred.score, gt.score, options);
+    CHECK(options.alignment_policy == AlignmentPolicy::kShared);
+    options.alignment_policy = AlignmentPolicy::kIndependent;
+    const auto legacy = CompareLoadedScores(pred.score, gt.score, options);
+    CHECK(legacy.diff.cost > comparison.diff.cost);
+    int groups = 0, boundaries = 0;
+    for (const auto &d : comparison.alignment_trace->decisions)
+        if (!d.prediction_group.empty())
+        {
+            ++groups;
+            REQUIRE(d.prediction_group.size() == 1);
+            REQUIRE(d.ground_truth_group.size() == 2);
+            CHECK(d.prediction_group[0].measure->locator.measure_idx == 26);
+            CHECK(d.ground_truth_group[0].measure->locator.measure_idx == 26);
+            CHECK(d.ground_truth_group[1].measure->locator.measure_idx == 27);
+        }
+    CHECK(groups == 2);
+    for (const auto &op : comparison.diff.op_list)
+    {
+        CHECK(op.name != OpName::kInsBar);
+        CHECK(op.name != OpName::kDelBar);
+        if (op.name == OpName::kBarlineIns) ++boundaries;
+    }
+    CHECK(boundaries == 2);
+    CHECK(comparison.edit_distances.at("wrong note OMR-ED") > 0);
+    CHECK(comparison.edit_distances.at("wrong accidental OMR-ED") > 0);
+}
+
+TEST_CASE("shared boundary penalties follow the barline evaluation profile",
+    "[evaluation-profile][pipeline][split-merge]")
+{
+    auto single = MakeMeasure({MakeNote("C4", Fraction(0)), MakeNote("E4", Fraction(1))});
+    auto first = MakeMeasure({MakeNote("C4", Fraction(0))});
+    auto second = MakeMeasure({MakeNote("E4", Fraction(0))});
+    single.content_duration = Fraction(2);
+    first.content_duration = second.content_duration = Fraction(1);
+    const auto pred = MakeScore({{single}}), gt = MakeScore({{first, second}});
+    CompareRunOptions options;
+    options.alignment_policy = AlignmentPolicy::kShared;
+    options.evaluation_profile = TestProfile();
+    CHECK(CompareLoadedScores(pred, gt, options).diff.cost == 1);
+    options.evaluation_profile = TestProfile({EvaluationFeature::kBarline});
+    const auto ignored = CompareLoadedScores(pred, gt, options);
+    CHECK(ignored.diff.cost == 0);
+    CHECK(ignored.diff.op_list.empty());
+}
+
+TEST_CASE("span timing includes hidden trailing carriers and preserves short pickups",
+    "[pipeline][split-merge]")
+{
+    VrvBridge bridge;
+    const std::string kern = "**kern\n*M4/4\n=1\n8c\n8d\n=2\n4e\n4ryy\n=3\n4f\n*-\n";
+    const auto score = LoadAndExtractKernData(bridge, kern, "span-timing", ExtractOptions{});
+    REQUIRE(score.ok);
+    REQUIRE(score.score.parts.size() == 1);
+    const auto &bars = score.score.parts[0].bar_list;
+    REQUIRE(bars.size() == 3);
+    CHECK(bars[0].content_duration == Fraction(1));
+    CHECK(bars[1].content_duration == Fraction(2));
+    REQUIRE(bars[1].notes.size() == 1);
+    CHECK(bars[2].content_duration == Fraction(1));
+}
 
 TEST_CASE("evaluation profiles force maximal extraction while legacy options remain unchanged",
     "[evaluation-profile][pipeline]")

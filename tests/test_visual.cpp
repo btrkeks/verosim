@@ -26,6 +26,32 @@
 using namespace verosim;
 using namespace verosim::test;
 
+TEST_CASE("missing boundary marks target the barline instead of the full measure",
+    "[visual][split-merge]")
+{
+    auto measure = MakeMeasure({MakeNote("C4", Fraction(0))});
+    measure.vrv_id = "measure-L4";
+    measure.locator.measure_idx = 0;
+    measure.locator.measure_vrv_id = measure.vrv_id;
+    measure.content_duration = Fraction(1);
+    const auto plan = BuildVisualPlan({{.name = OpName::kBarlineIns,
+        .b = OpSide::Measure(&measure), .cost = 1}});
+    REQUIRE(plan.marks.size() == 1);
+    CHECK(plan.marks[0].target.kind == VisualTargetKind::kBarline);
+    CHECK(plan.marks[0].category == "wrong barline OMR-ED");
+    const std::string svg = R"(<svg xmlns="http://www.w3.org/2000/svg">
+      <g class="measure" id="measure-L4">
+        <g class="barLine" id="left"><path/></g>
+        <g class="note" id="note-L5"><path/></g>
+        <g class="barLine" id="right"><path/></g>
+      </g></svg>)";
+    const auto resolved = ResolveVisualMarks(svg, plan.marks);
+    REQUIRE(resolved.parse_ok);
+    REQUIRE(resolved.marks.size() == 1);
+    REQUIRE(resolved.marks[0].selectors.size() == 1);
+    CHECK(resolved.marks[0].selectors[0].value == "right");
+}
+
 namespace {
 
 std::shared_ptr<const EvaluationProfile> VisualTestProfile(

@@ -37,7 +37,7 @@ private:
     void ApplyPendingSignatures(StaffState &state, std::vector<SymExtra> &extras);
     void ApplyPendingLayoutBreaks(const vrv::Measure *measure, StaffState &state,
         std::vector<SymExtra> &extras);
-    void CollectStaffLayerEvents(const vrv::Staff *staff, std::vector<Event> &events,
+    Fraction CollectStaffLayerEvents(const vrv::Staff *staff, std::vector<Event> &events,
         std::vector<SymExtra> &extras, StaffState &state);
     Fraction MeasureSpan(const StaffState &state, const std::vector<Event> &events) const;
     void FinishStaffMeasure(StaffState &state, const Fraction &measureSpan);
@@ -61,7 +61,8 @@ private:
     Event MakeCarrierEvent(const vrv::Object *obj, const Fraction &cursor, StaffState &state,
         const std::vector<const vrv::Tuplet *> &tupletStack, const vrv::Object *beam);
     void EmitMeasure(const vrv::Measure *measure, const std::string &staffN,
-        std::vector<Event> events, std::vector<SymExtra> extras, StaffState &state);
+        std::vector<Event> events, std::vector<SymExtra> extras, StaffState &state,
+        const Fraction &contentDuration);
     std::vector<SymNote> BuildSymNotes(const std::vector<Event> &events,
         const std::vector<std::vector<BeamValue>> &beamings,
         const std::vector<std::vector<TupletValue>> &tuplets,

@@ -11,6 +11,13 @@
 
 namespace verosim {
 
+struct AlignmentTrace;
+
+enum class AlignmentPolicy { kIndependent, kShared };
+inline constexpr AlignmentPolicy kDefaultAlignmentPolicy = AlignmentPolicy::kShared;
+std::string_view AlignmentPolicyName(AlignmentPolicy policy);
+std::optional<AlignmentPolicy> ParseAlignmentPolicy(std::string_view text);
+
 enum class NotePositionPolicy {
     kVisualEventOrder,
     kMusicalOnset,
@@ -21,6 +28,9 @@ std::optional<NotePositionPolicy> ParseNotePositionPolicy(std::string_view text)
 
 struct CompareOptions {
     NotePositionPolicy note_position_policy = NotePositionPolicy::kVisualEventOrder;
+    AlignmentPolicy alignment_policy = kDefaultAlignmentPolicy;
+    AlignmentTrace *alignment_trace = nullptr;
+    bool score_barline_boundaries = true;
 };
 
 struct CompareResult {

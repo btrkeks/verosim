@@ -369,7 +369,8 @@ void FillSharedNoteFields(SymNote &sn, const Event &ev,
 } // namespace
 
 void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staffN,
-    std::vector<Event> events, std::vector<SymExtra> extras, StaffState &state)
+    std::vector<Event> events, std::vector<SymExtra> extras, StaffState &state,
+    const Fraction &contentDuration)
 {
     const std::vector<std::vector<BeamValue>> rawBeams = BuildRawBeamLists(&doc_, events);
     const std::vector<RawEvent> raw = BuildRawEvents(events, rawBeams);
@@ -383,6 +384,7 @@ void Extractor::EmitMeasure(const vrv::Measure *measure, const std::string &staf
     const std::size_t emittedMeasureIdx = part.bar_list.size();
 
     SymMeasure symMeasure;
+    symMeasure.content_duration = contentDuration;
     symMeasure.vrv_id = measure->GetID();
     symMeasure.measure_n = measure->GetN();
     const SymbolLocator measureLocator{ .part_idx = partIdx,

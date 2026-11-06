@@ -56,6 +56,8 @@ add_library(verosim_model STATIC
 verosim_target_defaults(verosim_model)
 
 add_library(verosim_engine STATIC
+    src/engine/alignment_trace.cpp
+    src/engine/score_alignment.cpp
     src/engine/interner.cpp
     src/engine/myers.cpp
     src/engine/note_diff.cpp
@@ -118,6 +120,7 @@ target_link_libraries(verosim_visual PUBLIC
     verosim_support)
 
 add_library(verosim_cli STATIC
+    src/cli/alignment_trace_json.cpp
     src/cli/args.cpp
     src/cli/list_io.cpp
     src/cli/batch.cpp

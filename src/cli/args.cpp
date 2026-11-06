@@ -1,6 +1,7 @@
 #include "verosim/cli/args.h"
 
 #include <cmath>
+#include <charconv>
 #include <cstddef>
 #include <exception>
 
@@ -37,7 +38,8 @@ std::optional<std::string> FirstCommandFlag(const std::vector<std::string> &args
         else if (args[i] == "--mode" || args[i] == "--detail"
             || args[i] == "--layout" || args[i] == "--note-position"
             || args[i] == "--typed-space-handling"
-            || args[i] == "--evaluation-profile") {
+            || args[i] == "--evaluation-profile" || args[i] == "--trace-json"
+            || args[i] == "--trace-bars" || args[i] == "--alignment") {
             i += 2;
         }
         else {
@@ -156,17 +158,66 @@ bool StripEvaluationProfileOption(
 }
 
 bool StripComparisonOptionsForCommand(std::vector<std::string> &args, CompareCliOptions &options,
-    bool allow_ops, std::string &error)
+    bool allow_ops, std::string &error, bool allow_trace = false)
 {
     if (!StripEvaluationProfileOption(args, options, error)) return false;
     for (std::size_t i = 0; i < args.size();) {
-        if (args[i] == "--ops") {
+        if (args[i] == "--trace-json" || args[i] == "--trace-bars") {
+            if (!allow_trace) {
+                error = "matching traces are supported only for a single pair comparison";
+                return false;
+            }
+            const std::string flag = args[i];
+            if (MissingValue(args, i) || !IsValue(args[i + 1])) {
+                error = flag + " requires a value";
+                return false;
+            }
+            const std::string value = args[i + 1];
+            if (flag == "--trace-json") {
+                if (!options.trace_json_path.empty()) {
+                    error = "--trace-json may be specified only once";
+                    return false;
+                }
+                options.trace_json_path = value;
+            }
+            else {
+                std::size_t start = 0;
+                do {
+                    const std::size_t end = value.find(',', start);
+                    const std::string token = value.substr(start, end - start);
+                    int index = -1;
+                    const auto parsed = std::from_chars(token.data(), token.data() + token.size(), index);
+                    if (parsed.ec != std::errc() || parsed.ptr != token.data() + token.size() || index < 0) {
+                        error = "--trace-bars requires comma-separated non-negative source measure indices";
+                        return false;
+                    }
+                    options.trace_measures.insert(index);
+                    if (end == std::string::npos) break;
+                    start = end + 1;
+                } while (start <= value.size());
+            }
+            EraseArgs(args, i, 2);
+        }
+        else if (args[i] == "--ops") {
             if (!allow_ops) {
                 error = "--ops is not valid for this command";
                 return false;
             }
             options.emit_ops = true;
             EraseArgs(args, i, 1);
+        }
+        else if (args[i] == "--alignment") {
+            if (MissingValue(args, i)) {
+                error = "--alignment requires independent or shared";
+                return false;
+            }
+            const auto parsed = ParseAlignmentPolicy(args[i + 1]);
+            if (!parsed) {
+                error = "unknown alignment " + args[i + 1];
+                return false;
+            }
+            options.alignment_policy = *parsed;
+            EraseArgs(args, i, 2);
         }
         else if (args[i] == "--note-position") {
             if (MissingValue(args, i)) {
@@ -204,6 +255,10 @@ bool StripComparisonOptionsForCommand(std::vector<std::string> &args, CompareCli
     }
     if (!options.evaluation_profile_path.empty() && options.surface.score_display_staff) {
         error = kDisplayStaffProfileConflict;
+        return false;
+    }
+    if (!options.trace_measures.empty() && options.trace_json_path.empty()) {
+        error = "--trace-bars requires --trace-json";
         return false;
     }
     if (!options.evaluation_profile_path.empty()
@@ -348,7 +403,7 @@ std::optional<Command> ParseCommand(const std::vector<std::string> &args, std::s
 
     CompareCommand command;
     std::vector<std::string> stripped = args;
-    if (!StripComparisonOptionsForCommand(stripped, command.options, true, error)) return std::nullopt;
+    if (!StripComparisonOptionsForCommand(stripped, command.options, true, error, true)) return std::nullopt;
     if (stripped.size() != 2 || !IsValue(stripped[0]) || !IsValue(stripped[1])) {
         if (error.empty()) error = "invalid compare arguments";
         return std::nullopt;
